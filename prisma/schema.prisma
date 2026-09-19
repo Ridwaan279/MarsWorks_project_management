@@ -1,0 +1,177 @@
+// MarsWorks Mission Control — canonical schema.
+// This database is the single source of truth. GitHub Projects and Google
+// Sheets are synchronised surfaces that read from and write back to it.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// A MarsWorks sub-team (Chassis, Avionics, Science, ...).
+model Team {
+  id          String   @id @default(cuid())
+  key         String   @unique // short prefix used in task keys, e.g. "CHS"
+  name        String
+  description String?
+  colour      String   @default("#6366f1")
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members Member[]
+  tasks   Task[]
+}
+
+/// A person on the project. Identity is anchored on their GitHub login so the
+/// same human maps cleanly across the app, GitHub Projects and the sheets.
+model Member {
+  id          String   @id @default(cuid())
+  name        String
+  email       String?  @unique
+  githubLogin String?  @unique
+  avatarUrl   String?
+  teamId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team          Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  assignedTasks Task[] @relation("TaskAssignee")
+
+  @@index([teamId])
+}
+
+/// A dated checkpoint the whole project is measured against (design freeze,
+/// field trial, competition day).
+model Milestone {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  targetDate  DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tasks Task[]
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  key         String       @unique // e.g. "CHS-12"
+  title       String
+  description String?      @db.Text
+  status      TaskStatus   @default(BACKLOG)
+  priority    TaskPriority @default(MEDIUM)
+
+  teamId      String
+  assigneeId  String?
+  milestoneId String?
+
+  /// Earliest the work can begin regardless of predecessors (part delivery,
+  /// lab access). The scheduler treats this as a hard lower bound.
+  earliestStart DateTime?
+  /// Planned effort in calendar days. Drives the critical-path calculation.
+  estimateDays  Int       @default(1)
+  /// Self-reported completion, 0-100.
+  progress      Int       @default(0)
+
+  /// Ordering within its Kanban column. Sparse (gaps of 1000) so a drag only
+  /// rewrites the row that moved.
+  boardOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team      Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignee  Member?    @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  milestone Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  links         TaskLink[]
+  externalLinks ExternalLink[]
+
+  /// Edges where this task must finish before another can start.
+  blocks    TaskDependency[] @relation("Predecessor")
+  /// Edges where another task must finish before this one can start.
+  blockedBy TaskDependency[] @relation("Successor")
+
+  @@index([teamId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([milestoneId])
+}
+
+/// A reference attached to a task: CAD file, datasheet, PR, test report.
+model TaskLink {
+  id        String   @id @default(cuid())
+  taskId    String
+  url       String
+  label     String
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+/// Finish-to-start dependency edge. The predecessor must complete before the
+/// successor may begin. Cross-team edges are what make delay impact visible.
+model TaskDependency {
+  id            String   @id @default(cuid())
+  predecessorId String
+  successorId   String
+  /// Mandatory gap in days between predecessor finish and successor start
+  /// (curing, shipping, procurement).
+  lagDays       Int      @default(0)
+  note          String?
+  createdAt     DateTime @default(now())
+
+  predecessor Task @relation("Predecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successor   Task @relation("Successor", fields: [successorId], references: [id], onDelete: Cascade)
+
+  @@unique([predecessorId, successorId])
+  @@index([predecessorId])
+  @@index([successorId])
+}
+
+enum ExternalSystem {
+  GITHUB
+  SHEETS
+}
+
+/// Maps a canonical task to its mirror in an external system. `contentHash`
+/// records what we last wrote out, so the webhook echo of our own write can be
+/// recognised and dropped instead of looping.
+model ExternalLink {
+  id           String         @id @default(cuid())
+  taskId       String
+  system       ExternalSystem
+  externalId   String
+  externalUrl  String?
+  contentHash  String?
+  lastSyncedAt DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([system, externalId])
+  @@index([taskId])
+}
