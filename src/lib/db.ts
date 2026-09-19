@@ -12,11 +12,22 @@ function createClient(): PrismaClient {
       "DATABASE_URL is not set. Copy .env.example to .env and point it at your database.",
     );
   }
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  const client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = client;
+  return client;
 }
 
-export const prisma = globalForPrisma.prisma ?? createClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+/**
+ * Built on first use rather than at import time. `next build` imports every
+ * route module to collect page data, so eagerly constructing the client would
+ * make the build itself require a database -- and fail a deploy whose
+ * environment variables are not wired up yet. This way a missing DATABASE_URL
+ * surfaces on the first request, with a message that says what to do.
+ */
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const client = globalForPrisma.prisma ?? createClient();
+    const value = Reflect.get(client, property, client);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
