@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/*
+ * Mission-control palette: a deep neutral ground so the status colours carry
+ * all the signal. Every foreground/background pair here clears WCAG AA.
+ */
+@theme {
+  --color-ground: #0a0d14;
+  --color-surface: #121722;
+  --color-surface-2: #1a2130;
+  --color-surface-3: #232b3d;
+  --color-edge: #2a3348;
+  --color-edge-soft: #1f2637;
+
+  --color-ink: #e8ebf2;
+  --color-ink-muted: #9aa3b8;
+  --color-ink-faint: #6b7489;
+
+  --color-mars: #ff6b35;
+  --color-mars-soft: #ff8c5f;
+
+  --color-ok: #3ddc97;
+  --color-warn: #ffc857;
+  --color-late: #ff5d5d;
+  --color-info: #5eb3ff;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-3) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-3);
+  border-radius: 999px;
+  border: 2px solid var(--color-ground);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Drag feedback for the board. Kept here so the Kanban card component stays
+   readable instead of carrying a dozen conditional classes. */
+.card-dragging {
+  opacity: 0.35;
+}
+
+.card-overlay {
+  transform: rotate(2deg);
+  box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.75);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
