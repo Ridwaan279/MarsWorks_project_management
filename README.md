@@ -57,12 +57,23 @@ with what the timeline shows.
 Requires Node 22+ and a Postgres database.
 
 ```bash
-npm install
+npm install                   # also generates the Prisma client (postinstall)
 cp .env.example .env          # point DATABASE_URL at your database
 npx prisma db push            # create the tables
-npm run db:seed               # load representative data (destructive)
+npm run db:seed               # load representative data (DESTRUCTIVE: wipes tables)
 npm run dev                   # http://localhost:3000
 ```
+
+The Prisma client is generated code under `src/generated/`, which is gitignored
+and therefore absent on a fresh clone. `npm install` generates it via the
+`postinstall` script. If you ever see:
+
+```
+Error: Cannot find module '../src/generated/prisma'
+```
+
+the client has not been generated yet -- run `npx prisma generate`. Note that
+in Prisma 7 `prisma db push` does *not* generate the client, unlike Prisma 6.
 
 Other commands:
 
