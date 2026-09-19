@@ -135,9 +135,22 @@ npm run db:studio # browse the data
 
 ## Deploying
 
-**Database — Supabase.** Create a project, then take the connection string from
-*Project Settings → Database → Connection string → Session pooler* (this is the
-one that works from serverless functions). Put it in `DATABASE_URL`.
+**Database — Supabase.** Two connection strings, from *Project Settings →
+Database → Connection string*:
+
+| Variable | Pooler | Port | Used by |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | Transaction | 6543 | The application. Built for serverless, where every concurrent instance opens its own pool. |
+| `DIRECT_URL` | Session | 5432 | `prisma db push` and `npm run db:seed` only. DDL and Prisma's advisory locks do not survive a transaction pooler. |
+
+`DIRECT_URL` is only needed where you run migrations, normally your own
+machine; it does not need to be set on Vercel. Do not use Supabase's *direct*
+connection for either: it is IPv6-only and unreachable from Vercel.
+
+Session mode allows 15 clients for the whole project, so pointing the
+application at it exhausts the pool and locks everything else out with
+`max clients reached in session mode`. `DATABASE_POOL_MAX` caps how many
+connections one process may hold (3 on Vercel, 5 locally).
 
 **App — Vercel.** Import the repository, add `DATABASE_URL` as an environment
 variable, and deploy. `npm run build` runs `prisma generate` first, so no extra

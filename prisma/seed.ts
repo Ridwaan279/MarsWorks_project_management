@@ -25,8 +25,15 @@ try {
   // rely on the ambient environment
 }
 
+// Seeding writes thousands of rows and wants a session-mode connection, the
+// same one migrations use, rather than the app's transaction pooler.
+const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("Set DATABASE_URL (and optionally DIRECT_URL) before seeding.");
+}
+
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+  adapter: new PrismaPg({ connectionString, max: 4 }),
 });
 
 interface ImportedTask {

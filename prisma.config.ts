@@ -10,7 +10,12 @@ try {
   // no local .env — rely on the real environment
 }
 
-const url = process.env.DATABASE_URL;
+// Migrations and seeding need a session-mode connection: DDL and Prisma's
+// advisory locks do not survive a transaction pooler. DIRECT_URL, when set,
+// points at Supabase's session pooler (port 5432) while the application
+// itself runs against the transaction pooler (port 6543), which tolerates far
+// more concurrent clients.
+const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
 export default defineConfig({
   schema: path.join("prisma", "schema.prisma"),
