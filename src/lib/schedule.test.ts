@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   computeSchedule,
   computeTeamHealth,
+  durationDays,
+  plannedDurationDays,
   remainingDays,
   simulateDelay,
   type ScheduleInput,
@@ -43,6 +45,63 @@ describe("remainingDays", () => {
   it("clamps nonsense progress values", () => {
     expect(remainingDays(task({ id: "a", estimateDays: 4, progress: 150 }))).toBe(0);
     expect(remainingDays(task({ id: "a", estimateDays: 4, progress: -20 }))).toBe(4);
+  });
+});
+
+describe("planned dates", () => {
+  it("takes the duration from committed dates rather than the estimate", () => {
+    const t = task({
+      id: "a",
+      estimateDays: 99,
+      plannedStart: ASOF,
+      plannedEnd: addDays(ASOF, 11),
+    });
+    expect(plannedDurationDays(t)).toBe(11);
+    expect(durationDays(t)).toBe(11);
+    expect(remainingDays(t)).toBe(11);
+  });
+
+  it("falls back to the estimate when the team has set no dates", () => {
+    const t = task({ id: "a", estimateDays: 7 });
+    expect(plannedDurationDays(t)).toBeNull();
+    expect(durationDays(t)).toBe(7);
+  });
+
+  it("ignores a single date, since one date is not a span", () => {
+    expect(plannedDurationDays(task({ id: "a", plannedStart: ASOF }))).toBeNull();
+    expect(plannedDurationDays(task({ id: "a", plannedEnd: ASOF }))).toBeNull();
+  });
+
+  it("treats the planned start as an earliest-start constraint", () => {
+    const result = computeSchedule(
+      input({
+        tasks: [
+          task({
+            id: "a",
+            plannedStart: addDays(ASOF, 30),
+            plannedEnd: addDays(ASOF, 35),
+          }),
+        ],
+      }),
+    );
+    expect(daysBetween(ASOF, result.tasks.get("a")!.earliestStart)).toBe(30);
+  });
+
+  it("reports a slip against the team's own committed end date", () => {
+    // Committed to finishing on day 5, but 10 days of work start today.
+    const result = computeSchedule(
+      input({
+        tasks: [
+          task({ id: "a", estimateDays: 10, plannedEnd: addDays(ASOF, 5) }),
+        ],
+      }),
+    );
+    expect(result.tasks.get("a")!.planVarianceDays).toBe(5);
+  });
+
+  it("has no plan variance for a task with no committed end date", () => {
+    const result = computeSchedule(input({ tasks: [task({ id: "a" })] }));
+    expect(result.tasks.get("a")!.planVarianceDays).toBeNull();
   });
 });
 
@@ -144,7 +203,7 @@ describe("computeSchedule slack and critical path", () => {
     expect(result.milestones[0].varianceDays).toBe(15);
   });
 
-  it("forecasts a milestone at its target when nothing feeds it", () => {
+  it("marks a milestone with no work linked to it rather than calling it on time", () => {
     const result = computeSchedule(
       input({
         tasks: [task({ id: "a" })],
@@ -152,6 +211,18 @@ describe("computeSchedule slack and critical path", () => {
       }),
     );
     expect(result.milestones[0].varianceDays).toBe(0);
+    // Zero variance here means "nobody linked any work", not "we are fine".
+    expect(result.milestones[0].hasFeedingWork).toBe(false);
+  });
+
+  it("reports feeding work when tasks are linked to the milestone", () => {
+    const result = computeSchedule(
+      input({
+        tasks: [task({ id: "a", milestoneId: "m1" })],
+        milestones: [{ id: "m1", name: "Kickoff", targetDate: addDays(ASOF, 3) }],
+      }),
+    );
+    expect(result.milestones[0].hasFeedingWork).toBe(true);
   });
 });
 
@@ -271,6 +342,51 @@ describe("computeTeamHealth", () => {
     expect(health.health).toBe("ON_TRACK");
     expect(health.done).toBe(1);
     expect(health.completionPct).toBe(75); // 15 of 20 estimated days retired
+  });
+
+  it("keeps a sub-team with no tasks on the dashboard, as unmeasured", () => {
+    const scenario = input({ tasks: [task({ id: "a", teamId: "mech" })] });
+    const health = computeTeamHealth(scenario, computeSchedule(scenario), [
+      "mech",
+      "robotics",
+      "science",
+    ]);
+    const robotics = health.find((h) => h.teamId === "robotics")!;
+    expect(robotics).toBeDefined();
+    expect(robotics.total).toBe(0);
+    // An empty plan is 0% done and never "on track" -- that false comfort is
+    // the whole failure mode this dashboard exists to remove.
+    expect(robotics.completionPct).toBe(0);
+    expect(robotics.health).not.toBe("ON_TRACK");
+  });
+
+  it("counts open tasks that carry no end date", () => {
+    const scenario = input({
+      tasks: [
+        task({ id: "a", teamId: "drone", plannedEnd: addDays(ASOF, 30) }),
+        task({ id: "b", teamId: "drone" }),
+        task({ id: "c", teamId: "drone" }),
+        task({ id: "d", teamId: "drone", status: "DONE" }),
+      ],
+    });
+    const health = computeTeamHealth(scenario, computeSchedule(scenario))[0];
+    expect(health.undatedTasks).toBe(2);
+  });
+
+  it("flags a team that is slipping against its own plan", () => {
+    const scenario = input({
+      tasks: [
+        task({
+          id: "a",
+          teamId: "mech",
+          estimateDays: 30,
+          plannedEnd: addDays(ASOF, 4),
+        }),
+      ],
+    });
+    const health = computeTeamHealth(scenario, computeSchedule(scenario))[0];
+    expect(health.worstPlanVarianceDays).toBe(26);
+    expect(health.health).toBe("BEHIND");
   });
 
   it("treats any blocked task as at least at risk", () => {

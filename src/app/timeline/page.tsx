@@ -11,6 +11,7 @@ export default async function TimelinePage() {
       teams={project.teams}
       members={project.members}
       milestones={project.milestones}
+      workstreams={project.workstreams}
       scheduled={Object.fromEntries(project.schedule.tasks)}
       asOf={project.asOf.toISOString()}
     />

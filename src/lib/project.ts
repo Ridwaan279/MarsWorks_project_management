@@ -6,7 +6,7 @@ import {
   type ScheduleResult,
   type TeamHealth,
 } from "./schedule";
-import type { TaskPriority, TaskStatus } from "./domain";
+import type { ProjectStage, TaskPriority, TaskStatus, TeamView as TeamViewMode } from "./domain";
 
 export interface TeamView {
   id: string;
@@ -14,6 +14,15 @@ export interface TeamView {
   name: string;
   description: string | null;
   colour: string;
+  defaultView: TeamViewMode;
+}
+
+export interface WorkstreamView {
+  id: string;
+  teamId: string;
+  code: string | null;
+  name: string;
+  position: number;
 }
 
 export interface MemberView {
@@ -48,11 +57,20 @@ export interface TaskView {
   estimateDays: number;
   progress: number;
   earliestStart: Date | null;
+  plannedStart: Date | null;
+  plannedEnd: Date | null;
+  actualStart: Date | null;
+  actualEnd: Date | null;
+  stage: ProjectStage | null;
+  ownerLabel: string | null;
+  notes: string | null;
   boardOrder: number;
   teamId: string;
   assigneeId: string | null;
   milestoneId: string | null;
+  workstreamId: string | null;
   links: { id: string; label: string; url: string }[];
+  subtasks: { id: string; title: string; done: boolean }[];
   /** Tasks that must finish before this one can start. */
   blockedBy: TaskRef[];
   /** Tasks waiting on this one. */
@@ -61,6 +79,7 @@ export interface TaskView {
 
 export interface ProjectSnapshot {
   teams: TeamView[];
+  workstreams: WorkstreamView[];
   members: MemberView[];
   milestones: MilestoneView[];
   tasks: TaskView[];
@@ -79,13 +98,17 @@ export interface ProjectView extends ProjectSnapshot {
  * to hand straight to client components.
  */
 export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
-  const [teams, members, milestones, tasks, dependencies] = await Promise.all([
+  const [teams, workstreams, members, milestones, tasks, dependencies] = await Promise.all([
     prisma.team.findMany({ orderBy: { position: "asc" } }),
+    prisma.workstream.findMany({ orderBy: [{ teamId: "asc" }, { position: "asc" }] }),
     prisma.member.findMany({ orderBy: { name: "asc" } }),
     prisma.milestone.findMany({ orderBy: { targetDate: "asc" } }),
     prisma.task.findMany({
       orderBy: [{ boardOrder: "asc" }, { key: "asc" }],
-      include: { links: { orderBy: { createdAt: "asc" } } },
+      include: {
+        links: { orderBy: { createdAt: "asc" } },
+        subtasks: { orderBy: { position: "asc" } },
+      },
     }),
     prisma.taskDependency.findMany(),
   ]);
@@ -112,6 +135,14 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
       name: t.name,
       description: t.description,
       colour: t.colour,
+      defaultView: t.defaultView as TeamViewMode,
+    })),
+    workstreams: workstreams.map((w) => ({
+      id: w.id,
+      teamId: w.teamId,
+      code: w.code,
+      name: w.name,
+      position: w.position,
     })),
     members: members.map((m) => ({
       id: m.id,
@@ -136,11 +167,20 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
       estimateDays: t.estimateDays,
       progress: t.progress,
       earliestStart: t.earliestStart,
+      plannedStart: t.plannedStart,
+      plannedEnd: t.plannedEnd,
+      actualStart: t.actualStart,
+      actualEnd: t.actualEnd,
+      stage: t.stage as ProjectStage | null,
+      ownerLabel: t.ownerLabel,
+      notes: t.notes,
       boardOrder: t.boardOrder,
       teamId: t.teamId,
       assigneeId: t.assigneeId,
       milestoneId: t.milestoneId,
+      workstreamId: t.workstreamId,
       links: t.links.map((l) => ({ id: l.id, label: l.label, url: l.url })),
+      subtasks: t.subtasks.map((st) => ({ id: st.id, title: st.title, done: st.done })),
       blockedBy: blockedBy.get(t.id) ?? [],
       blocks: blocks.get(t.id) ?? [],
     })),
@@ -170,6 +210,8 @@ export function toScheduleInput(snapshot: ProjectSnapshot): ScheduleInput {
       estimateDays: t.estimateDays,
       progress: t.progress,
       earliestStart: t.earliestStart,
+      plannedStart: t.plannedStart,
+      plannedEnd: t.plannedEnd,
       milestoneId: t.milestoneId,
     })),
   };
@@ -179,6 +221,10 @@ export async function loadProjectView(): Promise<ProjectView> {
   const snapshot = await loadProjectSnapshot();
   const input = toScheduleInput(snapshot);
   const schedule = computeSchedule(input);
-  const health = computeTeamHealth(input, schedule);
+  const health = computeTeamHealth(
+    input,
+    schedule,
+    snapshot.teams.map((t) => t.id),
+  );
   return { ...snapshot, schedule, health };
 }

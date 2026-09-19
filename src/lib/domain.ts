@@ -48,6 +48,80 @@ export function isComplete(status: TaskStatus): boolean {
   return status === "DONE";
 }
 
+export const PROJECT_STAGES = [
+  "INVESTIGATION",
+  "DESIGN",
+  "PROTOTYPE",
+  "ORDER",
+  "CONSTRUCTION",
+  "TESTING",
+  "IMPROVEMENT",
+  "DOCUMENTATION",
+] as const;
+
+export type ProjectStage = (typeof PROJECT_STAGES)[number];
+
+/** Numbered the way the Electrical tracker writes them, so the labels are
+ *  familiar to the team the vocabulary came from. */
+export const STAGE_LABEL: Record<ProjectStage, string> = {
+  INVESTIGATION: "1. Investigation",
+  DESIGN: "2. Design",
+  PROTOTYPE: "3. Prototype",
+  ORDER: "4. Order",
+  CONSTRUCTION: "5. Construction",
+  TESTING: "6. Inspection & Testing",
+  IMPROVEMENT: "7. Improvement",
+  DOCUMENTATION: "8. Documentation",
+};
+
+export const STAGE_SHORT: Record<ProjectStage, string> = {
+  INVESTIGATION: "Investigation",
+  DESIGN: "Design",
+  PROTOTYPE: "Prototype",
+  ORDER: "Order",
+  CONSTRUCTION: "Construction",
+  TESTING: "Testing",
+  IMPROVEMENT: "Improvement",
+  DOCUMENTATION: "Documentation",
+};
+
+export type TeamView = "BOARD" | "TIMELINE";
+
+/**
+ * Status words used by the planners this tool replaces, mapped onto ours.
+ * The sync adapters and any spreadsheet import go through this table so the
+ * same phrase always lands in the same column, whichever tool it came from.
+ *
+ * Sources: the master Google Sheet (Complete / In-Progress / Not Started /
+ * Milestone), the Electrical dashboard (Done / In Progress / Not Started),
+ * and the Robotics Jira board (Idea / To Do / In Progress / In Review / Done).
+ *
+ * "Milestone" is deliberately absent: those rows are a different kind of thing
+ * and become Milestone records, not tasks.
+ */
+export const STATUS_ALIASES: Record<string, TaskStatus> = {
+  idea: "BACKLOG",
+  backlog: "BACKLOG",
+  "not started": "TODO",
+  "to do": "TODO",
+  todo: "TODO",
+  "in progress": "IN_PROGRESS",
+  "in-progress": "IN_PROGRESS",
+  started: "IN_PROGRESS",
+  blocked: "BLOCKED",
+  "in review": "IN_REVIEW",
+  review: "IN_REVIEW",
+  done: "DONE",
+  complete: "DONE",
+  completed: "DONE",
+};
+
+/** Resolve a status written in any of the team planners. */
+export function normaliseStatus(raw: string | null | undefined): TaskStatus | null {
+  if (!raw) return null;
+  return STATUS_ALIASES[raw.trim().toLowerCase()] ?? null;
+}
+
 export type HealthLevel = "ON_TRACK" | "AT_RISK" | "BEHIND";
 
 export const HEALTH_LABEL: Record<HealthLevel, string> = {

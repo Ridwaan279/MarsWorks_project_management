@@ -13,6 +13,55 @@ It is deliberately **not** a Jira clone. It does four things:
 - **Impact** — "if this task slips ten days, which other sub-teams and
   milestones move?"
 
+## The agreed way of working
+
+Eight sub-teams arrived here with four different planning methods. Rather than
+force everyone onto one, the tool defines a **shared spine** every team must
+fill in, and then renders it two ways.
+
+**The spine — required on every task:**
+
+| Field | Why it is required |
+| --- | --- |
+| Workstream | Grouping, from Mechanical's WBS. Eight teams of flat tasks is unreadable. |
+| Owner | Who is actually doing it. Free text is allowed (`Owen & Jack`, `Team`). |
+| Planned start + end | **The one that matters.** An undated task cannot be forecast, cannot be late, and cannot warn anyone downstream. |
+| Status | Where it is in the flow. |
+| % complete | How far through it is. |
+| Stage | Engineering lifecycle phase, from Electrical's tracker. |
+| Dependencies | On anything another sub-team is waiting for. |
+
+**Two views over that same data**, picked per team via `Team.defaultView`:
+
+- **Timeline** — Executive, Mechanical, Science, Drone, Mini-Rover. Date-driven,
+  WBS-grouped, the way the Mechanical Gantt already works.
+- **Board** — Electrical, Software, Robotics, Operations. Kanban flow, the way
+  the Electrical dashboard and the Robotics Jira board already work.
+
+Nobody has to change how they think. The board and the Gantt are two renderings
+of one table, so a Kanban team's cards still appear on everyone else's timeline.
+
+**Why the lifecycle stage is project-wide.** It comes from Electrical, and it
+is the only one of the four methods with an explicit `Order` phase. Procurement
+lead time is the largest single source of slip on a hardware project, and no
+other sub-team was tracking it at all.
+
+### Where the data came from
+
+`archive/` holds the planners this replaces. `scripts/import_archive.py` reads
+them and writes `prisma/seed-data.json`:
+
+| Source | Contributed |
+| --- | --- |
+| `Master Timeline ... .xlsx` | Executive and Software tasks, and the five project milestones |
+| `Mechanical_Gantt chart.xlsx` | The WBS workstreams and 37 Mechanical tasks |
+| `Electrical Project Dashboard.xlsx` | 11 tasks with lifecycle stages and checklist sub-tasks |
+| `MarsWorks_Team_Structure_....docx` | The nine sub-teams and the cross-team dependency map |
+
+That importer is a one-off migration tool, but the **column mapping it encodes
+is the mapping the Google Sheets sync has to agree with**, which is why it is
+kept rather than thrown away.
+
 ## Architecture
 
 The Postgres database is the **single source of truth**. GitHub Projects and
@@ -107,6 +156,15 @@ deploy.
   today rather than where it really happened. Adding `startedAt`/`completedAt`
   is the fix, and is a prerequisite for any velocity reporting.
 - **Dependencies are created in the database, not the UI.** The seed builds the
-  graph; there is no screen for adding an edge yet.
+  graph from the structure document; there is no screen for adding an edge yet.
+  This is the next thing to build -- the cross-team edges are the highest-value
+  data in the system.
+- **No task is linked to a milestone yet.** The imported planners did not
+  connect their work to the project's dated checkpoints, so every milestone
+  reports "no work linked" rather than a forecast. Sub-team leads need to make
+  those links before milestone forecasting means anything.
+- **Undated tasks are drawn at today** on the timeline, because there is
+  nothing else to draw them at. They are flagged as undated on the board and
+  counted in the coverage figure on the overview.
 - **No sync adapters yet.** The mapping table exists; the GitHub and Sheets
   adapters do not.

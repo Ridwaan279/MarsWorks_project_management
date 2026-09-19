@@ -25,8 +25,12 @@ export interface ScheduleTask {
   title: string;
   teamId: string;
   status: TaskStatus;
-  /** Planned effort in calendar days. */
+  /** Fallback effort in calendar days, used when the team has set no dates. */
   estimateDays: number;
+  /** What the team committed to. Every planner this replaces is date-driven,
+   *  so when both are present they define the duration. */
+  plannedStart?: Date | null;
+  plannedEnd?: Date | null;
   /** Self-reported completion, 0-100. */
   progress: number;
   /** Hard lower bound on the start date, independent of predecessors. */
@@ -73,6 +77,12 @@ export interface ScheduledTask {
   /** Days this task can slip before it delays something that matters. */
   slackDays: number;
   isCritical: boolean;
+  /**
+   * Forecast finish measured against the team's own committed end date.
+   * Positive means late against their plan. Null when no end date is set --
+   * which is itself worth surfacing, since an undated task cannot be late.
+   */
+  planVarianceDays: number | null;
 }
 
 export interface MilestoneForecast {
@@ -83,6 +93,12 @@ export interface MilestoneForecast {
   forecastDate: Date;
   /** Positive means late. */
   varianceDays: number;
+  /**
+   * Whether any task actually feeds this milestone. False means the forecast
+   * is just the target date echoed back, which must never be presented as
+   * "on time" -- it means nobody has linked work to it.
+   */
+  hasFeedingWork: boolean;
 }
 
 export interface ScheduleResult {
@@ -94,13 +110,28 @@ export interface ScheduleResult {
   cycles: string[][];
 }
 
+/**
+ * The span a team committed to, in calendar days, or null if they have not
+ * set both dates. Mechanical, Electrical and the master sheet are all built
+ * on hand-set start and end dates, so those win over any estimate field.
+ */
+export function plannedDurationDays(task: ScheduleTask): number | null {
+  if (!task.plannedStart || !task.plannedEnd) return null;
+  const span = daysBetween(startOfDay(task.plannedStart), startOfDay(task.plannedEnd));
+  return span > 0 ? span : null;
+}
+
+/** The duration the scheduler works from: the plan if there is one. */
+export function durationDays(task: ScheduleTask): number {
+  return plannedDurationDays(task) ?? Math.max(0, task.estimateDays);
+}
+
 /** Work left on a task, in days, never negative. */
 export function remainingDays(task: ScheduleTask): number {
   const simulated = Math.max(0, task.simulatedDelayDays ?? 0);
   if (isComplete(task.status)) return simulated;
   const clampedProgress = Math.min(100, Math.max(0, task.progress));
-  const estimate = Math.max(0, task.estimateDays);
-  return Math.ceil(estimate * (1 - clampedProgress / 100)) + simulated;
+  return Math.ceil(durationDays(task) * (1 - clampedProgress / 100)) + simulated;
 }
 
 interface Graph {
@@ -206,8 +237,11 @@ export function computeSchedule(input: ScheduleInput): ScheduleResult {
   for (const id of solveOrder) {
     const task = byId.get(id)!;
     let start = asOf;
-    if (task.earliestStart) {
-      const bound = startOfDay(task.earliestStart);
+    // An explicit constraint wins; otherwise the committed start date acts as
+    // one, because that is when the team expects to have the people and parts.
+    const anchor = task.earliestStart ?? task.plannedStart;
+    if (anchor) {
+      const bound = startOfDay(anchor);
       if (bound > start) start = bound;
     }
     for (const edge of graph.predecessors.get(id)!) {
@@ -267,6 +301,9 @@ export function computeSchedule(input: ScheduleInput): ScheduleResult {
       latestFinish: lf,
       slackDays,
       isCritical: slackDays <= 0 && !isComplete(task.status),
+      planVarianceDays: task.plannedEnd
+        ? daysBetween(startOfDay(task.plannedEnd), ef)
+        : null,
     });
   }
 
@@ -289,6 +326,7 @@ export function computeSchedule(input: ScheduleInput): ScheduleResult {
       targetDate: startOfDay(milestone.targetDate),
       forecastDate,
       varianceDays: daysBetween(startOfDay(milestone.targetDate), forecastDate),
+      hasFeedingWork: feeding.length > 0,
     };
   });
 
@@ -405,6 +443,10 @@ export interface TeamHealth {
   minSlackDays: number;
   /** Worst milestone variance this team is responsible for. */
   worstVarianceDays: number;
+  /** Worst slip against the team's own committed end dates. */
+  worstPlanVarianceDays: number;
+  /** Open tasks with no committed end date -- invisible to any forecast. */
+  undatedTasks: number;
   forecastFinish: Date | null;
   health: HealthLevel;
 }
@@ -416,8 +458,13 @@ export interface TeamHealth {
 export function computeTeamHealth(
   input: ScheduleInput,
   schedule: ScheduleResult,
+  allTeamIds?: string[],
 ): TeamHealth[] {
   const byTeam = new Map<string, ScheduleTask[]>();
+  // Seed every known team, including ones with no tasks at all. A sub-team
+  // tracking nothing is the loudest signal on the dashboard, so it must not
+  // disappear just because it has no rows.
+  for (const id of allTeamIds ?? []) byTeam.set(id, []);
   for (const task of input.tasks) {
     const list = byTeam.get(task.teamId) ?? [];
     list.push(task);
@@ -433,13 +480,13 @@ export function computeTeamHealth(
     const inProgress = tasks.filter((t) => t.status === "IN_PROGRESS").length;
     const blocked = tasks.filter((t) => t.status === "BLOCKED").length;
 
-    const totalEffort = tasks.reduce((sum, t) => sum + Math.max(0, t.estimateDays), 0);
-    const doneEffort = tasks.reduce(
-      (sum, t) =>
-        sum + Math.max(0, t.estimateDays) - remainingDays(t),
-      0,
-    );
-    const completionPct = totalEffort === 0 ? 100 : Math.round((doneEffort / totalEffort) * 100);
+    const totalEffort = tasks.reduce((sum, t) => sum + durationDays(t), 0);
+    const doneEffort = tasks.reduce((sum, t) => sum + durationDays(t) - remainingDays(t), 0);
+    // A team with no work is at 0%, not 100%. Reporting an empty plan as
+    // complete is exactly the kind of false comfort this dashboard exists to
+    // remove.
+    const completionPct =
+      tasks.length === 0 ? 0 : totalEffort === 0 ? 100 : Math.round((doneEffort / totalEffort) * 100);
 
     const open = tasks.filter((t) => !isComplete(t.status));
     const minSlackDays = open.length
@@ -458,9 +505,26 @@ export function computeTeamHealth(
         }, schedule.tasks.get(open[0].id)!.earliestFinish)
       : null;
 
+    const planVariances = open
+      .map((t) => schedule.tasks.get(t.id)!.planVarianceDays)
+      .filter((v): v is number => v !== null);
+    const worstPlanVarianceDays = planVariances.length ? Math.max(...planVariances) : 0;
+    const undatedTasks = open.filter((t) => !t.plannedEnd).length;
+
     let health: HealthLevel = "ON_TRACK";
-    if (minSlackDays < 0 || worstVarianceDays > 0 || blocked > 0) {
-      health = minSlackDays < -2 || worstVarianceDays > 2 ? "BEHIND" : "AT_RISK";
+    if (tasks.length === 0) {
+      // Nothing planned at all: unmeasured, not healthy.
+      health = "AT_RISK";
+    } else if (
+      minSlackDays < 0 ||
+      worstVarianceDays > 0 ||
+      worstPlanVarianceDays > 0 ||
+      blocked > 0
+    ) {
+      health =
+        minSlackDays < -2 || worstVarianceDays > 2 || worstPlanVarianceDays > 5
+          ? "BEHIND"
+          : "AT_RISK";
     } else if (minSlackDays <= 2) {
       health = "AT_RISK";
     }
@@ -474,6 +538,8 @@ export function computeTeamHealth(
       completionPct,
       minSlackDays: Number.isFinite(minSlackDays) ? minSlackDays : 0,
       worstVarianceDays,
+      worstPlanVarianceDays,
+      undatedTasks,
       forecastFinish,
       health,
     };

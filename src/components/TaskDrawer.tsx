@@ -5,13 +5,22 @@ import Link from "next/link";
 import { format } from "date-fns";
 import {
   PRIORITY_LABEL,
+  PROJECT_STAGES,
+  STAGE_LABEL,
   STATUS_LABEL,
   TASK_PRIORITIES,
   TASK_STATUSES,
+  type ProjectStage,
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/domain";
-import type { MemberView, MilestoneView, TaskView, TeamView } from "@/lib/project";
+import type {
+  MemberView,
+  MilestoneView,
+  TaskView,
+  TeamView,
+  WorkstreamView,
+} from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
 import { Avatar, ProgressBar, StatusBadge, TeamDot, formatDays } from "./ui";
 
@@ -20,9 +29,17 @@ interface DrawerProps {
   teams: TeamView[];
   members: MemberView[];
   milestones: MilestoneView[];
+  workstreams: WorkstreamView[];
   scheduled: ScheduledTask | undefined;
   onClose: () => void;
   onSaved: (task: TaskView) => void;
+}
+
+/** <input type="date"> speaks YYYY-MM-DD; the API and the model speak Date. */
+function toDateInput(value: Date | string | null): string {
+  if (!value) return "";
+  const d = typeof value === "string" ? new Date(value) : value;
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
 
 const FIELD =
@@ -34,6 +51,7 @@ export function TaskDrawer({
   teams,
   members,
   milestones,
+  workstreams,
   scheduled,
   onClose,
   onSaved,
@@ -58,6 +76,7 @@ export function TaskDrawer({
   }, [onClose]);
 
   const team = teams.find((t) => t.id === draft.teamId);
+  const teamWorkstreams = workstreams.filter((w) => w.teamId === draft.teamId);
   const dirty =
     draft.title !== task.title ||
     draft.description !== task.description ||
@@ -66,7 +85,13 @@ export function TaskDrawer({
     draft.assigneeId !== task.assigneeId ||
     draft.milestoneId !== task.milestoneId ||
     draft.estimateDays !== task.estimateDays ||
-    draft.progress !== task.progress;
+    draft.progress !== task.progress ||
+    draft.stage !== task.stage ||
+    draft.workstreamId !== task.workstreamId ||
+    draft.ownerLabel !== task.ownerLabel ||
+    draft.notes !== task.notes ||
+    toDateInput(draft.plannedStart) !== toDateInput(task.plannedStart) ||
+    toDateInput(draft.plannedEnd) !== toDateInput(task.plannedEnd);
 
   async function save() {
     setSaving(true);
@@ -84,9 +109,22 @@ export function TaskDrawer({
           milestoneId: draft.milestoneId,
           estimateDays: draft.estimateDays,
           progress: draft.status === "DONE" ? 100 : draft.progress,
+          stage: draft.stage,
+          workstreamId: draft.workstreamId,
+          ownerLabel: draft.ownerLabel || null,
+          notes: draft.notes || null,
+          plannedStart: toDateInput(draft.plannedStart) || null,
+          plannedEnd: toDateInput(draft.plannedEnd) || null,
         }),
       });
-      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setError(
+          body?.details?.fieldErrors?.plannedEnd?.[0] ??
+            "Could not save. Check your connection and try again.",
+        );
+        return;
+      }
       onSaved({ ...draft, progress: draft.status === "DONE" ? 100 : draft.progress });
       onClose();
     } catch (cause) {
@@ -192,6 +230,87 @@ export function TaskDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
+              <label className={LABEL} htmlFor="task-workstream">
+                Workstream
+              </label>
+              <select
+                id="task-workstream"
+                value={draft.workstreamId ?? ""}
+                onChange={(e) =>
+                  setDraft({ ...draft, workstreamId: e.target.value || null })
+                }
+                className={FIELD}
+              >
+                <option value="">Ungrouped</option>
+                {teamWorkstreams.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.code ? `${w.code} ${w.name}` : w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={LABEL} htmlFor="task-stage">
+                Stage
+              </label>
+              <select
+                id="task-stage"
+                value={draft.stage ?? ""}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    stage: (e.target.value || null) as ProjectStage | null,
+                  })
+                }
+                className={FIELD}
+              >
+                <option value="">Not set</option>
+                {PROJECT_STAGES.map((stage) => (
+                  <option key={stage} value={stage}>
+                    {STAGE_LABEL[stage]}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={LABEL} htmlFor="task-planned-start">
+                Planned start
+              </label>
+              <input
+                id="task-planned-start"
+                type="date"
+                value={toDateInput(draft.plannedStart)}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    plannedStart: e.target.value ? new Date(e.target.value) : null,
+                  })
+                }
+                className={FIELD}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={LABEL} htmlFor="task-planned-end">
+                Planned end
+              </label>
+              <input
+                id="task-planned-end"
+                type="date"
+                value={toDateInput(draft.plannedEnd)}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    plannedEnd: e.target.value ? new Date(e.target.value) : null,
+                  })
+                }
+                className={FIELD}
+              />
+            </div>
+
+            <div className="space-y-1.5">
               <label className={LABEL} htmlFor="task-status">
                 Status
               </label>
@@ -250,6 +369,19 @@ export function TaskDrawer({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={LABEL} htmlFor="task-owner-label">
+                Owner (as written)
+              </label>
+              <input
+                id="task-owner-label"
+                value={draft.ownerLabel ?? ""}
+                onChange={(e) => setDraft({ ...draft, ownerLabel: e.target.value })}
+                placeholder="e.g. Owen &amp; Jack, Team"
+                className={FIELD}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -337,6 +469,24 @@ export function TaskDrawer({
                   </dd>
                 </div>
               </dl>
+              {scheduled.planVarianceDays !== null ? (
+                <p
+                  className={
+                    scheduled.planVarianceDays > 0
+                      ? "text-xs text-late"
+                      : "text-xs text-ok"
+                  }
+                >
+                  {scheduled.planVarianceDays > 0
+                    ? `Forecast to finish ${scheduled.planVarianceDays} day(s) after the planned end date.`
+                    : "Forecast to finish on or before the planned end date."}
+                </p>
+              ) : (
+                <p className="text-xs text-warn">
+                  No planned end date, so this task cannot be measured against
+                  a plan or counted in anyone&apos;s forecast.
+                </p>
+              )}
               {scheduled.isCritical ? (
                 <p className="text-xs text-mars-soft">
                   On the critical path &mdash; any slip here moves the whole project.
@@ -374,6 +524,35 @@ export function TaskDrawer({
                   </ul>
                 </div>
               ) : null}
+            </section>
+          ) : null}
+
+          {draft.subtasks.length > 0 ? (
+            <section className="space-y-2">
+              <h3 className={LABEL}>
+                Checklist ({draft.subtasks.filter((st) => st.done).length}/
+                {draft.subtasks.length})
+              </h3>
+              <ul className="space-y-1">
+                {draft.subtasks.map((st) => (
+                  <li
+                    key={st.id}
+                    className="flex items-start gap-2 rounded-md bg-surface px-2.5 py-1.5 text-xs"
+                  >
+                    <span
+                      aria-hidden
+                      className={
+                        st.done
+                          ? "mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm bg-ok"
+                          : "mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm ring-1 ring-edge"
+                      }
+                    />
+                    <span className={st.done ? "text-ink-faint line-through" : ""}>
+                      {st.title}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </section>
           ) : null}
 

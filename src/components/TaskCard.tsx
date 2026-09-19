@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { STAGE_SHORT } from "@/lib/domain";
 import type { MemberView, TaskView, TeamView } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
 import { Avatar, PriorityFlag, ProgressBar, TeamDot } from "./ui";
@@ -40,6 +41,24 @@ export function TaskCardBody({
         <PriorityFlag priority={task.priority} />
       </div>
 
+      {task.stage || !task.plannedEnd ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {task.stage ? (
+            <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[10px] text-ink-muted">
+              {STAGE_SHORT[task.stage]}
+            </span>
+          ) : null}
+          {!task.plannedEnd && task.status !== "DONE" ? (
+            <span
+              title="No planned end date, so this task is invisible to the forecast"
+              className="rounded bg-warn/15 px-1.5 py-0.5 text-[10px] text-warn"
+            >
+              undated
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
       {task.progress > 0 && task.status !== "DONE" ? (
         <ProgressBar value={task.progress} colour={team.colour} />
       ) : null}
@@ -56,6 +75,14 @@ export function TaskCardBody({
                 <path d="M5 7V5a3 3 0 1 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v4A1.5 1.5 0 0 1 11.5 14h-7A1.5 1.5 0 0 1 3 12.5v-4A1.5 1.5 0 0 1 4.5 7H5Zm1.5 0h3V5a1.5 1.5 0 0 0-3 0v2Z" />
               </svg>
               {task.blockedBy.length}
+            </span>
+          ) : null}
+          {task.subtasks.length > 0 ? (
+            <span
+              title={`${task.subtasks.filter((st) => st.done).length} of ${task.subtasks.length} checklist items done`}
+              className="tabular-nums"
+            >
+              {task.subtasks.filter((st) => st.done).length}/{task.subtasks.length}
             </span>
           ) : null}
           {task.links.length > 0 ? (

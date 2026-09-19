@@ -33,6 +33,24 @@ export default async function OverviewPage() {
   const behindCount = project.health.filter((h) => h.health === "BEHIND").length;
   const atRiskCount = project.health.filter((h) => h.health === "AT_RISK").length;
 
+  // A task with no committed end date cannot be late, cannot appear in a
+  // forecast, and cannot warn anyone downstream. Tracking coverage is
+  // therefore the first thing to look at: a team at 40% is not "on track",
+  // it is unmeasured.
+  const undated = openTasks.filter((t) => !t.plannedEnd);
+  const coveragePct =
+    openTasks.length === 0
+      ? 100
+      : Math.round(((openTasks.length - undated.length) / openTasks.length) * 100);
+  const worstCoverage = project.health
+    .map((h) => ({
+      health: h,
+      team: teamById.get(h.teamId)!,
+      open: h.total - h.done,
+    }))
+    .filter((row) => row.health.undatedTasks > 0)
+    .sort((a, b) => b.health.undatedTasks - a.health.undatedTasks);
+
   return (
     <div className="mx-auto max-w-[1400px] space-y-8 px-4 py-8 sm:px-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -55,6 +73,39 @@ export default async function OverviewPage() {
           ) : null}
         </div>
       </header>
+
+      {undated.length > 0 ? (
+        <section className="rounded-xl border border-warn/30 bg-warn/5 px-4 py-4 sm:px-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-warn">
+              Schedule coverage: {coveragePct}%
+            </h2>
+            <p className="text-xs text-ink-muted">
+              {undated.length} of {openTasks.length} open tasks have no planned end
+              date
+            </p>
+          </div>
+          <p className="mt-1.5 text-xs text-ink-muted">
+            An undated task cannot be forecast, cannot be late, and cannot warn
+            the teams waiting on it. These are the gaps where cross-team delays
+            come from.
+          </p>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {worstCoverage.map(({ health, team, open }) => (
+              <li
+                key={team.id}
+                className="flex items-center gap-2 rounded-lg border border-edge bg-surface px-2.5 py-1.5 text-xs"
+              >
+                <TeamDot colour={team.colour} />
+                <span>{team.name}</span>
+                <span className="font-medium tabular-nums text-warn">
+                  {health.undatedTasks}/{open} undated
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {project.schedule.cycles.length > 0 ? (
         <div className="rounded-lg border border-late/30 bg-late/10 px-4 py-3 text-sm text-late">
@@ -79,7 +130,16 @@ export default async function OverviewPage() {
               <Card key={milestone.id} className="space-y-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-sm font-medium leading-snug">{milestone.name}</h3>
-                  <HealthPill level={level} label={formatDays(forecast.varianceDays)} />
+                  {forecast.hasFeedingWork ? (
+                    <HealthPill level={level} label={formatDays(forecast.varianceDays)} />
+                  ) : (
+                    <span
+                      title="No task is linked to this milestone, so there is nothing to forecast from."
+                      className="shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-xs whitespace-nowrap text-ink-faint ring-1 ring-inset ring-edge"
+                    >
+                      no work linked
+                    </span>
+                  )}
                 </div>
                 <dl className="space-y-1 text-xs">
                   <div className="flex justify-between gap-2">
@@ -90,12 +150,14 @@ export default async function OverviewPage() {
                     <dt className="text-ink-faint">Forecast</dt>
                     <dd
                       className={
-                        forecast.varianceDays > 0
-                          ? "tabular-nums text-late"
-                          : "tabular-nums text-ok"
+                        !forecast.hasFeedingWork
+                          ? "tabular-nums text-ink-faint"
+                          : forecast.varianceDays > 0
+                            ? "tabular-nums text-late"
+                            : "tabular-nums text-ok"
                       }
                     >
-                      {format(forecast.forecastDate, "d MMM")}
+                      {forecast.hasFeedingWork ? format(forecast.forecastDate, "d MMM") : "--"}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-2">
@@ -132,15 +194,25 @@ export default async function OverviewPage() {
                   <HealthPill level={health.health} label={HEALTH_LABEL[health.health]} />
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-baseline justify-between text-xs">
-                    <span className="text-ink-faint">Effort complete</span>
-                    <span className="font-medium tabular-nums">{health.completionPct}%</span>
+                {health.total === 0 ? (
+                  <p className="rounded-md bg-surface-2 px-2.5 py-2 text-xs text-warn">
+                    No tasks at all. This sub-team is not tracked, so nothing it
+                    does can appear in any forecast or warn the teams
+                    downstream of it.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline justify-between text-xs">
+                      <span className="text-ink-faint">Effort complete</span>
+                      <span className="font-medium tabular-nums">
+                        {health.completionPct}%
+                      </span>
+                    </div>
+                    <ProgressBar value={health.completionPct} colour={team.colour} />
                   </div>
-                  <ProgressBar value={health.completionPct} colour={team.colour} />
-                </div>
+                )}
 
-                <dl className="grid grid-cols-3 gap-2 text-center text-xs">
+                <dl className="grid grid-cols-4 gap-1.5 text-center text-xs">
                   <div className="rounded-md bg-surface-2 py-1.5">
                     <dt className="text-[10px] text-ink-faint">Open</dt>
                     <dd className="font-medium tabular-nums">{health.total - health.done}</dd>
@@ -161,8 +233,28 @@ export default async function OverviewPage() {
                       {health.blocked}
                     </dd>
                   </div>
+                  <div className="rounded-md bg-surface-2 py-1.5">
+                    <dt className="text-[10px] text-ink-faint">Undated</dt>
+                    <dd
+                      className={
+                        health.undatedTasks > 0
+                          ? "font-medium tabular-nums text-warn"
+                          : "font-medium tabular-nums"
+                      }
+                    >
+                      {health.undatedTasks}
+                    </dd>
+                  </div>
                 </dl>
 
+                {health.worstPlanVarianceDays > 0 ? (
+                  <p className="text-xs text-late">
+                    Slipping {health.worstPlanVarianceDays} day(s) past its own
+                    planned dates.
+                  </p>
+                ) : null}
+
+                {health.total === 0 ? null : (
                 <p className="text-xs text-ink-faint">
                   Tightest task has{" "}
                   <span
@@ -176,6 +268,7 @@ export default async function OverviewPage() {
                     ? ` · finishes ${format(health.forecastFinish, "d MMM")}`
                     : " · all work complete"}
                 </p>
+                )}
               </Card>
             );
           })}

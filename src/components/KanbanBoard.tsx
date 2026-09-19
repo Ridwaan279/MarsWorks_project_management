@@ -22,7 +22,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { BOARD_COLUMNS, type TaskStatus } from "@/lib/domain";
-import type { MemberView, MilestoneView, TaskView, TeamView } from "@/lib/project";
+import type {
+  MemberView,
+  MilestoneView,
+  TaskView,
+  TeamView,
+  WorkstreamView,
+} from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
 import { SortableTaskCard, TaskCardBody } from "./TaskCard";
 import { TaskDrawer } from "./TaskDrawer";
@@ -34,6 +40,7 @@ interface BoardProps {
   teams: TeamView[];
   members: MemberView[];
   milestones: MilestoneView[];
+  workstreams: WorkstreamView[];
   scheduled: Record<string, ScheduledTask>;
   initialTaskId?: string;
 }
@@ -57,6 +64,7 @@ export function KanbanBoard({
   teams,
   members,
   milestones,
+  workstreams,
   scheduled,
   initialTaskId,
 }: BoardProps) {
@@ -297,6 +305,7 @@ export function KanbanBoard({
           teams={teams}
           members={members}
           milestones={milestones}
+          workstreams={workstreams}
           scheduled={scheduled[openTask.id]}
           onClose={() => setOpenTaskId(null)}
           onSaved={handleTaskSaved}

@@ -5,7 +5,13 @@ import Link from "next/link";
 import clsx from "clsx";
 import { format } from "date-fns";
 import { addDays, daysBetween, startOfDay, STATUS_LABEL } from "@/lib/domain";
-import type { MemberView, MilestoneView, TaskView, TeamView } from "@/lib/project";
+import type {
+  MemberView,
+  MilestoneView,
+  TaskView,
+  TeamView,
+  WorkstreamView,
+} from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
 import { Avatar, TeamDot, formatDays } from "./ui";
 
@@ -14,6 +20,7 @@ interface TimelineProps {
   teams: TeamView[];
   members: MemberView[];
   milestones: MilestoneView[];
+  workstreams: WorkstreamView[];
   scheduled: Record<string, ScheduledTask>;
   asOf: string;
 }
@@ -22,12 +29,14 @@ const ZOOM = { compact: 5, normal: 9, wide: 16 } as const;
 type Zoom = keyof typeof ZOOM;
 
 const ROW_HEIGHT = 30;
+const GROUP_HEIGHT = 24;
 
 export function Timeline({
   tasks,
   teams,
   members,
   milestones,
+  workstreams,
   scheduled,
   asOf,
 }: TimelineProps) {
@@ -71,23 +80,46 @@ export function Timeline({
     return marks;
   }, [start, totalDays]);
 
-  const grouped = useMemo(
-    () =>
-      teams
-        .map((team) => ({
-          team,
-          tasks: visible
-            .filter((t) => t.teamId === team.id)
-            .sort((a, b) => {
-              const sa = scheduled[a.id]?.earliestStart;
-              const sb = scheduled[b.id]?.earliestStart;
-              return new Date(sa as unknown as string).getTime() -
-                new Date(sb as unknown as string).getTime();
-            }),
-        }))
-        .filter((g) => g.tasks.length > 0),
-    [teams, visible, scheduled],
-  );
+  /**
+   * Team -> workstream -> tasks. The workstream layer is Mechanical's WBS
+   * grouping; teams that do not use one get a single unnamed group so the
+   * shape stays uniform.
+   */
+  const grouped = useMemo(() => {
+    const byStart = (a: TaskView, b: TaskView) => {
+      const sa = scheduled[a.id]?.earliestStart;
+      const sb = scheduled[b.id]?.earliestStart;
+      return (
+        new Date(sa as unknown as string).getTime() -
+        new Date(sb as unknown as string).getTime()
+      );
+    };
+    return teams
+      .map((team) => {
+        const teamTasks = visible.filter((t) => t.teamId === team.id);
+        const teamStreams = workstreams
+          .filter((w) => w.teamId === team.id)
+          .sort((a, b) => a.position - b.position);
+
+        const groups = teamStreams
+          .map((ws) => ({
+            id: ws.id,
+            label: ws.code ? `${ws.code}  ${ws.name}` : ws.name,
+            tasks: teamTasks.filter((t) => t.workstreamId === ws.id).sort(byStart),
+          }))
+          .filter((g) => g.tasks.length > 0);
+
+        const ungrouped = teamTasks
+          .filter((t) => !t.workstreamId || !teamStreams.some((w) => w.id === t.workstreamId))
+          .sort(byStart);
+        if (ungrouped.length > 0) {
+          groups.push({ id: `${team.id}-none`, label: "", tasks: ungrouped });
+        }
+
+        return { team, groups, count: teamTasks.length };
+      })
+      .filter((g) => g.count > 0);
+  }, [teams, visible, workstreams, scheduled]);
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
@@ -139,30 +171,44 @@ export function Timeline({
           <div className="sticky top-0 z-10 h-9 border-b border-edge bg-ground px-3 text-xs leading-9 font-semibold text-ink-muted">
             Sub-team / task
           </div>
-          {grouped.map(({ team, tasks: teamTasks }) => (
+          {grouped.map(({ team, groups, count }) => (
             <div key={team.id}>
               <div className="flex h-8 items-center gap-2 bg-surface/70 px-3">
                 <TeamDot colour={team.colour} />
                 <span className="truncate text-xs font-semibold">{team.name}</span>
                 <span className="ml-auto text-[10px] tabular-nums text-ink-faint">
-                  {teamTasks.length}
+                  {count}
                 </span>
               </div>
-              {teamTasks.map((task) => (
-                <Link
-                  key={task.id}
-                  href={`/board?task=${task.id}`}
-                  style={{ height: ROW_HEIGHT }}
-                  className="flex items-center gap-2 px-3 text-xs transition-colors hover:bg-surface-2"
-                >
-                  <span className="shrink-0 font-mono text-[10px] text-ink-faint">
-                    {task.key}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-ink-muted">{task.title}</span>
-                  {task.assigneeId ? (
-                    <Avatar name={memberById.get(task.assigneeId)?.name ?? "?"} />
+              {groups.map((group) => (
+                <div key={group.id}>
+                  {group.label ? (
+                    <div
+                      style={{ height: GROUP_HEIGHT }}
+                      className="flex items-center px-3 pl-5 text-[11px] font-medium text-ink-muted"
+                    >
+                      <span className="truncate">{group.label}</span>
+                    </div>
                   ) : null}
-                </Link>
+                  {group.tasks.map((task) => (
+                    <Link
+                      key={task.id}
+                      href={`/board?task=${task.id}`}
+                      style={{ height: ROW_HEIGHT }}
+                      className="flex items-center gap-2 px-3 pl-6 text-xs transition-colors hover:bg-surface-2"
+                    >
+                      <span className="shrink-0 font-mono text-[10px] text-ink-faint">
+                        {task.key}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-ink-muted">
+                        {task.title}
+                      </span>
+                      {task.assigneeId ? (
+                        <Avatar name={memberById.get(task.assigneeId)?.name ?? "?"} />
+                      ) : null}
+                    </Link>
+                  ))}
+                </div>
               ))}
             </div>
           ))}
@@ -214,10 +260,13 @@ export function Timeline({
                 );
               })}
 
-              {grouped.map(({ team, tasks: teamTasks }) => (
+              {grouped.map(({ team, groups }) => (
                 <div key={team.id}>
                   <div className="h-8 bg-surface/70" />
-                  {teamTasks.map((task) => {
+                  {groups.map((group) => (
+                    <div key={group.id}>
+                      {group.label ? <div style={{ height: GROUP_HEIGHT }} /> : null}
+                      {group.tasks.map((task) => {
                     const sched = scheduled[task.id];
                     if (!sched) return <div key={task.id} style={{ height: ROW_HEIGHT }} />;
                     const barStart = daysBetween(start, new Date(sched.earliestStart as unknown as string));
@@ -264,7 +313,9 @@ export function Timeline({
                         </Link>
                       </div>
                     );
-                  })}
+                      })}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>

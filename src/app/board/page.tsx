@@ -19,6 +19,7 @@ export default async function BoardPage({
       teams={project.teams}
       members={project.members}
       milestones={project.milestones}
+      workstreams={project.workstreams}
       scheduled={scheduled}
       initialTaskId={params.task}
     />
