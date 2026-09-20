@@ -10,13 +10,10 @@
  */
 import path from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { loadLocalEnv } from "./load-env";
 import { PrismaClient } from "../src/generated/prisma";
 
-try {
-  process.loadEnvFile(path.join(process.cwd(), ".env"));
-} catch {
-  // rely on the ambient environment
-}
+loadLocalEnv();
 
 const usingDirect = Boolean(process.env.DIRECT_URL);
 const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;

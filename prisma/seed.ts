@@ -10,6 +10,7 @@
  */
 import path from "node:path";
 import { readFileSync } from "node:fs";
+import { loadLocalEnv } from "../scripts/load-env";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   PrismaClient,
@@ -19,11 +20,7 @@ import {
   type TeamView,
 } from "../src/generated/prisma";
 
-try {
-  process.loadEnvFile(path.join(process.cwd(), ".env"));
-} catch {
-  // rely on the ambient environment
-}
+loadLocalEnv();
 
 // Seeding writes thousands of rows and wants a session-mode connection, the
 // same one migrations use, rather than the app's transaction pooler.

@@ -132,6 +132,22 @@ Error: Cannot find module '../src/generated/prisma'
 the client has not been generated yet -- run `npx prisma generate`. Note that
 in Prisma 7 `prisma db push` does *not* generate the client, unlike Prisma 6.
 
+### If `.env` seems to be ignored
+
+`Error: Set DATABASE_URL ... before seeding` on a `.env` that plainly contains
+it is nearly always the file's encoding. Notepad and PowerShell redirection
+save UTF-16 or prepend a byte-order mark, and Node's own `process.loadEnvFile`
+reads such a file without complaint and loads nothing from it. The loader in
+`scripts/load-env.ts` decodes UTF-8, UTF-8 with a BOM, and UTF-16 in either
+byte order, and throws with an explanation when a file cannot be read at all.
+
+To write the file from PowerShell without corrupting it:
+
+```powershell
+Set-Content -Path .env -Encoding utf8 -Value 'DATABASE_URL="..."'
+Add-Content -Path .env -Encoding utf8 -Value 'DIRECT_URL="..."'
+```
+
 Other commands:
 
 ```bash

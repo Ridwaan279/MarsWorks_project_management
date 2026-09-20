@@ -1,14 +1,10 @@
 import path from "node:path";
 import { defineConfig } from "prisma/config";
+import { loadLocalEnv } from "./scripts/load-env";
 
-// Prisma 7 no longer auto-loads .env. Node's own loader is enough here and
-// keeps dotenv out of the dependency tree. In hosted environments (Vercel)
-// DATABASE_URL is already present, so a missing file is not an error.
-try {
-  process.loadEnvFile(path.join(process.cwd(), ".env"));
-} catch {
-  // no local .env — rely on the real environment
-}
+// Prisma 7 no longer auto-loads .env. A missing file is fine in hosted
+// environments, where the variables are already present.
+loadLocalEnv();
 
 // Migrations and seeding need a session-mode connection: DDL and Prisma's
 // advisory locks do not survive a transaction pooler. DIRECT_URL, when set,
