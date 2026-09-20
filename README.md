@@ -167,6 +167,19 @@ build configuration is needed.
 Run `npx prisma db push` against the production database once before the first
 deploy.
 
+## Changing the sub-teams on a database that already has data
+
+Sub-teams are rows, not code, so redeploying does not change them. On a
+database that was seeded before the sub-teams were corrected, either:
+
+- run `npm run db:seed` again, which is simplest but **clears every table**,
+  so only do it while the data is still the imported archive; or
+- run `scripts/fix-subteams.sql` in the Supabase SQL editor, which renames
+  Electrical to Electronics, moves the Executive team's work and people to
+  Operations, renumbers its task keys, removes the teams that are not
+  sub-teams and reorders the rest. It touches nothing else and is safe to run
+  twice.
+
 ## Known limitations
 
 - **No authentication yet.** Anyone with the URL can edit. GitHub OAuth is the
