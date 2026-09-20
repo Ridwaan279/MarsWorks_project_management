@@ -28,6 +28,15 @@
   --color-danger: #f85149;
   --color-information: #58a6ff;
 
+  /* Timeline markers. The palette document puts the critical path, today and
+     milestones all in MarsWorks orange, which makes the three indis-
+     tinguishable where they matter most -- overlaid on the same chart. Orange
+     stays with the critical path (it is the brand's own emphasis); today and
+     milestones get hues of their own. Both are picked to sit clear of every
+     sub-team colour, since team bars share the chart. */
+  --color-today: #4c9aff;
+  --color-milestone: #c77dff;
+
   /* Sub-team identity. Also stored per team in the database, so the two must
      be kept in step; scripts/brand-team-colours.sql writes these. */
   --team-operations: #8b9aaf;
@@ -62,6 +71,8 @@
   --color-warning: #8a6300;
   --color-danger: #cf222e;
   --color-information: #0a58ca;
+  --color-today: #1668dc;
+  --color-milestone: #8b3fd6;
 
   color-scheme: light;
 }
@@ -86,6 +97,9 @@
   --color-accent: var(--color-accent);
   --color-accent-hover: var(--color-accent-hover);
   --color-accent-tint: var(--color-accent-subtle);
+
+  --color-today: var(--color-today);
+  --color-milestone: var(--color-milestone);
 
   --color-success: var(--color-success);
   --color-warning: var(--color-warning);

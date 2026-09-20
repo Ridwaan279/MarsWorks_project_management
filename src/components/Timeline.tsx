@@ -299,10 +299,20 @@ export function Timeline({
             <span className="h-2 w-4 rounded-sm bg-accent" aria-hidden /> critical path
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-3.5 w-px bg-accent/60" aria-hidden /> today
+            <span className="h-3.5 w-0.5 bg-today" aria-hidden /> today
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-3.5 w-px bg-accent/70" aria-hidden /> milestone
+            {/* Dashed, matching the line on the chart: colour alone is a weak
+                signal for a 1px rule, and it has to survive colour-blindness. */}
+            <span
+              aria-hidden
+              className="h-3.5 w-0.5 bg-[length:2px_5px] bg-repeat-y"
+              style={{
+                backgroundImage:
+                  "linear-gradient(var(--color-milestone) 60%, transparent 60%)",
+              }}
+            />{" "}
+            milestone
           </span>
         </div>
       </div>
@@ -343,12 +353,19 @@ export function Timeline({
                     {format(mark.date, zoom === "compact" ? "d/M" : "d MMM")}
                   </span>
                 ))}
+                {/* The chip is tinted from the milestone hue so that it and
+                    the rule below it plainly belong to the same marker. */}
                 {milestonesInView.map(({ milestone, offset, room }) => (
                   <span
                     key={milestone.id}
                     title={`${milestone.name} — ${format(new Date(milestone.targetDate), "d MMM yyyy")}`}
-                    style={{ left: offset * dayWidth + 2, maxWidth: Math.max(room, 18) }}
-                    className="absolute bottom-1 truncate rounded bg-accent-tint px-1 text-[9px] text-accent"
+                    style={{
+                      left: offset * dayWidth + 2,
+                      maxWidth: Math.max(room, 18),
+                      backgroundColor:
+                        "color-mix(in srgb, var(--color-milestone) 18%, var(--color-bg))",
+                    }}
+                    className="absolute bottom-1 truncate rounded px-1 text-[9px] text-milestone"
                   >
                     {milestone.name}
                   </span>
@@ -374,15 +391,20 @@ export function Timeline({
                 {milestonesInView.map(({ milestone, offset }) => (
                   <span
                     key={milestone.id}
-                    style={{ left: offset * dayWidth }}
-                    className="absolute inset-y-0 w-px bg-accent/70"
+                    style={{
+                      left: offset * dayWidth,
+                      backgroundImage:
+                        "linear-gradient(var(--color-milestone) 60%, transparent 60%)",
+                      backgroundSize: "1px 6px",
+                    }}
+                    className="absolute inset-y-0 w-px"
                   />
                 ))}
-                {/* Today: MarsWorks orange at partial opacity, per the
-                    palette document's timeline rules. */}
+                {/* Today reads as the one line you look for first, so it is
+                    solid, full strength and a shade wider than a gridline. */}
                 <span
                   style={{ left: todayOffset }}
-                  className="absolute inset-y-0 w-px bg-accent/60"
+                  className="absolute inset-y-0 w-0.5 bg-today"
                 />
               </div>
 
