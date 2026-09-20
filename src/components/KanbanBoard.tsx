@@ -303,12 +303,12 @@ export function KanbanBoard({
   );
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] min-w-0 flex-col overflow-hidden">
-      <div className="flex flex-wrap items-center gap-3 border-b border-edge px-4 py-3 sm:px-6">
+    <div className="flex h-[calc(100dvh-3.5rem)] min-w-0 flex-col overflow-hidden">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
         <div
           role="group"
           aria-label="Which tasks to show"
-          className="flex items-center gap-0.5 rounded-md border border-edge p-0.5"
+          className="flex items-center gap-0.5 rounded-md border border-line p-0.5"
         >
           {(
             [
@@ -322,10 +322,10 @@ export function KanbanBoard({
               onClick={() => setScope(value)}
               aria-pressed={scope === value}
               className={clsx(
-                "rounded px-2.5 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mars",
+                "rounded px-2.5 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                 scope === value
-                  ? "bg-surface-2 text-ink"
-                  : "text-ink-faint hover:text-ink-muted",
+                  ? "bg-elevated text-ink"
+                  : "text-ink-3 hover:text-ink-2",
               )}
             >
               {label}
@@ -333,12 +333,12 @@ export function KanbanBoard({
           ))}
         </div>
 
-        <label className="flex items-center gap-2 text-xs text-ink-muted">
+        <label className="flex items-center gap-2 text-xs text-ink-2">
           Sub-team
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-mars focus:outline-none"
+            className="rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink focus:border-accent focus:outline-none"
           >
             <option value="ALL">All teams</option>
             {teams.map((team) => (
@@ -349,12 +349,12 @@ export function KanbanBoard({
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-xs text-ink-muted">
+        <label className="flex items-center gap-2 text-xs text-ink-2">
           Assignee
           <select
             value={assigneeFilter}
             onChange={(e) => setAssigneeFilter(e.target.value)}
-            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-mars focus:outline-none"
+            className="rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink focus:border-accent focus:outline-none"
           >
             <option value="ALL">Anyone</option>
             <option value="UNASSIGNED">Unassigned</option>
@@ -366,7 +366,7 @@ export function KanbanBoard({
           </select>
         </label>
 
-        <div className="ml-auto flex items-center gap-3 text-xs text-ink-faint">
+        <div className="ml-auto flex items-center gap-3 text-xs text-ink-3">
           <span className="tabular-nums">
             {visible.length} shown
             {hiddenByScope > 0 ? (
@@ -374,7 +374,7 @@ export function KanbanBoard({
                 {" · "}
                 <span
                   title="Not started yet, already finished and past, or carrying no dates at all."
-                  className="text-warn"
+                  className="text-warning"
                 >
                   {hiddenByScope} outside this window
                 </span>
@@ -394,7 +394,7 @@ export function KanbanBoard({
         <p
           role="alert"
           aria-live="polite"
-          className="border-b border-late/30 bg-late/10 px-4 py-2 text-xs text-late sm:px-6"
+          className="border-b border-danger/30 bg-danger/10 px-4 py-2 text-xs text-danger sm:px-6"
         >
           {error}
         </p>
@@ -521,13 +521,13 @@ function BoardColumn({
     <section
       className={clsx(
         "flex w-[290px] shrink-0 flex-col rounded-xl border transition-colors",
-        isOver ? "border-mars/50 bg-surface-2/60" : "border-edge bg-surface/60",
+        isOver ? "border-accent/50 bg-elevated/60" : "border-line bg-panel/60",
       )}
     >
       <header className="flex items-center justify-between gap-2 px-3 py-2.5">
-        <h2 className="flex items-center gap-2 text-xs font-semibold tracking-wide text-ink-muted uppercase">
+        <h2 className="flex items-center gap-2 text-xs font-semibold tracking-wide text-ink-2 uppercase">
           {label}
-          <span className="rounded bg-surface-3 px-1.5 py-0.5 text-[10px] tabular-nums text-ink-faint">
+          <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] tabular-nums text-ink-3">
             {tasks.length}
           </span>
         </h2>
@@ -535,7 +535,7 @@ function BoardColumn({
           type="button"
           onClick={onAdd}
           aria-label={`Add a task to ${label}`}
-          className="rounded p-1 text-ink-faint transition-colors hover:bg-surface-3 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+          className="rounded p-1 text-ink-3 transition-colors hover:bg-elevated hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
             <path d="M8 3a.75.75 0 0 1 .75.75v3.5h3.5a.75.75 0 0 1 0 1.5h-3.5v3.5a.75.75 0 0 1-1.5 0v-3.5h-3.5a.75.75 0 0 1 0-1.5h3.5v-3.5A.75.75 0 0 1 8 3Z" />
@@ -567,7 +567,7 @@ function BoardColumn({
           </ul>
         </SortableContext>
         {tasks.length === 0 ? (
-          <p className="px-2 py-6 text-center text-xs text-ink-faint">
+          <p className="px-2 py-6 text-center text-xs text-ink-3">
             Drop a card here
           </p>
         ) : null}

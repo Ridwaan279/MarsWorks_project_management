@@ -86,7 +86,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
     <div className="mx-auto max-w-[1200px] space-y-6 px-4 py-8 sm:px-6">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">Delay impact</h1>
-        <p className="mt-1 text-sm text-ink-muted">
+        <p className="mt-1 text-sm text-ink-2">
           Pick a task, say how late it runs, and see which other sub-teams and
           milestones move as a result. Nothing here is saved.
         </p>
@@ -96,7 +96,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
         <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
           <div className="space-y-1.5">
             <label
-              className="block text-[11px] font-medium tracking-wide text-ink-faint uppercase"
+              className="block text-[11px] font-medium tracking-wide text-ink-3 uppercase"
               htmlFor="impact-task"
             >
               If this task slips
@@ -105,7 +105,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
               id="impact-task"
               value={taskId}
               onChange={(e) => setTaskId(e.target.value)}
-              className="w-full min-w-0 rounded-md border border-edge bg-surface-2 px-2.5 py-2 text-sm text-ink focus:border-mars focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+              className="w-full min-w-0 rounded-md border border-line bg-elevated px-2.5 py-2 text-sm text-ink focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               {teams.map((team) => {
                 const teamTasks = open.filter((t) => t.teamId === team.id);
@@ -125,7 +125,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
 
           <div className="space-y-1.5">
             <label
-              className="block text-[11px] font-medium tracking-wide text-ink-faint uppercase"
+              className="block text-[11px] font-medium tracking-wide text-ink-3 uppercase"
               htmlFor="impact-days"
             >
               By {days} {days === 1 ? "day" : "days"}
@@ -137,9 +137,9 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
               max={60}
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className="w-full accent-[var(--color-mars)] focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+              className="w-full accent-[var(--color-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
-            <div className="flex justify-between text-[10px] text-ink-faint">
+            <div className="flex justify-between text-[10px] text-ink-3">
               <span>1 day</span>
               <span>60 days</span>
             </div>
@@ -147,7 +147,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
         </div>
 
         {selected ? (
-          <p className="text-xs text-ink-faint">
+          <p className="text-xs text-ink-3">
             <TeamDot colour={teamById.get(selected.teamId)?.colour ?? "#64748b"} />{" "}
             <span className="ml-1">
               {teamById.get(selected.teamId)?.name} &middot;{" "}
@@ -157,7 +157,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
         ) : null}
       </Card>
 
-      <p aria-live="polite" className="text-sm text-late">
+      <p aria-live="polite" className="text-sm text-danger">
         {error}
       </p>
 
@@ -165,37 +165,37 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
         <div className={loading ? "space-y-6 opacity-60" : "space-y-6"}>
           <div className="grid gap-3 sm:grid-cols-3">
             <Card className="space-y-1">
-              <p className="text-[11px] tracking-wide text-ink-faint uppercase">
+              <p className="text-[11px] tracking-wide text-ink-3 uppercase">
                 Other sub-teams hit
               </p>
               <p className="text-2xl font-semibold tabular-nums">{otherTeams.length}</p>
-              <p className="text-xs text-ink-faint">
+              <p className="text-xs text-ink-3">
                 of {teams.length - 1} teams besides this one
               </p>
             </Card>
             <Card className="space-y-1">
-              <p className="text-[11px] tracking-wide text-ink-faint uppercase">
+              <p className="text-[11px] tracking-wide text-ink-3 uppercase">
                 Tasks pushed back
               </p>
               <p className="text-2xl font-semibold tabular-nums">
                 {result.affectedTasks.length}
               </p>
-              <p className="text-xs text-ink-faint">including the delayed task itself</p>
+              <p className="text-xs text-ink-3">including the delayed task itself</p>
             </Card>
             <Card className="space-y-1">
-              <p className="text-[11px] tracking-wide text-ink-faint uppercase">
+              <p className="text-[11px] tracking-wide text-ink-3 uppercase">
                 Project finish moves
               </p>
               <p
                 className={
                   result.projectShiftDays > 0
-                    ? "text-2xl font-semibold tabular-nums text-late"
-                    : "text-2xl font-semibold tabular-nums text-ok"
+                    ? "text-2xl font-semibold tabular-nums text-danger"
+                    : "text-2xl font-semibold tabular-nums text-success"
                 }
               >
                 {result.projectShiftDays > 0 ? `+${result.projectShiftDays}` : "0"} d
               </p>
-              <p className="text-xs text-ink-faint">
+              <p className="text-xs text-ink-3">
                 {result.projectShiftDays === 0
                   ? "absorbed by existing float"
                   : "beyond today's forecast"}
@@ -204,7 +204,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
           </div>
 
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-ink-muted">Milestones affected</h2>
+            <h2 className="text-sm font-semibold text-ink-2">Milestones affected</h2>
             {result.affectedMilestones.length === 0 ? (
               <EmptyState
                 title="No milestone moves."
@@ -217,20 +217,20 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
                   return (
                     <li
                       key={milestone.id}
-                      className="flex flex-wrap items-center gap-3 rounded-lg border border-edge bg-surface px-4 py-3"
+                      className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-panel px-4 py-3"
                     >
                       <span className="min-w-0 flex-1 text-sm font-medium">
                         {milestone.name}
                         {target ? (
-                          <span className="ml-2 text-xs font-normal text-ink-faint">
+                          <span className="ml-2 text-xs font-normal text-ink-3">
                             target {format(new Date(target.targetDate), "d MMM")}
                           </span>
                         ) : null}
                       </span>
-                      <span className="text-xs text-ink-faint">
+                      <span className="text-xs text-ink-3">
                         was {formatDays(milestone.varianceBefore)}
                       </span>
-                      <span aria-hidden className="text-ink-faint">
+                      <span aria-hidden className="text-ink-3">
                         &rarr;
                       </span>
                       <HealthPill
@@ -243,7 +243,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
                         }
                         label={formatDays(milestone.varianceAfter)}
                       />
-                      <span className="text-xs font-medium tabular-nums text-late">
+                      <span className="text-xs font-medium tabular-nums text-danger">
                         +{milestone.shiftDays}d
                       </span>
                     </li>
@@ -255,7 +255,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
 
           <section className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-ink-muted">
+              <h2 className="text-sm font-semibold text-ink-2">
                 Knock-on to other sub-teams
               </h2>
               {otherTeams.length === 0 ? (
@@ -268,14 +268,14 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
                   {otherTeams.map((team) => (
                     <li
                       key={team.teamId}
-                      className="flex items-center gap-3 rounded-lg border border-edge bg-surface px-4 py-3"
+                      className="flex items-center gap-3 rounded-lg border border-line bg-panel px-4 py-3"
                     >
                       <TeamDot colour={team.colour} />
                       <span className="min-w-0 flex-1 truncate text-sm">{team.name}</span>
-                      <span className="text-xs text-ink-faint">
+                      <span className="text-xs text-ink-3">
                         {team.taskCount} {team.taskCount === 1 ? "task" : "tasks"}
                       </span>
-                      <span className="text-xs font-medium tabular-nums text-late">
+                      <span className="text-xs font-medium tabular-nums text-danger">
                         up to +{team.shiftDays}d
                       </span>
                     </li>
@@ -285,7 +285,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-ink-muted">Tasks pushed back</h2>
+              <h2 className="text-sm font-semibold text-ink-2">Tasks pushed back</h2>
               {result.affectedTasks.length === 0 ? (
                 <EmptyState title="Nothing moves." />
               ) : (
@@ -294,17 +294,17 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
                     <li key={task.id}>
                       <Link
                         href={`/board?task=${task.id}`}
-                        className="flex items-center gap-3 rounded-lg border border-edge bg-surface px-3 py-2.5 transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                        className="flex items-center gap-3 rounded-lg border border-line bg-panel px-3 py-2.5 transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                       >
                         <TeamDot colour={task.colour} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm">{task.title}</p>
-                          <p className="text-xs text-ink-faint">
+                          <p className="text-xs text-ink-3">
                             <span className="font-mono">{task.key}</span> &middot;{" "}
                             {task.teamName}
                           </p>
                         </div>
-                        <span className="shrink-0 text-xs font-medium tabular-nums text-late">
+                        <span className="shrink-0 text-xs font-medium tabular-nums text-danger">
                           +{task.shiftDays}d
                         </span>
                       </Link>
@@ -316,7 +316,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
           </section>
         </div>
       ) : loading ? (
-        <p className="text-sm text-ink-faint">Running the simulation…</p>
+        <p className="text-sm text-ink-3">Running the simulation…</p>
       ) : null}
     </div>
   );

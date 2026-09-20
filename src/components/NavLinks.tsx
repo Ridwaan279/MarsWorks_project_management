@@ -29,10 +29,10 @@ export function NavLinks() {
             aria-current={active ? "page" : undefined}
             className={clsx(
               "rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors sm:px-3",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-mars",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
               active
-                ? "bg-surface-2 text-ink shadow-[inset_0_-2px_0_0_var(--color-mars)]"
-                : "text-ink-muted hover:bg-surface hover:text-ink",
+                ? "bg-elevated text-ink shadow-[inset_0_-2px_0_0_var(--color-accent)]"
+                : "text-ink-2 hover:bg-panel hover:text-ink",
             )}
           >
             {link.label}

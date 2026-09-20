@@ -45,14 +45,14 @@ export default async function TeamsPage() {
       <header className="space-y-2">
         <Link
           href="/"
-          className="inline-block rounded text-xs text-ink-faint transition-colors hover:text-ink-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+          className="inline-block rounded text-xs text-ink-3 transition-colors hover:text-ink-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           &larr; Overview
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight text-pretty">
           Sub-team breakdown
         </h1>
-        <p className="max-w-2xl text-sm text-ink-muted text-pretty">
+        <p className="max-w-2xl text-sm text-ink-2 text-pretty">
           {openTasks.length - undated.length} of {openTasks.length} open tasks carry a
           planned end date ({coveragePct}% coverage). An undated task cannot be
           forecast, cannot be late, and cannot warn the teams waiting on it.
@@ -60,16 +60,16 @@ export default async function TeamsPage() {
       </header>
 
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold tracking-wide text-ink-faint uppercase">
+        <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
           Per sub-team
         </h2>
-        <div className="overflow-x-auto rounded-xl border border-edge">
+        <div className="overflow-x-auto rounded-xl border border-line">
           <table className="w-full min-w-[680px] text-sm">
             <caption className="sr-only">
               Progress, open work and schedule position for each sub-team
             </caption>
             <thead>
-              <tr className="border-b border-edge text-left text-xs text-ink-faint">
+              <tr className="border-b border-line text-left text-xs text-ink-3">
                 <th scope="col" className="px-4 py-2.5 font-medium">Sub-team</th>
                 <th scope="col" className="px-4 py-2.5 font-medium">Status</th>
                 <th scope="col" className="px-4 py-2.5 font-medium">Progress</th>
@@ -80,12 +80,12 @@ export default async function TeamsPage() {
                 <th scope="col" className="px-4 py-2.5 text-right font-medium">Finishes</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-edge-soft">
+            <tbody className="divide-y divide-line">
               {project.teams.map((team) => {
                 const health = healthByTeam.get(team.id);
                 if (!health) return null;
                 return (
-                  <tr key={team.id} id={team.key.toLowerCase()} className="scroll-mt-20 bg-surface">
+                  <tr key={team.id} id={team.key.toLowerCase()} className="scroll-mt-20 bg-panel">
                     <th scope="row" className="px-4 py-3 text-left font-normal">
                       <span className="flex items-center gap-2">
                         <TeamDot colour={team.colour} />
@@ -97,7 +97,7 @@ export default async function TeamsPage() {
                     </td>
                     <td className="px-4 py-3">
                       {health.total === 0 ? (
-                        <span className="text-xs text-ink-faint">No tasks</span>
+                        <span className="text-xs text-ink-3">No tasks</span>
                       ) : (
                         <span className="flex items-center gap-2">
                           <ProgressBar
@@ -105,7 +105,7 @@ export default async function TeamsPage() {
                             colour={team.colour}
                             className="w-20"
                           />
-                          <span className="text-xs tabular-nums text-ink-faint">
+                          <span className="text-xs tabular-nums text-ink-3">
                             {health.completionPct}%
                           </span>
                         </span>
@@ -117,8 +117,8 @@ export default async function TeamsPage() {
                     <td
                       className={
                         health.blocked > 0
-                          ? "px-4 py-3 text-right font-medium tabular-nums text-late"
-                          : "px-4 py-3 text-right tabular-nums text-ink-faint"
+                          ? "px-4 py-3 text-right font-medium tabular-nums text-danger"
+                          : "px-4 py-3 text-right tabular-nums text-ink-3"
                       }
                     >
                       {health.blocked}
@@ -126,8 +126,8 @@ export default async function TeamsPage() {
                     <td
                       className={
                         health.undatedTasks > 0
-                          ? "px-4 py-3 text-right font-medium tabular-nums text-warn"
-                          : "px-4 py-3 text-right tabular-nums text-ink-faint"
+                          ? "px-4 py-3 text-right font-medium tabular-nums text-warning"
+                          : "px-4 py-3 text-right tabular-nums text-ink-3"
                       }
                     >
                       {health.undatedTasks}
@@ -135,15 +135,15 @@ export default async function TeamsPage() {
                     <td
                       className={
                         health.worstPlanVarianceDays > 0
-                          ? "px-4 py-3 text-right font-medium tabular-nums text-late"
-                          : "px-4 py-3 text-right tabular-nums text-ink-faint"
+                          ? "px-4 py-3 text-right font-medium tabular-nums text-danger"
+                          : "px-4 py-3 text-right tabular-nums text-ink-3"
                       }
                     >
                       {health.worstPlanVarianceDays > 0
                         ? `+${health.worstPlanVarianceDays}d`
                         : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-ink-muted">
+                    <td className="px-4 py-3 text-right tabular-nums text-ink-2">
                       {health.forecastFinish
                         ? format(health.forecastFinish, "d MMM")
                         : "—"}
@@ -158,10 +158,10 @@ export default async function TeamsPage() {
 
       {flagged.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold tracking-wide text-late uppercase">
+          <h2 className="text-xs font-semibold tracking-wide text-danger uppercase">
             Flagged ({flagged.length})
           </h2>
-          <p className="max-w-2xl text-sm text-ink-muted text-pretty">
+          <p className="max-w-2xl text-sm text-ink-2 text-pretty">
             Raised by hand on the board as needing attention.
           </p>
           <ul className="grid gap-2 sm:grid-cols-2">
@@ -172,12 +172,12 @@ export default async function TeamsPage() {
                 <li key={task.id}>
                   <Link
                     href={`/board?task=${task.id}`}
-                    className="flex items-start gap-3 rounded-lg border border-late/40 bg-late/10 px-3 py-2.5 transition-colors hover:bg-late/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                    className="flex items-start gap-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2.5 transition-colors hover:bg-danger/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     <TeamDot colour={team.colour} className="mt-1.5" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">{task.title}</span>
-                      <span className="mt-0.5 block text-xs text-ink-faint">
+                      <span className="mt-0.5 block text-xs text-ink-3">
                         <span className="font-mono" translate="no">{task.key}</span>
                         {" · "}
                         {team.name}
@@ -195,7 +195,7 @@ export default async function TeamsPage() {
 
       <div className="grid gap-8 lg:grid-cols-2">
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-faint uppercase">
+          <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
             Blocked ({blocked.length})
           </h2>
           {blocked.length === 0 ? (
@@ -209,12 +209,12 @@ export default async function TeamsPage() {
                   <li key={task.id}>
                     <Link
                       href={`/board?task=${task.id}`}
-                      className="flex items-start gap-3 rounded-lg border border-edge bg-surface px-3 py-2.5 transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                      className="flex items-start gap-3 rounded-lg border border-line bg-panel px-3 py-2.5 transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     >
                       <TeamDot colour={team.colour} className="mt-1.5" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm">{task.title}</span>
-                        <span className="mt-0.5 block text-xs text-ink-faint">
+                        <span className="mt-0.5 block text-xs text-ink-3">
                           {team.name}
                           {task.blockedBy.length > 0
                             ? ` · waiting on ${task.blockedBy.map((b) => b.key).join(", ")}`
@@ -231,7 +231,7 @@ export default async function TeamsPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-faint uppercase">
+          <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
             Behind plan ({late.length})
           </h2>
           {late.length === 0 ? (
@@ -244,17 +244,17 @@ export default async function TeamsPage() {
                   <li key={task.id}>
                     <Link
                       href={`/impact?task=${task.id}`}
-                      className="flex items-center gap-3 rounded-lg border border-edge bg-surface px-3 py-2.5 transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                      className="flex items-center gap-3 rounded-lg border border-line bg-panel px-3 py-2.5 transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     >
                       <TeamDot colour={team.colour} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm">{task.title}</span>
-                        <span className="mt-0.5 block text-xs text-ink-faint">
+                        <span className="mt-0.5 block text-xs text-ink-3">
                           {team.name}
                         </span>
                       </span>
                       <StatusBadge status={task.status} label={STATUS_LABEL[task.status]} />
-                      <span className="shrink-0 text-xs font-medium tabular-nums text-late">
+                      <span className="shrink-0 text-xs font-medium tabular-nums text-danger">
                         +{scheduled.planVarianceDays}d
                       </span>
                     </Link>
@@ -268,10 +268,10 @@ export default async function TeamsPage() {
 
       {undated.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-faint uppercase">
+          <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
             Undated ({undated.length})
           </h2>
-          <p className="max-w-2xl text-sm text-ink-muted text-pretty">
+          <p className="max-w-2xl text-sm text-ink-2 text-pretty">
             These carry no planned end date. Give each one a date and it joins the
             forecast.
           </p>
@@ -282,7 +282,7 @@ export default async function TeamsPage() {
                 <li key={task.id}>
                   <Link
                     href={`/board?task=${task.id}`}
-                    className="flex items-center gap-2 rounded-lg border border-edge bg-surface px-2.5 py-1.5 text-xs transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                    className="flex items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     <TeamDot colour={team.colour} />
                     <span className="max-w-[16rem] truncate">{task.title}</span>

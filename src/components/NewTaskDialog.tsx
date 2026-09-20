@@ -37,8 +37,8 @@ interface Props {
 }
 
 const FIELD =
-  "w-full min-w-0 rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-mars focus:outline-none focus-visible:ring-2 focus-visible:ring-mars";
-const LABEL = "block text-xs font-medium text-ink-muted";
+  "w-full min-w-0 rounded-md border border-line bg-elevated px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+const LABEL = "block text-xs font-medium text-ink-2";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -179,11 +179,11 @@ export function NewTaskDialog({
         role="dialog"
         aria-modal="true"
         aria-label="New task"
-        className="selectable overscroll-none-safe relative max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-xl border border-edge bg-ground p-5 shadow-2xl"
+        className="selectable overscroll-none-safe relative max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-xl border border-line bg-canvas p-5 shadow-2xl"
       >
         <header>
           <h2 className="text-sm font-semibold">New Task</h2>
-          <p className="mt-0.5 text-xs text-ink-faint">
+          <p className="mt-0.5 text-xs text-ink-3">
             Fill in what you know now. Dates matter most — an undated task cannot
             be forecast and will not show on the board&apos;s Current view.
           </p>
@@ -395,7 +395,7 @@ export function NewTaskDialog({
               onChange={(e) => setEstimateDays(Number(e.target.value) || 0)}
               className={FIELD}
             />
-            <p className="text-[11px] text-ink-faint">
+            <p className="text-[11px] text-ink-3">
               Only used when no dates are set.
             </p>
           </div>
@@ -422,16 +422,16 @@ export function NewTaskDialog({
               {links.map((link, i) => (
                 <li
                   key={`${link.url}-${i}`}
-                  className="flex items-center gap-2 rounded-md bg-surface px-2.5 py-1.5 text-xs"
+                  className="flex items-center gap-2 rounded-md bg-panel px-2.5 py-1.5 text-xs"
                 >
-                  <span className="min-w-0 flex-1 truncate text-mars-soft">
+                  <span className="min-w-0 flex-1 truncate text-accent">
                     {link.label || link.url}
                   </span>
                   <button
                     type="button"
                     onClick={() => setLinks((c) => c.filter((_, j) => j !== i))}
                     aria-label={`Remove ${link.label || link.url}`}
-                    className="rounded p-0.5 text-ink-faint transition-colors hover:text-late focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                    className="rounded p-0.5 text-ink-3 transition-colors hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
                       <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
@@ -476,7 +476,7 @@ export function NewTaskDialog({
               type="button"
               onClick={addLink}
               disabled={!linkUrl.trim()}
-              className="shrink-0 rounded-md border border-edge px-3 text-xs text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+              className="shrink-0 rounded-md border border-line px-3 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               Add Link
             </button>
@@ -496,7 +496,7 @@ export function NewTaskDialog({
           />
         </div>
 
-        <p aria-live="polite" className="text-xs text-late">
+        <p aria-live="polite" className="text-xs text-danger">
           {error}
         </p>
 
@@ -504,14 +504,14 @@ export function NewTaskDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+            className="rounded-md px-3 py-1.5 text-sm text-ink-2 transition-colors hover:bg-elevated hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving || !title.trim()}
-            className="rounded-md bg-mars px-3 py-1.5 text-sm font-medium text-ground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {saving ? "Creating…" : "Create Task"}
           </button>

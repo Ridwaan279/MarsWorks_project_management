@@ -224,14 +224,14 @@ export function Timeline({
   const todayOffset = daysBetween(start, today) * dayWidth;
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
-      <div className="flex flex-wrap items-center gap-3 border-b border-edge px-4 py-3 sm:px-6">
-        <label className="flex items-center gap-2 text-xs text-ink-muted">
+    <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
+        <label className="flex items-center gap-2 text-xs text-ink-2">
           Sub-team
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-mars focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+            className="rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <option value="ALL">All teams</option>
             {teams.map((team) => (
@@ -242,12 +242,12 @@ export function Timeline({
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-xs text-ink-muted">
+        <label className="flex items-center gap-2 text-xs text-ink-2">
           Range
           <select
             value={range}
             onChange={(e) => setRange(e.target.value as RangeKey)}
-            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-mars focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+            className="rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {(Object.keys(RANGES) as RangeKey[]).map((key) => (
               <option key={key} value={key}>
@@ -260,7 +260,7 @@ export function Timeline({
         <div
           role="group"
           aria-label="Zoom"
-          className="flex items-center gap-0.5 rounded-md border border-edge p-0.5"
+          className="flex items-center gap-0.5 rounded-md border border-line p-0.5"
         >
           {(Object.keys(ZOOM) as Zoom[]).map((level) => (
             <button
@@ -269,10 +269,10 @@ export function Timeline({
               onClick={() => setZoom(level)}
               aria-pressed={zoom === level}
               className={clsx(
-                "rounded px-2 py-1 text-xs capitalize transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mars",
+                "rounded px-2 py-1 text-xs capitalize transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                 zoom === level
-                  ? "bg-surface-2 text-ink"
-                  : "text-ink-faint hover:text-ink-muted",
+                  ? "bg-elevated text-ink"
+                  : "text-ink-3 hover:text-ink-2",
               )}
             >
               {level}
@@ -280,35 +280,35 @@ export function Timeline({
           ))}
         </div>
 
-        <label className="flex items-center gap-2 text-xs text-ink-muted">
+        <label className="flex items-center gap-2 text-xs text-ink-2">
           <input
             type="checkbox"
             checked={hideDone}
             onChange={(e) => setHideDone(e.target.checked)}
-            className="accent-[var(--color-mars)]"
+            className="accent-[var(--color-accent)]"
           />
           Hide completed
         </label>
 
-        <span className="text-xs text-ink-faint tabular-nums" data-testid="timeline-count">
+        <span className="text-xs text-ink-3 tabular-nums" data-testid="timeline-count">
           {visible.length} shown
         </span>
 
-        <div className="ml-auto flex items-center gap-4 text-xs text-ink-faint">
+        <div className="ml-auto flex items-center gap-4 text-xs text-ink-3">
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-4 rounded-sm bg-mars" aria-hidden /> critical path
+            <span className="h-2 w-4 rounded-sm bg-accent" aria-hidden /> critical path
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-3.5 w-px bg-ink-muted" aria-hidden /> today
+            <span className="h-3.5 w-px bg-accent/60" aria-hidden /> today
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-3.5 w-px bg-warn" aria-hidden /> milestone
+            <span className="h-3.5 w-px bg-accent/70" aria-hidden /> milestone
           </span>
         </div>
       </div>
 
       {grouped.length === 0 ? (
-        <p className="px-6 py-10 text-sm text-ink-faint">
+        <p className="px-6 py-10 text-sm text-ink-3">
           No tasks match these filters.
         </p>
       ) : (
@@ -324,11 +324,11 @@ export function Timeline({
             style={{ width: RAIL + chartWidth, minWidth: "100%" }}
           >
             <div
-              className="sticky top-0 z-30 flex border-b border-edge bg-ground"
+              className="sticky top-0 z-30 flex border-b border-line bg-canvas"
               style={{ height: HEADER_HEIGHT }}
             >
               <div
-                className="sticky left-0 z-10 flex shrink-0 items-center border-r border-edge bg-ground px-3 text-xs font-semibold text-ink-muted"
+                className="sticky left-0 z-10 flex shrink-0 items-center border-r border-line bg-canvas px-3 text-xs font-semibold text-ink-2"
                 style={{ width: RAIL }}
               >
                 Sub-team / task
@@ -338,7 +338,7 @@ export function Timeline({
                   <span
                     key={mark.offset}
                     style={{ left: mark.offset * dayWidth }}
-                    className="absolute top-1 pl-1.5 text-[10px] whitespace-nowrap text-ink-faint tabular-nums"
+                    className="absolute top-1 pl-1.5 text-[10px] whitespace-nowrap text-ink-3 tabular-nums"
                   >
                     {format(mark.date, zoom === "compact" ? "d/M" : "d MMM")}
                   </span>
@@ -348,7 +348,7 @@ export function Timeline({
                     key={milestone.id}
                     title={`${milestone.name} — ${format(new Date(milestone.targetDate), "d MMM yyyy")}`}
                     style={{ left: offset * dayWidth + 2, maxWidth: Math.max(room, 18) }}
-                    className="absolute bottom-1 truncate rounded bg-warn/15 px-1 text-[9px] text-warn"
+                    className="absolute bottom-1 truncate rounded bg-accent-tint px-1 text-[9px] text-accent"
                   >
                     {milestone.name}
                   </span>
@@ -368,19 +368,21 @@ export function Timeline({
                   <span
                     key={mark.offset}
                     style={{ left: mark.offset * dayWidth }}
-                    className="absolute inset-y-0 w-px bg-edge-soft"
+                    className="absolute inset-y-0 w-px bg-line"
                   />
                 ))}
                 {milestonesInView.map(({ milestone, offset }) => (
                   <span
                     key={milestone.id}
                     style={{ left: offset * dayWidth }}
-                    className="absolute inset-y-0 w-px bg-warn/70"
+                    className="absolute inset-y-0 w-px bg-accent/70"
                   />
                 ))}
+                {/* Today: MarsWorks orange at partial opacity, per the
+                    palette document's timeline rules. */}
                 <span
                   style={{ left: todayOffset }}
-                  className="absolute inset-y-0 w-px bg-ink-muted"
+                  className="absolute inset-y-0 w-px bg-accent/60"
                 />
               </div>
 
@@ -390,7 +392,7 @@ export function Timeline({
                     <span className="flex w-full items-center gap-2">
                       <TeamDot colour={team.colour} />
                       <span className="truncate text-xs font-semibold">{team.name}</span>
-                      <span className="ml-auto text-[10px] text-ink-faint tabular-nums">
+                      <span className="ml-auto text-[10px] text-ink-3 tabular-nums">
                         {count}
                       </span>
                     </span>
@@ -411,7 +413,7 @@ export function Timeline({
                               className="h-2.5 w-0.5 shrink-0 rounded-full"
                               style={{ backgroundColor: group.colour }}
                             />
-                            <span className="truncate text-[11px] font-medium text-ink-muted">
+                            <span className="truncate text-[11px] font-medium text-ink-2">
                               {group.label}
                             </span>
                             {group.stage ? (
@@ -448,12 +450,12 @@ export function Timeline({
                             rail={
                               <Link
                                 href={`/board?task=${task.id}`}
-                                className="flex h-full w-full items-center gap-2 pl-3 text-xs transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars focus-visible:ring-inset"
+                                className="flex h-full w-full items-center gap-2 pl-3 text-xs transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
                               >
-                                <span className="shrink-0 font-mono text-[10px] text-ink-faint" translate="no">
+                                <span className="shrink-0 font-mono text-[10px] text-ink-3" translate="no">
                                   {task.key}
                                 </span>
-                                <span className="min-w-0 flex-1 truncate text-ink-muted">
+                                <span className="min-w-0 flex-1 truncate text-ink-2">
                                   {task.title}
                                 </span>
                                 {task.assigneeId ? (
@@ -471,13 +473,13 @@ export function Timeline({
                                 title={`${task.key}: ${task.title}\n${format(new Date(sched.earliestStart as unknown as string), "d MMM")} – ${format(new Date(sched.earliestFinish as unknown as string), "d MMM")}\n${formatDays(-sched.slackDays)}`}
                                 style={{ left: barStart * dayWidth, width }}
                                 className={clsx(
-                                  "absolute top-1/2 flex h-4 -translate-y-1/2 items-center overflow-hidden rounded-sm ring-1 transition-[height,box-shadow] hover:h-5 hover:ring-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars",
+                                  "absolute top-1/2 flex h-4 -translate-y-1/2 items-center overflow-hidden rounded-sm ring-1 transition-[height,box-shadow] hover:h-5 hover:ring-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                                   done
-                                    ? "opacity-45 ring-transparent"
+                                    ? "opacity-50 ring-transparent"
                                     : sched.isCritical
-                                      ? "ring-mars"
+                                      ? "ring-accent"
                                       : sched.slackDays < 0
-                                        ? "ring-late"
+                                        ? "ring-danger"
                                         : "ring-transparent",
                                 )}
                               >
@@ -535,16 +537,16 @@ function Row({
   children?: React.ReactNode;
 }) {
   // The label cell must be opaque: it is pinned over the gridlines behind it.
-  const background = tone === "team" ? "bg-surface-2" : "bg-ground";
+  const background = tone === "team" ? "bg-elevated" : "bg-canvas";
   const tint =
     tone === "group" && accent
       ? { backgroundColor: `color-mix(in srgb, ${accent} 10%, var(--color-ground))` }
       : undefined;
   return (
-    <div className={clsx("flex", tone === "team" && "border-t border-edge")} style={{ height }}>
+    <div className={clsx("flex", tone === "team" && "border-t border-line")} style={{ height }}>
       <div
         className={clsx(
-          "sticky left-0 z-20 flex shrink-0 items-center border-r border-edge",
+          "sticky left-0 z-20 flex shrink-0 items-center border-r border-line",
           rail ? "" : "px-3",
           background,
         )}
@@ -553,7 +555,7 @@ function Row({
         {rail ?? children}
       </div>
       <div
-        className={clsx("relative shrink-0", tone === "team" && "bg-surface-2/60")}
+        className={clsx("relative shrink-0", tone === "team" && "bg-elevated/60")}
         style={{ width: chartWidth, ...tint }}
       >
         {rail ? children : null}

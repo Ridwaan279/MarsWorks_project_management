@@ -78,17 +78,23 @@ That importer is a one-off migration tool, but the **column mapping it encodes
 is the mapping the Google Sheets sync has to agree with**, which is why it is
 kept rather than thrown away.
 
-## Branding
+## Branding and theming
 
-Colours come from the team's branding guide: `#020101`, `#a6a7a7`, `#3c1910`,
-`#61321f`, `#8c4b2c`, `#ab683e` and `#f87624`. Every surface and grey is tinted
-warm so nothing reads as a cool grey on a warm ground, and MarsWorks orange is
-the single accent — status colours aside, which are warm-leaning for the same
-reason.
+Colours come from the Mission Control palette document and are defined as CSS
+variables under its own token names (`--color-bg`, `--color-surface`,
+`--color-accent`, `--team-*` and so on) in `src/app/globals.css`. Tailwind
+utilities reference those variables rather than hex values, so a theme switch
+re-themes every utility without regenerating a class.
 
-Sub-team colours are six desaturated hues chosen to sit inside that palette
-while staying distinguishable on a dense Gantt. On a database seeded before
-this, `scripts/brand-team-colours.sql` updates them in place.
+The hierarchy the document sets out: neutral chrome, sub-team colours for
+ownership, status colours for risk, and MarsWorks orange reserved for brand,
+milestones, the critical path and primary actions -- never the default colour
+of a task.
+
+Dark is the default; the toggle in the header stores a choice in
+`localStorage` and an inline script applies it before the first paint. Sub-team
+colours live in the database as well as the stylesheet;
+`scripts/brand-team-colours.sql` brings an already-seeded database in line.
 
 Type is Outfit for the interface and JetBrains Mono for task keys and figures.
 The logo lives at `public/marsworks-logo.png` and supplies the favicon.

@@ -48,11 +48,11 @@ export function TaskCardBody({
       className={clsx(
         "space-y-2.5 rounded-lg border p-3 text-left",
         task.flagged
-          ? "border-late bg-late/15 ring-1 ring-late/40"
+          ? "border-danger bg-danger/15 ring-1 ring-danger/40"
           : late
-            ? "border-late/40"
+            ? "border-danger/40"
             : tight
-              ? "border-warn/30"
+              ? "border-warning/30"
               : "",
         dragging && "card-overlay",
       )}
@@ -76,16 +76,16 @@ export function TaskCardBody({
               onToggleFlag(task.id, !task.flagged);
             }}
             className={clsx(
-              "-m-1 shrink-0 rounded p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mars",
+              "-m-1 shrink-0 rounded p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
               task.flagged
-                ? "text-late hover:text-late/80"
-                : "text-ink-faint hover:text-ink-muted",
+                ? "text-danger hover:text-danger/80"
+                : "text-ink-3 hover:text-ink-2",
             )}
           >
             <FlagIcon filled={task.flagged} />
           </button>
         ) : (
-          <span className={task.flagged ? "text-late" : "text-ink-faint"}>
+          <span className={task.flagged ? "text-danger" : "text-ink-3"}>
             <FlagIcon filled={task.flagged} />
           </span>
         )}
@@ -94,14 +94,14 @@ export function TaskCardBody({
       {task.stage || !task.plannedEnd ? (
         <div className="flex flex-wrap items-center gap-1.5">
           {task.stage ? (
-            <span className="rounded bg-ground/40 px-1.5 py-0.5 text-[10px] text-ink-muted">
+            <span className="rounded bg-canvas/40 px-1.5 py-0.5 text-[10px] text-ink-2">
               {STAGE_SHORT[task.stage]}
             </span>
           ) : null}
           {!task.plannedEnd && task.status !== "DONE" ? (
             <span
               title="No planned end date, so this task is invisible to the forecast"
-              className="rounded bg-warn/15 px-1.5 py-0.5 text-[10px] text-warn"
+              className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] text-warning"
             >
               undated
             </span>
@@ -114,7 +114,7 @@ export function TaskCardBody({
       ) : null}
 
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 text-[11px] text-ink-faint">
+        <div className="flex min-w-0 items-center gap-2 text-[11px] text-ink-3">
           <span className="font-mono" translate="no">
             {task.key}
           </span>
@@ -147,7 +147,7 @@ export function TaskCardBody({
             </span>
           ) : null}
           {scheduled && scheduled.isCritical && task.status !== "DONE" ? (
-            <span className="rounded bg-mars/15 px-1 font-medium text-mars-soft">
+            <span className="rounded bg-accent/15 px-1 font-medium text-accent">
               critical
             </span>
           ) : null}
@@ -155,7 +155,7 @@ export function TaskCardBody({
         {assignee ? (
           <Avatar name={assignee.name} />
         ) : (
-          <span className="text-[11px] text-ink-faint">Unassigned</span>
+          <span className="text-[11px] text-ink-3">Unassigned</span>
         )}
       </div>
     </div>
@@ -205,7 +205,7 @@ export function SortableTaskCard(props: TaskCardProps) {
           }
         }}
         aria-label={`${props.task.key}: ${props.task.title}`}
-        className="block w-full cursor-grab touch-none rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-mars active:cursor-grabbing"
+        className="block w-full cursor-grab touch-none rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
       >
         <TaskCardBody {...props} />
       </div>

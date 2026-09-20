@@ -25,16 +25,16 @@ export default function Error({
   return (
     <div className="mx-auto max-w-xl px-6 py-20">
       <h1 className="text-lg font-semibold">Mission Control could not load</h1>
-      <p className="mt-2 text-sm text-ink-muted">
+      <p className="mt-2 text-sm text-ink-2">
         The page failed on the server. This is nearly always the database: either
         it is unreachable, or its tables have not been created yet.
       </p>
 
-      <div className="mt-6 rounded-xl border border-edge bg-surface p-4">
+      <div className="mt-6 rounded-xl border border-line bg-panel p-4">
         <h2 className="text-sm font-medium">Find out which</h2>
-        <p className="mt-1.5 text-sm text-ink-muted">
+        <p className="mt-1.5 text-sm text-ink-2">
           Open{" "}
-          <Link href="/api/health" className="text-mars-soft hover:underline">
+          <Link href="/api/health" className="text-accent hover:underline">
             /api/health
           </Link>
           . It checks the connection string, the database and the schema in turn,
@@ -46,12 +46,12 @@ export default function Error({
         <button
           type="button"
           onClick={reset}
-          className="rounded-md bg-mars px-3 py-1.5 text-sm font-medium text-ground transition-opacity hover:opacity-90"
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-canvas transition-opacity hover:opacity-90"
         >
           Try again
         </button>
         {error.digest ? (
-          <span className="font-mono text-xs text-ink-faint">
+          <span className="font-mono text-xs text-ink-3">
             digest {error.digest}
           </span>
         ) : null}

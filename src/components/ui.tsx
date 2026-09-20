@@ -12,9 +12,9 @@ export function TeamDot({ colour, className }: { colour: string; className?: str
 }
 
 const HEALTH_STYLES: Record<HealthLevel, string> = {
-  ON_TRACK: "bg-ok/15 text-ok ring-ok/25",
-  AT_RISK: "bg-warn/15 text-warn ring-warn/25",
-  BEHIND: "bg-late/15 text-late ring-late/25",
+  ON_TRACK: "bg-success/15 text-success ring-success/25",
+  AT_RISK: "bg-warning/15 text-warning ring-warning/25",
+  BEHIND: "bg-danger/15 text-danger ring-danger/25",
 };
 
 export function HealthPill({
@@ -40,10 +40,10 @@ export function HealthPill({
 }
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
-  LOW: "text-ink-faint",
-  MEDIUM: "text-mars-soft",
-  HIGH: "text-warn",
-  CRITICAL: "text-late",
+  LOW: "text-ink-3",
+  MEDIUM: "text-accent",
+  HIGH: "text-warning",
+  CRITICAL: "text-danger",
 };
 
 export function PriorityFlag({ priority }: { priority: TaskPriority }) {
@@ -61,12 +61,12 @@ export function PriorityFlag({ priority }: { priority: TaskPriority }) {
 }
 
 const STATUS_STYLES: Record<TaskStatus, string> = {
-  BACKLOG: "bg-surface-3 text-ink-muted",
-  TODO: "bg-surface-3 text-ink",
-  IN_PROGRESS: "bg-mars/15 text-mars-soft",
-  BLOCKED: "bg-late/15 text-late",
-  IN_REVIEW: "bg-mars/15 text-mars-soft",
-  DONE: "bg-ok/15 text-ok",
+  BACKLOG: "bg-elevated text-ink-2",
+  TODO: "bg-elevated text-ink",
+  IN_PROGRESS: "bg-accent/15 text-accent",
+  BLOCKED: "bg-danger/15 text-danger",
+  IN_REVIEW: "bg-accent/15 text-accent",
+  DONE: "bg-success/15 text-success",
 };
 
 export function StatusBadge({ status, label }: { status: TaskStatus; label: string }) {
@@ -102,7 +102,7 @@ export function Avatar({
     <span
       title={name}
       className={clsx(
-        "inline-grid shrink-0 place-items-center rounded-full bg-surface-3 font-medium text-ink-muted ring-1 ring-edge",
+        "inline-grid shrink-0 place-items-center rounded-full bg-elevated font-medium text-ink-2 ring-1 ring-line",
         size === "sm" ? "h-5 w-5 text-[9px]" : "h-8 w-8 text-xs",
         className,
       )}
@@ -133,7 +133,7 @@ export function ProgressBar({
     >
       <div
         className="h-full rounded-full transition-[width]"
-        style={{ width: `${clamped}%`, backgroundColor: colour ?? "var(--color-mars)" }}
+        style={{ width: `${clamped}%`, backgroundColor: colour ?? "var(--color-accent)" }}
       />
     </div>
   );
@@ -157,7 +157,7 @@ export function Card({
   return (
     <section
       className={clsx(
-        "rounded-xl border border-edge bg-surface p-4 sm:p-5",
+        "rounded-xl border border-line bg-panel p-4 sm:p-5",
         className,
       )}
     >
@@ -168,9 +168,9 @@ export function Card({
 
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-edge px-6 py-10 text-center">
-      <p className="text-sm font-medium text-ink-muted">{title}</p>
-      {hint ? <p className="mt-1 text-xs text-ink-faint">{hint}</p> : null}
+    <div className="rounded-xl border border-dashed border-line px-6 py-10 text-center">
+      <p className="text-sm font-medium text-ink-2">{title}</p>
+      {hint ? <p className="mt-1 text-xs text-ink-3">{hint}</p> : null}
     </div>
   );
 }

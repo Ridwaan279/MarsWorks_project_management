@@ -1,10 +1,11 @@
--- Bring the sub-team colours into the brand palette on a database that has
--- already been seeded. Safe to run more than once; touches nothing else.
-update "Team" set colour = '#a6a7a7' where key = 'OPS';
-update "Team" set colour = '#f87624' where key = 'MECH';
-update "Team" set colour = '#7d9ea3' where key = 'ELEC';
-update "Team" set colour = '#9aa866' where key = 'ROBO';
-update "Team" set colour = '#c08a9c' where key = 'SCI';
-update "Team" set colour = '#9a8bbd' where key = 'SW';
+-- Sub-team colours from the Mission Control palette document. Run against a
+-- database that is already seeded; safe to run more than once and touches
+-- nothing but the colour column.
+update "Team" set colour = '#8b9aaf' where key = 'OPS';   -- slate blue
+update "Team" set colour = '#f87624' where key = 'MECH';  -- MarsWorks orange
+update "Team" set colour = '#35b9d6' where key = 'ELEC';  -- cyan
+update "Team" set colour = '#8bcb3f' where key = 'ROBO';  -- green
+update "Team" set colour = '#d96baa' where key = 'SCI';   -- pink
+update "Team" set colour = '#9b72e8' where key = 'SW';    -- purple
 
 select key, name, colour from "Team" order by position;

@@ -1,46 +1,87 @@
 @import "tailwindcss";
 
 /*
- * Mission-control palette: a deep neutral ground so the status colours carry
- * all the signal. Every foreground/background pair here clears WCAG AA.
+ * MarsWorks Mission Control palette.
+ *
+ * Source of truth is the colour-palette document, whose token names are used
+ * verbatim below so the two can be compared line by line. The hierarchy it
+ * sets out is: neutral chrome, team colours for ownership, status colours for
+ * risk, and MarsWorks orange reserved for brand, milestones, the critical
+ * path and primary actions -- never as the default colour of a task.
  */
-@theme {
-  /*
-   * MarsWorks brand palette, from the team's branding guide:
-   *   #020101 black        #a6a7a7 light grey     #3c1910 dark brown
-   *   #61321f dark brown   #8c4b2c brown          #ab683e grey orange
-   *   #f87624 MarsWorks orange
-   *
-   * The surfaces are warm throughout -- every grey is tinted towards the
-   * brown, so nothing reads as a cool grey sitting on a warm ground.
-   */
-  --color-ground: #0d0806;
-  --color-surface: #17100c;
-  --color-surface-2: #1f1611;
-  --color-surface-3: #3c1910;
-  --color-edge: #3a2519;
-  --color-edge-soft: #241811;
+:root {
+  --color-bg: #0d0e10;
+  --color-surface: #141619;
+  --color-card: #191b1f;
+  --color-surface-elevated: #1e2126;
+  --color-border: #2a2d33;
+  --color-border-strong: #383c44;
+  --color-text: #f2f4f7;
+  --color-text-secondary: #a9afb8;
+  --color-text-muted: #737a85;
+  --color-accent: #f87624;
+  --color-accent-hover: #ff8a3d;
+  --color-accent-subtle: #2b1a11;
 
-  --color-ink: #f6f1ee;
-  --color-ink-muted: #a6a7a7;
-  --color-ink-faint: #8a7466;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-danger: #f85149;
+  --color-information: #58a6ff;
 
-  /* The one accent. Everything else is either neutral or a status. */
-  --color-mars: #f87624;
-  --color-mars-soft: #ab683e;
-  --color-clay: #8c4b2c;
-  --color-rust: #61321f;
+  /* Sub-team identity. Also stored per team in the database, so the two must
+     be kept in step; scripts/brand-team-colours.sql writes these. */
+  --team-operations: #8b9aaf;
+  --team-mechanical: #f87624;
+  --team-electronics: #35b9d6;
+  --team-robotics: #8bcb3f;
+  --team-science: #d96baa;
+  --team-software: #9b72e8;
 
-  /*
-   * Status colours are warm-leaning so they belong to the same family as the
-   * brand rather than arriving from a different palette.
-   */
-  --color-ok: #7fa662;
-  --color-warn: #d9a13c;
-  --color-late: #d7503a;
-  /* Kept for the few informational accents; a warm clay rather than the
-     blue it replaced, so nothing cool appears on a warm ground. */
-  --color-info: #c98a5b;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --color-bg: #f6f7f9;
+  --color-surface: #eef0f3;
+  --color-card: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-border: #d9dde3;
+  --color-border-strong: #c4c9d1;
+  --color-text: #17191c;
+  --color-text-secondary: #5e6672;
+  --color-text-muted: #8a919c;
+  --color-accent: #e96818;
+  --color-accent-hover: #d95d12;
+  --color-accent-subtle: #fff1e8;
+
+  color-scheme: light;
+}
+
+/*
+ * Tailwind utilities map onto those tokens by reference, so switching the
+ * theme attribute re-themes every utility without regenerating classes.
+ */
+@theme inline {
+  --color-canvas: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-panel: var(--color-card);
+  --color-elevated: var(--color-surface-elevated);
+
+  --color-line: var(--color-border);
+  --color-line-strong: var(--color-border-strong);
+
+  --color-ink: var(--color-text);
+  --color-ink-2: var(--color-text-secondary);
+  --color-ink-3: var(--color-text-muted);
+
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-tint: var(--color-accent-subtle);
+
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-info: var(--color-information);
 
   --font-sans: var(--font-outfit), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, sans-serif;
@@ -48,31 +89,72 @@
     Consolas, monospace;
 }
 
-
-html {
-  /* Tells the browser to render native controls, scrollbars and form widgets
-     for a dark UI, which is what makes <select> and date pickers legible. */
-  color-scheme: dark;
-}
-
 html,
 body {
-  background: var(--color-ground);
-  color: var(--color-ink);
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  /* Anchor links land below the sticky header rather than under it. */
-  scroll-behavior: smooth;
-  /* Removes the 300ms tap delay without disabling pinch-zoom. */
   touch-action: manipulation;
+  scroll-behavior: smooth;
 }
 
-/* Native selects and date inputs do not inherit colour reliably across
-   browsers, so state it explicitly rather than relying on color-scheme alone. */
-select,
-input[type="date"] {
-  background-color: var(--color-surface-2);
-  color: var(--color-ink);
+/* Theme changes should settle rather than snap, but only the colours. */
+html.theme-ready body,
+html.theme-ready body * {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 999px;
+  border: 2px solid var(--color-bg);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/*
+ * Dragging the pointer across a board or a Gantt chart should move things, not
+ * paint a selection over half the page. Selection is off by default and
+ * switched back on for form controls and anything marked .selectable.
+ */
+body {
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+.selectable,
+.selectable * {
+  user-select: text;
+}
+
+body.is-dragging {
+  cursor: grabbing;
+}
+
+/* Drag feedback for the board. */
+.card-dragging {
+  opacity: 0.35;
+}
+
+.card-overlay {
+  transform: rotate(2deg);
+  box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.55);
 }
 
 /*
@@ -80,7 +162,6 @@ input[type="date"] {
  * ancestor it resolves against the initial containing block, escapes any
  * overflow clipping on the way, and stretches the page's scroll width -- which
  * showed up as a second, page-level horizontal scrollbar behind the board.
- * Anchoring it to its own parent keeps it where it belongs.
  */
 :has(> .sr-only) {
   position: relative;
@@ -102,55 +183,29 @@ input[type="date"] {
   overscroll-behavior-x: auto;
 }
 
-/*
- * Dragging the pointer across a board or a Gantt chart should move things, not
- * paint a selection over half the page. Selection is therefore off by default
- * and switched back on for the places where copying text is the point: form
- * controls, and anything marked .selectable.
- */
-body {
-  user-select: none;
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
-input,
-textarea,
-[contenteditable="true"],
-.selectable,
-.selectable * {
-  user-select: text;
+button:not(:disabled):active {
+  transform: translateY(0.5px);
 }
 
-body.is-dragging {
-  cursor: grabbing;
+/* Skeletons shown while a route streams in. */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.75;
+  }
 }
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-surface-3) transparent;
-}
-
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--color-surface-3);
-  border-radius: 999px;
-  border: 2px solid var(--color-ground);
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* Drag feedback for the board. Kept here so the Kanban card component stays
-   readable instead of carrying a dozen conditional classes. */
-.card-dragging {
-  opacity: 0.35;
-}
-
-.card-overlay {
-  transform: rotate(2deg);
-  box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.75);
+.skeleton {
+  background: var(--color-card);
+  border-radius: 0.5rem;
+  animation: pulse-soft 1.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -160,36 +215,8 @@ body.is-dragging {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/*
- * A fixed grain overlay. Flat dark surfaces read as digital and lifeless;
- * a little noise gives the browns some material quality without becoming a
- * texture anyone notices.
- */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-@media (prefers-reduced-motion: reduce) {
   html,
   body {
     scroll-behavior: auto;
   }
-}
-
-/* Numbers in dense tables should line up column to column. */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Pressed feedback on the primary actions, so clicks feel physical. */
-button:not(:disabled):active {
-  transform: translateY(0.5px);
 }

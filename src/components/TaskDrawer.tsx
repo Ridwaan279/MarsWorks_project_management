@@ -36,8 +36,8 @@ interface DrawerProps {
 }
 
 const FIELD =
-  "w-full min-w-0 rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-mars focus:outline-none focus-visible:ring-2 focus-visible:ring-mars";
-const LABEL = "block text-xs font-medium text-ink-muted";
+  "w-full min-w-0 rounded-md border border-line bg-elevated px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+const LABEL = "block text-xs font-medium text-ink-2";
 
 /** <input type="date"> speaks YYYY-MM-DD; the API and the model speak Date. */
 function toDateInput(value: Date | string | null): string {
@@ -58,22 +58,22 @@ function Disclosure({
   children: React.ReactNode;
 }) {
   return (
-    <details className="group rounded-lg border border-edge bg-surface">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm text-ink-muted transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mars">
+    <details className="group rounded-lg border border-line bg-panel">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm text-ink-2 transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
         <svg
           viewBox="0 0 16 16"
           aria-hidden
-          className="h-3.5 w-3.5 shrink-0 text-ink-faint transition-transform group-open:rotate-90"
+          className="h-3.5 w-3.5 shrink-0 text-ink-3 transition-transform group-open:rotate-90"
           fill="currentColor"
         >
           <path d="M6 4l4 4-4 4V4Z" />
         </svg>
         <span className="flex-1">{title}</span>
         {badge ? (
-          <span className="text-xs tabular-nums text-ink-faint">{badge}</span>
+          <span className="text-xs tabular-nums text-ink-3">{badge}</span>
         ) : null}
       </summary>
-      <div className="space-y-3 border-t border-edge-soft px-3 py-3">{children}</div>
+      <div className="space-y-3 border-t border-line px-3 py-3">{children}</div>
     </details>
   );
 }
@@ -226,12 +226,12 @@ export function TaskDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={`${task.key}: ${task.title}`}
-        className="relative flex h-full w-full max-w-lg flex-col border-l border-edge bg-ground shadow-2xl focus:outline-none"
+        className="relative flex h-full w-full max-w-lg flex-col border-l border-line bg-canvas shadow-2xl focus:outline-none"
       >
-        <header className="flex items-center justify-between gap-3 border-b border-edge px-5 py-3">
+        <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             {team ? <TeamDot colour={team.colour} /> : null}
-            <span className="font-mono text-xs text-ink-faint" translate="no">
+            <span className="font-mono text-xs text-ink-3" translate="no">
               {task.key}
             </span>
             <StatusBadge status={draft.status} label={STATUS_LABEL[draft.status]} />
@@ -240,7 +240,7 @@ export function TaskDrawer({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded p-1 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+            className="rounded p-1 text-ink-3 transition-colors hover:bg-elevated hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
               <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
@@ -381,7 +381,7 @@ export function TaskDrawer({
                         : draft.status,
                 });
               }}
-              className="w-full accent-[var(--color-mars)] focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+              className="w-full accent-[var(--color-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
             <ProgressBar value={draft.progress} colour={team?.colour} />
           </div>
@@ -393,13 +393,13 @@ export function TaskDrawer({
                 {draft.links.map((link) => (
                   <li
                     key={link.id}
-                    className="flex items-center gap-2 rounded-md bg-surface px-2.5 py-1.5"
+                    className="flex items-center gap-2 rounded-md bg-panel px-2.5 py-1.5"
                   >
                     <a
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="min-w-0 flex-1 truncate rounded text-xs text-mars-soft hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                      className="min-w-0 flex-1 truncate rounded text-xs text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     >
                       {link.label}
                     </a>
@@ -407,7 +407,7 @@ export function TaskDrawer({
                       type="button"
                       onClick={() => removeLink(link.id)}
                       aria-label={`Remove link ${link.label}`}
-                      className="rounded p-0.5 text-ink-faint transition-colors hover:text-late focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                      className="rounded p-0.5 text-ink-3 transition-colors hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     >
                       <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
                         <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
@@ -450,7 +450,7 @@ export function TaskDrawer({
                 <button
                   type="submit"
                   disabled={!linkUrl.trim()}
-                  className="shrink-0 rounded-md border border-edge px-3 text-xs text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                  className="shrink-0 rounded-md border border-line px-3 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   Add Link
                 </button>
@@ -604,24 +604,24 @@ export function TaskDrawer({
             >
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                 <div className="flex justify-between gap-2">
-                  <dt className="text-ink-faint">Can start</dt>
+                  <dt className="text-ink-3">Can start</dt>
                   <dd className="tabular-nums">{format(scheduled.earliestStart, "d MMM")}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt className="text-ink-faint">Forecast finish</dt>
+                  <dt className="text-ink-3">Forecast finish</dt>
                   <dd className="tabular-nums">{format(scheduled.earliestFinish, "d MMM")}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt className="text-ink-faint">Must finish by</dt>
+                  <dt className="text-ink-3">Must finish by</dt>
                   <dd className="tabular-nums">{format(scheduled.latestFinish, "d MMM")}</dd>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <dt className="text-ink-faint">Float</dt>
+                  <dt className="text-ink-3">Float</dt>
                   <dd
                     className={
                       scheduled.slackDays < 0
-                        ? "font-medium tabular-nums text-late"
-                        : "tabular-nums text-ink-muted"
+                        ? "font-medium tabular-nums text-danger"
+                        : "tabular-nums text-ink-2"
                     }
                   >
                     {formatDays(-scheduled.slackDays)}
@@ -629,18 +629,18 @@ export function TaskDrawer({
                 </div>
               </dl>
               {scheduled.planVarianceDays === null ? (
-                <p className="text-xs text-warn">
+                <p className="text-xs text-warning">
                   No planned end date, so this task is invisible to the forecast.
                 </p>
               ) : null}
               {scheduled.isCritical ? (
-                <p className="text-xs text-mars-soft">
+                <p className="text-xs text-accent">
                   On the critical path — any slip moves the whole project.
                 </p>
               ) : null}
               <Link
                 href={`/impact?task=${task.id}`}
-                className="inline-block rounded text-xs text-mars-soft hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                className="inline-block rounded text-xs text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 What happens if this slips? &rarr;
               </Link>
@@ -654,7 +654,7 @@ export function TaskDrawer({
             >
               {draft.blockedBy.length > 0 ? (
                 <div className="space-y-1.5">
-                  <p className="text-xs text-ink-muted">Waiting on</p>
+                  <p className="text-xs text-ink-2">Waiting on</p>
                   <ul className="space-y-1">
                     {draft.blockedBy.map((dep) => (
                       <DependencyRow key={dep.id} dep={dep} teams={teams} />
@@ -664,7 +664,7 @@ export function TaskDrawer({
               ) : null}
               {draft.blocks.length > 0 ? (
                 <div className="space-y-1.5">
-                  <p className="text-xs text-ink-muted">Blocking</p>
+                  <p className="text-xs text-ink-2">Blocking</p>
                   <ul className="space-y-1">
                     {draft.blocks.map((dep) => (
                       <DependencyRow key={dep.id} dep={dep} teams={teams} />
@@ -687,11 +687,11 @@ export function TaskDrawer({
                       aria-hidden
                       className={
                         st.done
-                          ? "mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm bg-ok"
-                          : "mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm ring-1 ring-edge"
+                          ? "mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm bg-success"
+                          : "mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm ring-1 ring-line"
                       }
                     />
-                    <span className={st.done ? "text-ink-faint line-through" : ""}>
+                    <span className={st.done ? "text-ink-3 line-through" : ""}>
                       {st.title}
                     </span>
                   </li>
@@ -701,24 +701,24 @@ export function TaskDrawer({
           ) : null}
         </div>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-edge px-5 py-3">
+        <footer className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
           <p aria-live="polite" className="min-w-0 flex-1 text-xs">
             {error ? (
-              <span className="text-late">{error}</span>
+              <span className="text-danger">{error}</span>
             ) : assignee ? (
-              <span className="flex items-center gap-2 text-ink-faint">
+              <span className="flex items-center gap-2 text-ink-3">
                 <Avatar name={assignee.name} />
                 <span className="truncate">{assignee.name}</span>
               </span>
             ) : (
-              <span className="text-ink-faint">Nobody assigned</span>
+              <span className="text-ink-3">Nobody assigned</span>
             )}
           </p>
           <div className="flex shrink-0 gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md px-3 py-1.5 text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+              className="rounded-md px-3 py-1.5 text-sm text-ink-2 transition-colors hover:bg-elevated hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               Cancel
             </button>
@@ -726,7 +726,7 @@ export function TaskDrawer({
               type="button"
               onClick={save}
               disabled={!dirty || saving}
-              className="rounded-md bg-mars px-3 py-1.5 text-sm font-medium text-ground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               {saving ? "Saving…" : "Save Changes"}
             </button>
@@ -746,13 +746,13 @@ function DependencyRow({
 }) {
   const team = teams.find((t) => t.id === dep.teamId);
   return (
-    <li className="flex items-center gap-2 rounded-md bg-surface-2 px-2.5 py-1.5 text-xs">
+    <li className="flex items-center gap-2 rounded-md bg-elevated px-2.5 py-1.5 text-xs">
       {team ? <TeamDot colour={team.colour} /> : null}
-      <span className="font-mono text-ink-faint" translate="no">
+      <span className="font-mono text-ink-3" translate="no">
         {dep.key}
       </span>
       <span className="min-w-0 flex-1 truncate">{dep.title}</span>
-      {team ? <span className="shrink-0 text-ink-faint">{team.name}</span> : null}
+      {team ? <span className="shrink-0 text-ink-3">{team.name}</span> : null}
     </li>
   );
 }

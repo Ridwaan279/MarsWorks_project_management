@@ -31,11 +31,11 @@ export default async function OverviewPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-pretty">
             Project overview
           </h1>
-          <p className="text-sm text-ink-faint tabular-nums">
+          <p className="text-sm text-ink-3 tabular-nums">
             {format(project.asOf, "d MMM yyyy")}
           </p>
         </div>
-        <p className="max-w-2xl text-sm text-ink-muted text-pretty">
+        <p className="max-w-2xl text-sm text-ink-2 text-pretty">
           {behindCount > 0
             ? `${behindCount} of ${project.teams.length} sub-teams are behind their own plan.`
             : atRiskCount > 0
@@ -46,7 +46,7 @@ export default async function OverviewPage() {
               {undatedCount} open {undatedCount === 1 ? "task has" : "tasks have"} no
               end date, so {undatedCount === 1 ? "it is" : "they are"} invisible to the
               forecast.{" "}
-              <Link href="/teams" className="text-mars-soft underline-offset-2 hover:underline">
+              <Link href="/teams" className="text-accent underline-offset-2 hover:underline">
                 See the breakdown
               </Link>
               .
@@ -56,10 +56,10 @@ export default async function OverviewPage() {
       </header>
 
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold tracking-wide text-ink-faint uppercase">
+        <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
           Milestones
         </h2>
-        <ul className="divide-y divide-edge-soft overflow-hidden rounded-xl border border-edge">
+        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
           {project.milestones.map((milestone) => {
             const forecast = project.schedule.milestones.find(
               (m) => m.id === milestone.id,
@@ -67,10 +67,10 @@ export default async function OverviewPage() {
             return (
               <li
                 key={milestone.id}
-                className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-surface px-4 py-3"
+                className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-panel px-4 py-3"
               >
                 <span className="min-w-0 flex-1 truncate text-sm">{milestone.name}</span>
-                <span className="text-sm tabular-nums text-ink-muted">
+                <span className="text-sm tabular-nums text-ink-2">
                   {format(milestone.targetDate, "d MMM yyyy")}
                 </span>
                 {forecast.hasFeedingWork ? (
@@ -87,7 +87,7 @@ export default async function OverviewPage() {
                 ) : (
                   <span
                     title="No task is linked to this milestone, so there is nothing to forecast from."
-                    className="rounded-full px-2 py-0.5 text-xs whitespace-nowrap text-ink-faint ring-1 ring-inset ring-edge"
+                    className="rounded-full px-2 py-0.5 text-xs whitespace-nowrap text-ink-3 ring-1 ring-inset ring-line"
                   >
                     No work linked
                   </span>
@@ -100,12 +100,12 @@ export default async function OverviewPage() {
 
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-4">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-faint uppercase">
+          <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
             Sub-teams
           </h2>
           <Link
             href="/teams"
-            className="rounded text-xs text-mars-soft underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+            className="rounded text-xs text-accent underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             Full breakdown &rarr;
           </Link>
@@ -120,7 +120,7 @@ export default async function OverviewPage() {
               <li key={team.id}>
                 <Link
                   href={`/teams#${team.key.toLowerCase()}`}
-                  className="block h-full rounded-xl border border-edge bg-surface p-4 transition-colors hover:border-edge-soft hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
+                  className="block h-full rounded-xl border border-line bg-panel p-4 transition-colors hover:border-line hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <div className="flex items-center gap-2">
                     <TeamDot colour={team.colour} />
@@ -134,14 +134,14 @@ export default async function OverviewPage() {
                   </div>
 
                   {health.total === 0 ? (
-                    <p className="mt-3 text-xs text-warn">
+                    <p className="mt-3 text-xs text-warning">
                       No tasks yet &mdash; nothing to forecast.
                     </p>
                   ) : (
                     <>
                       <div className="mt-4 space-y-1.5">
                         <ProgressBar value={health.completionPct} colour={team.colour} />
-                        <div className="flex justify-between text-xs text-ink-faint">
+                        <div className="flex justify-between text-xs text-ink-3">
                           <span className="tabular-nums">{health.completionPct}% done</span>
                           <span className="tabular-nums">
                             {open} open
@@ -149,13 +149,13 @@ export default async function OverviewPage() {
                           </span>
                         </div>
                       </div>
-                      <p className="mt-3 text-xs text-ink-faint">
+                      <p className="mt-3 text-xs text-ink-3">
                         {health.worstPlanVarianceDays > 0 ? (
-                          <span className="text-late">
+                          <span className="text-danger">
                             {health.worstPlanVarianceDays} days behind plan
                           </span>
                         ) : health.undatedTasks > 0 ? (
-                          <span className="text-warn tabular-nums">
+                          <span className="text-warning tabular-nums">
                             {health.undatedTasks} undated
                           </span>
                         ) : health.forecastFinish ? (
