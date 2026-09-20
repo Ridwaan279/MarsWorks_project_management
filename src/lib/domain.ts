@@ -122,6 +122,34 @@ export function normaliseStatus(raw: string | null | undefined): TaskStatus | nu
   return STATUS_ALIASES[raw.trim().toLowerCase()] ?? null;
 }
 
+/**
+ * Is this task part of what the team is working on right now?
+ *
+ * "Current" means either today falls inside the task's planned window, or the
+ * task is unfinished and its end date has already passed. Work that is still
+ * in the future is excluded, as is anything with no dates at all -- an undated
+ * task has no window to be inside.
+ *
+ * Finished work inside the window still counts, so the Done column shows what
+ * the team has just completed rather than sitting permanently empty.
+ */
+export function isCurrent(
+  task: {
+    status: TaskStatus;
+    plannedStart: Date | string | null;
+    plannedEnd: Date | string | null;
+  },
+  today: Date,
+): boolean {
+  const day = startOfDay(today).getTime();
+  const start = task.plannedStart ? startOfDay(new Date(task.plannedStart)).getTime() : null;
+  const end = task.plannedEnd ? startOfDay(new Date(task.plannedEnd)).getTime() : null;
+
+  if (end !== null && end < day) return !isComplete(task.status);
+  if (start !== null && start > day) return false;
+  return start !== null || end !== null;
+}
+
 export type HealthLevel = "ON_TRACK" | "AT_RISK" | "BEHIND";
 
 export const HEALTH_LABEL: Record<HealthLevel, string> = {

@@ -6,9 +6,11 @@ on each other, and what a delay in one of them does to the rest.
 It is deliberately **not** a Jira clone. It does four things:
 
 - **Board** — a drag-and-drop Kanban across every sub-team, with task detail,
-  assignment and links.
-- **Timeline** — a Gantt view grouped by sub-team, with milestone markers and
-  the critical path highlighted.
+  assignment and links. Opens on **Current**: work whose planned window
+  contains today, plus anything unfinished whose end date has passed.
+  **All Tasks** drops the window.
+- **Timeline** — a Gantt view grouped by sub-team and workstream, filterable to
+  one sub-team, with milestone markers and the critical path highlighted.
 - **Overview** — one page that answers "is each sub-team on track?".
 - **Impact** — "if this task slips ten days, which other sub-teams and
   milestones move?"

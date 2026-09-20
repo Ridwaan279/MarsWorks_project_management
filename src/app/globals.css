@@ -59,9 +59,25 @@ input[type="date"] {
   overscroll-behavior: contain;
 }
 
-/* While a card is being dragged, stop the pointer selecting label text. */
-body.is-dragging {
+/*
+ * Dragging the pointer across a board or a Gantt chart should move things, not
+ * paint a selection over half the page. Selection is therefore off by default
+ * and switched back on for the places where copying text is the point: form
+ * controls, and anything marked .selectable.
+ */
+body {
   user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+.selectable,
+.selectable * {
+  user-select: text;
+}
+
+body.is-dragging {
   cursor: grabbing;
 }
 

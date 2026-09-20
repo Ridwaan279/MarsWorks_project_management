@@ -30,6 +30,10 @@ type Zoom = keyof typeof ZOOM;
 
 const ROW_HEIGHT = 30;
 const GROUP_HEIGHT = 24;
+const TEAM_HEIGHT = 32;
+const HEADER_HEIGHT = 44;
+/** Width of the frozen task-name column. */
+const RAIL = 240;
 
 export function Timeline({
   tasks,
@@ -42,14 +46,20 @@ export function Timeline({
 }: TimelineProps) {
   const [zoom, setZoom] = useState<Zoom>("normal");
   const [hideDone, setHideDone] = useState(false);
+  const [teamFilter, setTeamFilter] = useState<string | "ALL">("ALL");
   const dayWidth = ZOOM[zoom];
 
   const today = startOfDay(new Date(asOf));
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
 
   const visible = useMemo(
-    () => (hideDone ? tasks.filter((t) => t.status !== "DONE") : tasks),
-    [tasks, hideDone],
+    () =>
+      tasks.filter(
+        (t) =>
+          (!hideDone || t.status !== "DONE") &&
+          (teamFilter === "ALL" || t.teamId === teamFilter),
+      ),
+    [tasks, hideDone, teamFilter],
   );
 
   // The chart spans from a few days before today to a week past whichever is
@@ -80,11 +90,8 @@ export function Timeline({
     return marks;
   }, [start, totalDays]);
 
-  /**
-   * Team -> workstream -> tasks. The workstream layer is Mechanical's WBS
-   * grouping; teams that do not use one get a single unnamed group so the
-   * shape stays uniform.
-   */
+  /** Team -> workstream -> tasks, keeping the shape uniform for teams with no
+   *  workstreams so rows line up between the rail and the chart. */
   const grouped = useMemo(() => {
     const byStart = (a: TaskView, b: TaskView) => {
       const sa = scheduled[a.id]?.earliestStart;
@@ -110,7 +117,9 @@ export function Timeline({
           .filter((g) => g.tasks.length > 0);
 
         const ungrouped = teamTasks
-          .filter((t) => !t.workstreamId || !teamStreams.some((w) => w.id === t.workstreamId))
+          .filter(
+            (t) => !t.workstreamId || !teamStreams.some((w) => w.id === t.workstreamId),
+          )
           .sort(byStart);
         if (ungrouped.length > 0) {
           groups.push({ id: `${team.id}-none`, label: "", tasks: ungrouped });
@@ -121,10 +130,53 @@ export function Timeline({
       .filter((g) => g.count > 0);
   }, [teams, visible, workstreams, scheduled]);
 
+  /**
+   * Milestones inside the visible range, each with the pixel room available
+   * before the next one. Labels are truncated to that width so two milestones
+   * a few days apart do not print over each other.
+   */
+  const milestonesInView = useMemo(() => {
+    const inRange = milestones
+      .map((milestone) => ({
+        milestone,
+        offset: daysBetween(start, new Date(milestone.targetDate)),
+      }))
+      .filter((m) => m.offset >= 0 && m.offset <= totalDays)
+      .sort((a, b) => a.offset - b.offset);
+
+    return inRange.map((m, i) => {
+      const next = inRange[i + 1];
+      const gap = next ? (next.offset - m.offset) * dayWidth - 6 : chartWidth - m.offset * dayWidth;
+      return { ...m, room: gap };
+    });
+  }, [milestones, start, totalDays, dayWidth, chartWidth]);
+
+  const todayOffset = daysBetween(start, today) * dayWidth;
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
-      <div className="flex flex-wrap items-center gap-4 border-b border-edge px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-1 rounded-md border border-edge p-0.5">
+      <div className="flex flex-wrap items-center gap-3 border-b border-edge px-4 py-3 sm:px-6">
+        <label className="flex items-center gap-2 text-xs text-ink-muted">
+          Sub-team
+          <select
+            value={teamFilter}
+            onChange={(e) => setTeamFilter(e.target.value)}
+            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-info focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+          >
+            <option value="ALL">All teams</option>
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div
+          role="group"
+          aria-label="Zoom"
+          className="flex items-center gap-0.5 rounded-md border border-edge p-0.5"
+        >
           {(Object.keys(ZOOM) as Zoom[]).map((level) => (
             <button
               key={level}
@@ -153,6 +205,10 @@ export function Timeline({
           Hide completed
         </label>
 
+        <span className="text-xs text-ink-faint tabular-nums" data-testid="timeline-count">
+          {visible.length} shown
+        </span>
+
         <div className="ml-auto flex items-center gap-4 text-xs text-ink-faint">
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-4 rounded-sm bg-mars" aria-hidden /> critical path
@@ -166,153 +222,177 @@ export function Timeline({
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="overscroll-none-safe w-60 shrink-0 overflow-y-auto border-r border-edge">
-          <div className="sticky top-0 z-10 h-9 border-b border-edge bg-ground px-3 text-xs leading-9 font-semibold text-ink-muted">
-            Sub-team / task
-          </div>
-          {grouped.map(({ team, groups, count }) => (
-            <div key={team.id}>
-              <div className="flex h-8 items-center gap-2 bg-surface/70 px-3">
-                <TeamDot colour={team.colour} />
-                <span className="truncate text-xs font-semibold">{team.name}</span>
-                <span className="ml-auto text-[10px] tabular-nums text-ink-faint">
-                  {count}
-                </span>
+      {grouped.length === 0 ? (
+        <p className="px-6 py-10 text-sm text-ink-faint">
+          No tasks match these filters.
+        </p>
+      ) : (
+        /*
+         * One scroll container for both axes. The task names are ordinary
+         * cells pinned with `position: sticky; left: 0`, so they scroll
+         * vertically with their own bars instead of being a separate pane
+         * that has to be kept in step.
+         */
+        <div className="overscroll-none-safe relative flex-1 overflow-auto">
+          <div
+            className="relative"
+            style={{ width: RAIL + chartWidth, minWidth: "100%" }}
+          >
+            <div
+              className="sticky top-0 z-30 flex border-b border-edge bg-ground"
+              style={{ height: HEADER_HEIGHT }}
+            >
+              <div
+                className="sticky left-0 z-10 flex shrink-0 items-center border-r border-edge bg-ground px-3 text-xs font-semibold text-ink-muted"
+                style={{ width: RAIL }}
+              >
+                Sub-team / task
               </div>
-              {groups.map((group) => (
-                <div key={group.id}>
-                  {group.label ? (
-                    <div
-                      style={{ height: GROUP_HEIGHT }}
-                      className="flex items-center px-3 pl-5 text-[11px] font-medium text-ink-muted"
-                    >
-                      <span className="truncate">{group.label}</span>
-                    </div>
-                  ) : null}
-                  {group.tasks.map((task) => (
-                    <Link
-                      key={task.id}
-                      href={`/board?task=${task.id}`}
-                      style={{ height: ROW_HEIGHT }}
-                      className="flex items-center gap-2 px-3 pl-6 text-xs transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info focus-visible:ring-inset"
-                    >
-                      <span className="shrink-0 font-mono text-[10px] text-ink-faint">
-                        {task.key}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-ink-muted">
-                        {task.title}
-                      </span>
-                      {task.assigneeId ? (
-                        <Avatar name={memberById.get(task.assigneeId)?.name ?? "?"} />
-                      ) : null}
-                    </Link>
-                  ))}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        <div className="overscroll-none-safe flex-1 overflow-auto">
-          <div style={{ width: chartWidth, minWidth: "100%" }} className="relative">
-            <div className="sticky top-0 z-10 flex h-9 border-b border-edge bg-ground">
-              {weekMarks.map((mark) => (
-                <span
-                  key={mark.offset}
-                  style={{ left: mark.offset * dayWidth }}
-                  className="absolute top-0 pl-1.5 text-[10px] leading-9 text-ink-faint whitespace-nowrap"
-                >
-                  {format(mark.date, zoom === "compact" ? "d/M" : "d MMM")}
-                </span>
-              ))}
+              <div className="relative shrink-0" style={{ width: chartWidth }}>
+                {weekMarks.map((mark) => (
+                  <span
+                    key={mark.offset}
+                    style={{ left: mark.offset * dayWidth }}
+                    className="absolute top-1 pl-1.5 text-[10px] whitespace-nowrap text-ink-faint tabular-nums"
+                  >
+                    {format(mark.date, zoom === "compact" ? "d/M" : "d MMM")}
+                  </span>
+                ))}
+                {milestonesInView.map(({ milestone, offset, room }) => (
+                  <span
+                    key={milestone.id}
+                    title={`${milestone.name} — ${format(new Date(milestone.targetDate), "d MMM yyyy")}`}
+                    style={{ left: offset * dayWidth + 2, maxWidth: Math.max(room, 18) }}
+                    className="absolute bottom-1 truncate rounded bg-warn/15 px-1 text-[9px] text-warn"
+                  >
+                    {milestone.name}
+                  </span>
+                ))}
+              </div>
             </div>
 
             <div className="relative">
-              {weekMarks.map((mark) => (
-                <span
-                  key={mark.offset}
-                  aria-hidden
-                  style={{ left: mark.offset * dayWidth }}
-                  className="absolute inset-y-0 w-px bg-edge-soft"
-                />
-              ))}
-
-              <span
+              {/* Gridlines, today and milestones run the full height of the
+                  body, behind the rows, offset past the frozen rail. */}
+              <div
                 aria-hidden
-                style={{ left: daysBetween(start, today) * dayWidth }}
-                className="absolute inset-y-0 z-20 w-px bg-info"
-              />
-
-              {milestones.map((milestone) => {
-                const offset = daysBetween(start, new Date(milestone.targetDate));
-                return (
+                className="pointer-events-none absolute inset-y-0 z-0"
+                style={{ left: RAIL, width: chartWidth }}
+              >
+                {weekMarks.map((mark) => (
+                  <span
+                    key={mark.offset}
+                    style={{ left: mark.offset * dayWidth }}
+                    className="absolute inset-y-0 w-px bg-edge-soft"
+                  />
+                ))}
+                {milestonesInView.map(({ milestone, offset }) => (
                   <span
                     key={milestone.id}
-                    title={`${milestone.name} — ${format(new Date(milestone.targetDate), "d MMM")}`}
                     style={{ left: offset * dayWidth }}
-                    className="absolute inset-y-0 z-20 w-px bg-warn/70"
-                  >
-                    <span className="absolute -top-0 left-1 rounded bg-warn/15 px-1 text-[9px] whitespace-nowrap text-warn">
-                      {milestone.name}
-                    </span>
-                  </span>
-                );
-              })}
+                    className="absolute inset-y-0 w-px bg-warn/70"
+                  />
+                ))}
+                <span
+                  style={{ left: todayOffset }}
+                  className="absolute inset-y-0 w-px bg-info"
+                />
+              </div>
 
-              {grouped.map(({ team, groups }) => (
-                <div key={team.id}>
-                  <div className="h-8 bg-surface/70" />
+              {grouped.map(({ team, groups, count }) => (
+                <div key={team.id} className="relative z-10">
+                  <Row height={TEAM_HEIGHT} chartWidth={chartWidth} tone="team">
+                    <span className="flex w-full items-center gap-2">
+                      <TeamDot colour={team.colour} />
+                      <span className="truncate text-xs font-semibold">{team.name}</span>
+                      <span className="ml-auto text-[10px] text-ink-faint tabular-nums">
+                        {count}
+                      </span>
+                    </span>
+                  </Row>
+
                   {groups.map((group) => (
                     <div key={group.id}>
-                      {group.label ? <div style={{ height: GROUP_HEIGHT }} /> : null}
-                      {group.tasks.map((task) => {
-                    const sched = scheduled[task.id];
-                    if (!sched) return <div key={task.id} style={{ height: ROW_HEIGHT }} />;
-                    const barStart = daysBetween(start, new Date(sched.earliestStart as unknown as string));
-                    const barEnd = daysBetween(start, new Date(sched.earliestFinish as unknown as string));
-                    const width = Math.max(barEnd - barStart, 0.5) * dayWidth;
-                    const done = task.status === "DONE";
-                    return (
-                      <div
-                        key={task.id}
-                        style={{ height: ROW_HEIGHT }}
-                        className="relative flex items-center"
-                      >
-                        <Link
-                          href={`/impact?task=${task.id}`}
-                          title={`${task.key}: ${task.title}\n${format(new Date(sched.earliestStart as unknown as string), "d MMM")} – ${format(new Date(sched.earliestFinish as unknown as string), "d MMM")}\n${formatDays(-sched.slackDays)}`}
-                          style={{ left: barStart * dayWidth, width }}
-                          className={clsx(
-                            "absolute flex h-4 items-center overflow-hidden rounded-sm ring-1 transition-all hover:h-5 hover:ring-2",
-                            done
-                              ? "opacity-45 ring-transparent"
-                              : sched.isCritical
-                                ? "ring-mars"
-                                : sched.slackDays < 0
-                                  ? "ring-late"
-                                  : "ring-transparent",
-                          )}
-                        >
-                          <span
-                            aria-hidden
-                            className="absolute inset-0 opacity-35"
-                            style={{ backgroundColor: team.colour }}
-                          />
-                          <span
-                            aria-hidden
-                            className="absolute inset-y-0 left-0"
-                            style={{
-                              width: `${done ? 100 : task.progress}%`,
-                              backgroundColor: team.colour,
-                            }}
-                          />
-                          <span className="sr-only">
-                            {task.key} {task.title}, {STATUS_LABEL[task.status]}
+                      {group.label ? (
+                        <Row height={GROUP_HEIGHT} chartWidth={chartWidth} tone="group">
+                          <span className="truncate pl-2 text-[11px] font-medium text-ink-muted">
+                            {group.label}
                           </span>
-                        </Link>
-                      </div>
-                    );
+                        </Row>
+                      ) : null}
+
+                      {group.tasks.map((task) => {
+                        const sched = scheduled[task.id];
+                        const barStart = sched
+                          ? daysBetween(start, new Date(sched.earliestStart as unknown as string))
+                          : 0;
+                        const barEnd = sched
+                          ? daysBetween(start, new Date(sched.earliestFinish as unknown as string))
+                          : 0;
+                        const width = Math.max(barEnd - barStart, 0.5) * dayWidth;
+                        const done = task.status === "DONE";
+                        return (
+                          <Row
+                            key={task.id}
+                            height={ROW_HEIGHT}
+                            chartWidth={chartWidth}
+                            tone="task"
+                            rail={
+                              <Link
+                                href={`/board?task=${task.id}`}
+                                className="flex h-full w-full items-center gap-2 pl-3 text-xs transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info focus-visible:ring-inset"
+                              >
+                                <span className="shrink-0 font-mono text-[10px] text-ink-faint" translate="no">
+                                  {task.key}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate text-ink-muted">
+                                  {task.title}
+                                </span>
+                                {task.assigneeId ? (
+                                  <Avatar
+                                    name={memberById.get(task.assigneeId)?.name ?? "?"}
+                                    className="mr-2"
+                                  />
+                                ) : null}
+                              </Link>
+                            }
+                          >
+                            {sched ? (
+                              <Link
+                                href={`/impact?task=${task.id}`}
+                                title={`${task.key}: ${task.title}\n${format(new Date(sched.earliestStart as unknown as string), "d MMM")} – ${format(new Date(sched.earliestFinish as unknown as string), "d MMM")}\n${formatDays(-sched.slackDays)}`}
+                                style={{ left: barStart * dayWidth, width }}
+                                className={clsx(
+                                  "absolute top-1/2 flex h-4 -translate-y-1/2 items-center overflow-hidden rounded-sm ring-1 transition-[height,box-shadow] hover:h-5 hover:ring-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info",
+                                  done
+                                    ? "opacity-45 ring-transparent"
+                                    : sched.isCritical
+                                      ? "ring-mars"
+                                      : sched.slackDays < 0
+                                        ? "ring-late"
+                                        : "ring-transparent",
+                                )}
+                              >
+                                <span
+                                  aria-hidden
+                                  className="absolute inset-0 opacity-35"
+                                  style={{ backgroundColor: team.colour }}
+                                />
+                                <span
+                                  aria-hidden
+                                  className="absolute inset-y-0 left-0"
+                                  style={{
+                                    width: `${done ? 100 : task.progress}%`,
+                                    backgroundColor: team.colour,
+                                  }}
+                                />
+                                <span className="sr-only">
+                                  {task.key} {task.title}, {STATUS_LABEL[task.status]}
+                                </span>
+                              </Link>
+                            ) : null}
+                          </Row>
+                        );
                       })}
                     </div>
                   ))}
@@ -321,6 +401,49 @@ export function Timeline({
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One timeline row: a frozen label cell plus the chart area beside it. Both
+ * halves live in the same flex row, which is what keeps the names aligned
+ * with their bars no matter how the container is scrolled.
+ */
+function Row({
+  height,
+  chartWidth,
+  tone,
+  rail,
+  children,
+}: {
+  height: number;
+  chartWidth: number;
+  tone: "team" | "group" | "task";
+  rail?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  // The label cell must be opaque: it is pinned over the gridlines behind it.
+  const background =
+    tone === "team" ? "bg-surface" : tone === "group" ? "bg-ground" : "bg-ground";
+  return (
+    <div className="flex" style={{ height }}>
+      <div
+        className={clsx(
+          "sticky left-0 z-20 flex shrink-0 items-center border-r border-edge",
+          rail ? "" : "px-3",
+          background,
+        )}
+        style={{ width: RAIL }}
+      >
+        {rail ?? children}
+      </div>
+      <div
+        className={clsx("relative shrink-0", tone === "team" && "bg-surface/70")}
+        style={{ width: chartWidth }}
+      >
+        {rail ? children : null}
       </div>
     </div>
   );

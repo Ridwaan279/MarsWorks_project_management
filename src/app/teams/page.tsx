@@ -38,7 +38,7 @@ export default async function TeamsPage() {
     .sort((a, b) => (b.scheduled.planVarianceDays ?? 0) - (a.scheduled.planVarianceDays ?? 0));
 
   return (
-    <div className="mx-auto max-w-6xl space-y-10 px-4 py-10 sm:px-6">
+    <div className="selectable mx-auto max-w-6xl space-y-10 px-4 py-10 sm:px-6">
       <header className="space-y-2">
         <Link
           href="/"

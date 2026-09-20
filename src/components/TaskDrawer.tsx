@@ -248,7 +248,7 @@ export function TaskDrawer({
           </button>
         </header>
 
-        <div className="overscroll-none-safe flex-1 space-y-5 overflow-y-auto px-5 py-5">
+        <div className="selectable overscroll-none-safe flex-1 space-y-5 overflow-y-auto px-5 py-5">
           <div className="space-y-1.5">
             <label className={LABEL} htmlFor="task-title">
               Title
@@ -366,7 +366,21 @@ export function TaskDrawer({
               max={100}
               step={5}
               value={draft.progress}
-              onChange={(e) => setDraft({ ...draft, progress: Number(e.target.value) })}
+              onChange={(e) => {
+                const progress = Number(e.target.value);
+                // Sliding to 100% is how most people mark something finished,
+                // so move it to Done rather than leaving the two disagreeing.
+                setDraft({
+                  ...draft,
+                  progress,
+                  status:
+                    progress === 100
+                      ? "DONE"
+                      : draft.status === "DONE"
+                        ? "IN_PROGRESS"
+                        : draft.status,
+                });
+              }}
               className="w-full accent-[var(--color-mars)] focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
             />
             <ProgressBar value={draft.progress} colour={team?.colour} />

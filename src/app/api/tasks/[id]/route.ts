@@ -58,9 +58,11 @@ export async function PATCH(
     ...(plannedEnd !== undefined
       ? { plannedEnd: plannedEnd ? new Date(plannedEnd) : null }
       : {}),
-    // Moving a card to Done implies the work is finished; keeping progress in
-    // step stops the forecast disagreeing with the board.
+    // Status and progress are two views of the same fact, so keep them in step
+    // in both directions: moving a card to Done finishes it, and finishing it
+    // moves the card. Otherwise the board and the forecast disagree.
     ...(rest.status === "DONE" ? { progress: 100 } : {}),
+    ...(rest.progress === 100 && rest.status === undefined ? { status: "DONE" as const } : {}),
   };
 
   try {
@@ -75,15 +77,16 @@ export async function PATCH(
       // be drawn where they happened rather than at today's date. actualStart
       // is only ever set once: a card bouncing back into progress must not
       // overwrite the day the work actually began.
+      const becomesDone = data.status === "DONE";
       const timestamps: { actualStart?: Date; actualEnd?: Date | null } = {};
       if (
-        (rest.status === "IN_PROGRESS" || rest.status === "DONE") &&
+        (data.status === "IN_PROGRESS" || becomesDone) &&
         !existing.actualStart
       ) {
         timestamps.actualStart = new Date();
       }
-      if (rest.status === "DONE") timestamps.actualEnd = new Date();
-      else if (rest.status !== undefined) timestamps.actualEnd = null;
+      if (becomesDone) timestamps.actualEnd = new Date();
+      else if (data.status !== undefined) timestamps.actualEnd = null;
 
       return tx.task.update({ where: { id }, data: { ...data, ...timestamps } });
     });

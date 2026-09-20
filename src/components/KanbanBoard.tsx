@@ -21,7 +21,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { BOARD_COLUMNS, type TaskStatus } from "@/lib/domain";
+import { BOARD_COLUMNS, isCurrent, type TaskStatus } from "@/lib/domain";
 import type {
   MemberView,
   MilestoneView,
@@ -75,6 +75,7 @@ export function KanbanBoard({
   const [teamFilter, setTeamFilter] = useState<string | "ALL">("ALL");
   const [assigneeFilter, setAssigneeFilter] = useState<string | "ALL">("ALL");
   const [creatingIn, setCreatingIn] = useState<TaskStatus | null>(null);
+  const [scope, setScope] = useState<"CURRENT" | "ALL">("CURRENT");
   const [error, setError] = useState<string | null>(null);
   /** Board state as it was when the current drag began, for rollback. */
   const rollbackRef = useRef<TaskView[] | null>(null);
@@ -82,17 +83,36 @@ export function KanbanBoard({
   const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
 
+  // One "today" for the whole render, so a task cannot be judged current by
+  // one comparison and not by the next.
+  const today = useMemo(() => new Date(), []);
+
+  const matchesFilters = useCallback(
+    (task: TaskView) =>
+      (teamFilter === "ALL" || task.teamId === teamFilter) &&
+      (assigneeFilter === "ALL" ||
+        (assigneeFilter === "UNASSIGNED"
+          ? task.assigneeId === null
+          : task.assigneeId === assigneeFilter)),
+    [teamFilter, assigneeFilter],
+  );
+
   const visible = useMemo(
     () =>
       tasks.filter(
         (task) =>
-          (teamFilter === "ALL" || task.teamId === teamFilter) &&
-          (assigneeFilter === "ALL" ||
-            (assigneeFilter === "UNASSIGNED"
-              ? task.assigneeId === null
-              : task.assigneeId === assigneeFilter)),
+          matchesFilters(task) && (scope === "ALL" || isCurrent(task, today)),
       ),
-    [tasks, teamFilter, assigneeFilter],
+    [tasks, matchesFilters, scope, today],
+  );
+
+  /** How much "Current" is hiding, so nothing disappears without saying so. */
+  const hiddenByScope = useMemo(
+    () =>
+      scope === "ALL"
+        ? 0
+        : tasks.filter((t) => matchesFilters(t) && !isCurrent(t, today)).length,
+    [tasks, matchesFilters, scope, today],
   );
 
   const columns = useMemo(() => {
@@ -209,6 +229,34 @@ export function KanbanBoard({
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-edge px-4 py-3 sm:px-6">
+        <div
+          role="group"
+          aria-label="Which tasks to show"
+          className="flex items-center gap-0.5 rounded-md border border-edge p-0.5"
+        >
+          {(
+            [
+              ["CURRENT", "Current"],
+              ["ALL", "All Tasks"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setScope(value)}
+              aria-pressed={scope === value}
+              className={clsx(
+                "rounded px-2.5 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-info",
+                scope === value
+                  ? "bg-surface-2 text-ink"
+                  : "text-ink-faint hover:text-ink-muted",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <label className="flex items-center gap-2 text-xs text-ink-muted">
           Sub-team
           <select
@@ -243,7 +291,20 @@ export function KanbanBoard({
         </label>
 
         <div className="ml-auto flex items-center gap-3 text-xs text-ink-faint">
-          <span>{visible.length} tasks shown</span>
+          <span className="tabular-nums">
+            {visible.length} shown
+            {hiddenByScope > 0 ? (
+              <>
+                {" · "}
+                <span
+                  title="Not started yet, already finished and past, or carrying no dates at all."
+                  className="text-warn"
+                >
+                  {hiddenByScope} outside this window
+                </span>
+              </>
+            ) : null}
+          </span>
           {teamFilter !== "ALL" ? (
             <span className="flex items-center gap-1.5">
               <TeamDot colour={teamById.get(teamFilter)?.colour ?? "#64748b"} />
