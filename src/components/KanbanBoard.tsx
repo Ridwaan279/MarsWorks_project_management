@@ -42,6 +42,10 @@ interface BoardProps {
   milestones: MilestoneView[];
   workstreams: WorkstreamView[];
   scheduled: Record<string, ScheduledTask>;
+  /** The server's "now". Must come from the server: deriving it on the client
+   *  makes the first client render disagree with the server's HTML, because
+   *  the two clocks classify a task's window differently. */
+  asOf: string;
   initialTaskId?: string;
 }
 
@@ -66,6 +70,7 @@ export function KanbanBoard({
   milestones,
   workstreams,
   scheduled,
+  asOf,
   initialTaskId,
 }: BoardProps) {
   const router = useRouter();
@@ -79,13 +84,46 @@ export function KanbanBoard({
   const [error, setError] = useState<string | null>(null);
   /** Board state as it was when the current drag began, for rollback. */
   const rollbackRef = useRef<TaskView[] | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * A Kanban board scrolls sideways, but a mouse wheel only sends deltaY, so
+   * without this the wheel does nothing once the column under the pointer has
+   * no more rows. Translate the vertical wheel into horizontal movement, but
+   * only when the column itself cannot use it, so scrolling through a long
+   * column still works normally.
+   */
+  const handleBoardWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const board = boardRef.current;
+    if (!board) return;
+    if (event.deltaX !== 0 || event.deltaY === 0 || event.shiftKey) return;
+
+    const column = (event.target as HTMLElement).closest<HTMLElement>(
+      "[data-column-scroll]",
+    );
+    if (column) {
+      const atTop = column.scrollTop <= 0;
+      const atBottom =
+        column.scrollTop + column.clientHeight >= column.scrollHeight - 1;
+      const canUseIt = event.deltaY < 0 ? !atTop : !atBottom;
+      if (canUseIt) return;
+    }
+
+    const maxScroll = board.scrollWidth - board.clientWidth;
+    if (maxScroll <= 0) return;
+    const next = Math.min(Math.max(board.scrollLeft + event.deltaY, 0), maxScroll);
+    if (next === board.scrollLeft) return;
+    board.scrollLeft = next;
+    event.preventDefault();
+  }, []);
 
   const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
 
-  // One "today" for the whole render, so a task cannot be judged current by
-  // one comparison and not by the next.
-  const today = useMemo(() => new Date(), []);
+  // One "today" for the whole render, taken from the server so hydration
+  // matches, and so a task cannot be judged current by one comparison and not
+  // by the next.
+  const today = useMemo(() => new Date(asOf), [asOf]);
 
   const matchesFilters = useCallback(
     (task: TaskView) =>
@@ -218,6 +256,29 @@ export function KanbanBoard({
     void persist(taskId, { status: targetStatus, boardOrder }, previous);
   }
 
+  const toggleFlag = useCallback(
+    async (taskId: string, flagged: boolean) => {
+      const previous = tasks.map((t) => ({ ...t }));
+      setTasks((current) =>
+        current.map((t) => (t.id === taskId ? { ...t, flagged } : t)),
+      );
+      try {
+        const response = await fetch(`/api/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ flagged }),
+        });
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+        router.refresh();
+      } catch (cause) {
+        console.error("Failed to change the flag", cause);
+        setTasks(previous);
+        setError("Could not change that flag.");
+      }
+    },
+    [tasks, router],
+  );
+
   const handleTaskSaved = useCallback(
     (updated: TaskView) => {
       setTasks((current) => current.map((t) => (t.id === updated.id ? updated : t)));
@@ -227,7 +288,7 @@ export function KanbanBoard({
   );
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+    <div className="flex h-[calc(100vh-3.5rem)] min-w-0 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center gap-3 border-b border-edge px-4 py-3 sm:px-6">
         <div
           role="group"
@@ -336,7 +397,12 @@ export function KanbanBoard({
           setActiveId(null);
         }}
       >
-        <div className="flex flex-1 gap-3 overflow-x-auto px-4 py-4 sm:px-6">
+        <div
+          ref={boardRef}
+          data-board-scroll
+          onWheel={handleBoardWheel}
+          className="flex min-w-0 flex-1 gap-3 overflow-x-auto overscroll-x-contain px-4 py-4 sm:px-6"
+        >
           {BOARD_COLUMNS.map((column) => (
             <BoardColumn
               key={column.status}
@@ -347,6 +413,7 @@ export function KanbanBoard({
               memberById={memberById}
               scheduled={scheduled}
               onOpen={setOpenTaskId}
+              onToggleFlag={toggleFlag}
               onAdd={() => setCreatingIn(column.status)}
             />
           ))}
@@ -406,6 +473,7 @@ function BoardColumn({
   memberById,
   scheduled,
   onOpen,
+  onToggleFlag,
   onAdd,
 }: {
   status: TaskStatus;
@@ -415,6 +483,7 @@ function BoardColumn({
   memberById: Map<string, MemberView>;
   scheduled: Record<string, ScheduledTask>;
   onOpen: (id: string) => void;
+  onToggleFlag: (taskId: string, flagged: boolean) => void;
   onAdd: () => void;
 }) {
   // A column-level droppable so an empty column is still a valid drop target.
@@ -446,7 +515,11 @@ function BoardColumn({
         </button>
       </header>
 
-      <div ref={setNodeRef} className="overscroll-none-safe flex-1 overflow-y-auto px-2 pb-2">
+      <div
+        ref={setNodeRef}
+        data-column-scroll
+        className="overscroll-none-safe flex-1 overflow-y-auto px-2 pb-2"
+      >
         <SortableContext
           items={tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
@@ -460,6 +533,7 @@ function BoardColumn({
                 assignee={task.assigneeId ? memberById.get(task.assigneeId) ?? null : null}
                 scheduled={scheduled[task.id]}
                 onOpen={onOpen}
+                onToggleFlag={onToggleFlag}
               />
             ))}
           </ul>

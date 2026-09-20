@@ -28,6 +28,21 @@ interface TimelineProps {
 const ZOOM = { compact: 5, normal: 9, wide: 16 } as const;
 type Zoom = keyof typeof ZOOM;
 
+/**
+ * How far back and forward the chart reaches.
+ *
+ * "Current" is the default because most questions are about the weeks either
+ * side of today, but it previously started three days ago, which cut off
+ * everything already under way. "Everything" spans the whole plan, earliest
+ * planned start to latest finish, so past work is visible.
+ */
+const RANGES = {
+  current: { label: "Current", back: 30, forward: 90 },
+  upcoming: { label: "Upcoming", back: 0, forward: null },
+  everything: { label: "Everything", back: null, forward: null },
+} as const;
+type RangeKey = keyof typeof RANGES;
+
 const ROW_HEIGHT = 30;
 const GROUP_HEIGHT = 24;
 const TEAM_HEIGHT = 32;
@@ -47,6 +62,7 @@ export function Timeline({
   const [zoom, setZoom] = useState<Zoom>("normal");
   const [hideDone, setHideDone] = useState(false);
   const [teamFilter, setTeamFilter] = useState<string | "ALL">("ALL");
+  const [range, setRange] = useState<RangeKey>("current");
   const dayWidth = ZOOM[zoom];
 
   const today = startOfDay(new Date(asOf));
@@ -62,21 +78,45 @@ export function Timeline({
     [tasks, hideDone, teamFilter],
   );
 
-  // The chart spans from a few days before today to a week past whichever is
-  // later: the last forecast finish or the final milestone.
+  /**
+   * The window the chart covers. The natural extent comes from the work
+   * itself -- earliest planned start through latest forecast finish, plus the
+   * milestones -- and the chosen range then clamps it around today.
+   */
   const { start, totalDays } = useMemo(() => {
-    const finishes = visible
-      .map((t) => scheduled[t.id]?.earliestFinish)
-      .filter(Boolean)
-      .map((d) => new Date(d as unknown as string));
-    const milestoneDates = milestones.map((m) => new Date(m.targetDate));
-    const last = [...finishes, ...milestoneDates, today].reduce(
-      (latest, d) => (d > latest ? d : latest),
-      today,
-    );
-    const chartStart = addDays(today, -3);
-    return { start: chartStart, totalDays: daysBetween(chartStart, last) + 7 };
-  }, [visible, scheduled, milestones, today]);
+    const dates: Date[] = [today];
+    for (const task of visible) {
+      if (task.plannedStart) dates.push(new Date(task.plannedStart));
+      if (task.plannedEnd) dates.push(new Date(task.plannedEnd));
+      const sched = scheduled[task.id];
+      if (sched) {
+        dates.push(new Date(sched.earliestStart as unknown as string));
+        dates.push(new Date(sched.earliestFinish as unknown as string));
+      }
+    }
+    for (const m of milestones) dates.push(new Date(m.targetDate));
+
+    let earliest = dates.reduce((a, d) => (d < a ? d : a), dates[0]);
+    let latest = dates.reduce((a, d) => (d > a ? d : a), dates[0]);
+
+    const { back, forward } = RANGES[range];
+    if (back !== null) {
+      const floor = addDays(today, -back);
+      if (earliest < floor) earliest = floor;
+    }
+    if (forward !== null) {
+      const ceiling = addDays(today, forward);
+      if (latest > ceiling) latest = ceiling;
+    }
+    // Never start after today, or the "today" marker falls off the chart.
+    if (earliest > today) earliest = today;
+
+    const chartStart = addDays(startOfDay(earliest), -3);
+    return {
+      start: chartStart,
+      totalDays: Math.max(daysBetween(chartStart, startOfDay(latest)) + 7, 14),
+    };
+  }, [visible, scheduled, milestones, today, range]);
 
   const chartWidth = totalDays * dayWidth;
 
@@ -167,6 +207,21 @@ export function Timeline({
             {teams.map((team) => (
               <option key={team.id} value={team.id}>
                 {team.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex items-center gap-2 text-xs text-ink-muted">
+          Range
+          <select
+            value={range}
+            onChange={(e) => setRange(e.target.value as RangeKey)}
+            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-info focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+          >
+            {(Object.keys(RANGES) as RangeKey[]).map((key) => (
+              <option key={key} value={key}>
+                {RANGES[key].label}
               </option>
             ))}
           </select>

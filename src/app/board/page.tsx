@@ -21,6 +21,7 @@ export default async function BoardPage({
       milestones={project.milestones}
       workstreams={project.workstreams}
       scheduled={scheduled}
+      asOf={project.asOf.toISOString()}
       initialTaskId={params.task}
     />
   );

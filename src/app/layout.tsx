@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { NavLinks } from "@/components/NavLinks";
@@ -7,7 +7,12 @@ export const metadata: Metadata = {
   title: "MarsWorks Mission Control",
   description:
     "One view of every MarsWorks sub-team: board, timeline, and what a delay in one team does to the others.",
-  // Matches --color-ground so mobile browser chrome blends with the page.
+};
+
+// themeColor belongs to the viewport export, not metadata; Next warns on
+// every route otherwise. Matches --color-ground so mobile browser chrome
+// blends with the page.
+export const viewport: Viewport = {
   themeColor: "#0a0d14",
 };
 

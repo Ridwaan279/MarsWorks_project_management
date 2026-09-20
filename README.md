@@ -8,9 +8,13 @@ It is deliberately **not** a Jira clone. It does four things:
 - **Board** — a drag-and-drop Kanban across every sub-team, with task detail,
   assignment and links. Opens on **Current**: work whose planned window
   contains today, plus anything unfinished whose end date has passed.
-  **All Tasks** drops the window.
+  **All Tasks** drops the window. Cards are tinted by sub-team, and the flag
+  on each card is a button: flagged tasks turn red and are listed on the
+  Sub-teams page.
 - **Timeline** — a Gantt view grouped by sub-team and workstream, filterable to
-  one sub-team, with milestone markers and the critical path highlighted.
+  one sub-team, with milestone markers and the critical path highlighted. The
+  range selector covers Current (a month back, three months on), Upcoming, and
+  Everything, which spans the whole plan including work already finished.
 - **Overview** — one page that answers "is each sub-team on track?".
 - **Impact** — "if this task slips ten days, which other sub-teams and
   milestones move?"

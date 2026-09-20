@@ -18,6 +18,7 @@ const updateTask = z
     stage: z.enum(PROJECT_STAGES).nullable(),
     workstreamId: z.string().nullable(),
     ownerLabel: z.string().max(200).nullable(),
+    flagged: z.boolean(),
     notes: z.string().max(10_000).nullable(),
     // Dates arrive as plain YYYY-MM-DD from the date inputs.
     plannedStart: z.string().date().nullable(),

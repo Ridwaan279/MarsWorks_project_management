@@ -152,6 +152,11 @@ model Task {
   /// Free-text column carried over from the master sheet.
   notes String?
 
+  /// Raised by hand to mean "someone look at this". Deliberately separate from
+  /// priority: priority is how important the work is, a flag is a request for
+  /// attention now, and a task can be low priority and still need eyes on it.
+  flagged Boolean @default(false)
+
   /// Earliest the work can begin regardless of predecessors (part delivery,
   /// lab access). The scheduler treats this as a hard lower bound.
   earliestStart DateTime?
@@ -185,6 +190,7 @@ model Task {
   @@index([assigneeId])
   @@index([status])
   @@index([milestoneId])
+  @@index([flagged])
   @@index([workstreamId])
 }
 

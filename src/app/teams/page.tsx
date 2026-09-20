@@ -31,6 +31,9 @@ export default async function TeamsPage() {
       ? 100
       : Math.round(((openTasks.length - undated.length) / openTasks.length) * 100);
 
+  // Flagged work is raised by hand, so show it whatever its status: a task
+  // someone flagged after finishing it still needs looking at.
+  const flagged = project.tasks.filter((t) => t.flagged);
   const blocked = openTasks.filter((t) => t.status === "BLOCKED");
   const late = openTasks
     .map((task) => ({ task, scheduled: project.schedule.tasks.get(task.id)! }))
@@ -152,6 +155,43 @@ export default async function TeamsPage() {
           </table>
         </div>
       </section>
+
+      {flagged.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold tracking-wide text-late uppercase">
+            Flagged ({flagged.length})
+          </h2>
+          <p className="max-w-2xl text-sm text-ink-muted text-pretty">
+            Raised by hand on the board as needing attention.
+          </p>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {flagged.map((task) => {
+              const team = teamById.get(task.teamId)!;
+              const assignee = task.assigneeId ? memberById.get(task.assigneeId) : null;
+              return (
+                <li key={task.id}>
+                  <Link
+                    href={`/board?task=${task.id}`}
+                    className="flex items-start gap-3 rounded-lg border border-late/40 bg-late/10 px-3 py-2.5 transition-colors hover:bg-late/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                  >
+                    <TeamDot colour={team.colour} className="mt-1.5" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm">{task.title}</span>
+                      <span className="mt-0.5 block text-xs text-ink-faint">
+                        <span className="font-mono" translate="no">{task.key}</span>
+                        {" · "}
+                        {team.name}
+                      </span>
+                    </span>
+                    <StatusBadge status={task.status} label={STATUS_LABEL[task.status]} />
+                    {assignee ? <Avatar name={assignee.name} /> : null}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="grid gap-8 lg:grid-cols-2">
         <section className="space-y-3">

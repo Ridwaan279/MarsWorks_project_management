@@ -53,6 +53,17 @@ input[type="date"] {
   color: var(--color-ink);
 }
 
+/*
+ * Tailwind's .sr-only is position:absolute with no offsets. With no positioned
+ * ancestor it resolves against the initial containing block, escapes any
+ * overflow clipping on the way, and stretches the page's scroll width -- which
+ * showed up as a second, page-level horizontal scrollbar behind the board.
+ * Anchoring it to its own parent keeps it where it belongs.
+ */
+:has(> .sr-only) {
+  position: relative;
+}
+
 /* Modals and drawers should not scroll the page behind them once they reach
    their own scroll boundary. */
 .overscroll-none-safe {

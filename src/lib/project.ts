@@ -64,6 +64,7 @@ export interface TaskView {
   stage: ProjectStage | null;
   ownerLabel: string | null;
   notes: string | null;
+  flagged: boolean;
   boardOrder: number;
   teamId: string;
   assigneeId: string | null;
@@ -174,6 +175,7 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
       stage: t.stage as ProjectStage | null,
       ownerLabel: t.ownerLabel,
       notes: t.notes,
+      flagged: t.flagged,
       boardOrder: t.boardOrder,
       teamId: t.teamId,
       assigneeId: t.assigneeId,
