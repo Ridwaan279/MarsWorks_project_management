@@ -36,7 +36,7 @@ interface DrawerProps {
 }
 
 const FIELD =
-  "w-full min-w-0 rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-info focus:outline-none focus-visible:ring-2 focus-visible:ring-info";
+  "w-full min-w-0 rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-mars focus:outline-none focus-visible:ring-2 focus-visible:ring-mars";
 const LABEL = "block text-xs font-medium text-ink-muted";
 
 /** <input type="date"> speaks YYYY-MM-DD; the API and the model speak Date. */
@@ -59,7 +59,7 @@ function Disclosure({
 }) {
   return (
     <details className="group rounded-lg border border-edge bg-surface">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm text-ink-muted transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-info">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm text-ink-muted transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mars">
         <svg
           viewBox="0 0 16 16"
           aria-hidden
@@ -240,7 +240,7 @@ export function TaskDrawer({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded p-1 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+            className="rounded p-1 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
               <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
@@ -381,7 +381,7 @@ export function TaskDrawer({
                         : draft.status,
                 });
               }}
-              className="w-full accent-[var(--color-mars)] focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+              className="w-full accent-[var(--color-mars)] focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
             />
             <ProgressBar value={draft.progress} colour={team?.colour} />
           </div>
@@ -399,7 +399,7 @@ export function TaskDrawer({
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="min-w-0 flex-1 truncate rounded text-xs text-info hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                      className="min-w-0 flex-1 truncate rounded text-xs text-mars-soft hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
                     >
                       {link.label}
                     </a>
@@ -407,7 +407,7 @@ export function TaskDrawer({
                       type="button"
                       onClick={() => removeLink(link.id)}
                       aria-label={`Remove link ${link.label}`}
-                      className="rounded p-0.5 text-ink-faint transition-colors hover:text-late focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                      className="rounded p-0.5 text-ink-faint transition-colors hover:text-late focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
                     >
                       <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
                         <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
@@ -450,7 +450,7 @@ export function TaskDrawer({
                 <button
                   type="submit"
                   disabled={!linkUrl.trim()}
-                  className="shrink-0 rounded-md border border-edge px-3 text-xs text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                  className="shrink-0 rounded-md border border-edge px-3 text-xs text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
                 >
                   Add Link
                 </button>
@@ -640,7 +640,7 @@ export function TaskDrawer({
               ) : null}
               <Link
                 href={`/impact?task=${task.id}`}
-                className="inline-block rounded text-xs text-info hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                className="inline-block rounded text-xs text-mars-soft hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
               >
                 What happens if this slips? &rarr;
               </Link>
@@ -718,7 +718,7 @@ export function TaskDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md px-3 py-1.5 text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+              className="rounded-md px-3 py-1.5 text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
             >
               Cancel
             </button>
@@ -726,7 +726,7 @@ export function TaskDrawer({
               type="button"
               onClick={save}
               disabled={!dirty || saving}
-              className="rounded-md bg-mars px-3 py-1.5 text-sm font-medium text-ground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+              className="rounded-md bg-mars px-3 py-1.5 text-sm font-medium text-ground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
             >
               {saving ? "Saving…" : "Save Changes"}
             </button>

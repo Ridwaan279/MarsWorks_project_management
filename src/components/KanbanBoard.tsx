@@ -108,7 +108,10 @@ export function KanbanBoard({
   const handleBoardWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
     const board = boardRef.current;
     if (!board) return;
-    if (event.deltaX !== 0 || event.deltaY === 0 || event.shiftKey) return;
+    // A real sideways gesture (trackpad, or shift+wheel) is already handled
+    // natively by the scroll container; only a vertical wheel needs help.
+    if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    if (event.deltaY === 0 || event.shiftKey) return;
 
     const column = (event.target as HTMLElement).closest<HTMLElement>(
       "[data-column-scroll]",
@@ -319,7 +322,7 @@ export function KanbanBoard({
               onClick={() => setScope(value)}
               aria-pressed={scope === value}
               className={clsx(
-                "rounded px-2.5 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-info",
+                "rounded px-2.5 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mars",
                 scope === value
                   ? "bg-surface-2 text-ink"
                   : "text-ink-faint hover:text-ink-muted",
@@ -335,7 +338,7 @@ export function KanbanBoard({
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-info focus:outline-none"
+            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-mars focus:outline-none"
           >
             <option value="ALL">All teams</option>
             {teams.map((team) => (
@@ -351,7 +354,7 @@ export function KanbanBoard({
           <select
             value={assigneeFilter}
             onChange={(e) => setAssigneeFilter(e.target.value)}
-            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-info focus:outline-none"
+            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-mars focus:outline-none"
           >
             <option value="ALL">Anyone</option>
             <option value="UNASSIGNED">Unassigned</option>
@@ -518,7 +521,7 @@ function BoardColumn({
     <section
       className={clsx(
         "flex w-[290px] shrink-0 flex-col rounded-xl border transition-colors",
-        isOver ? "border-info/50 bg-surface-2/60" : "border-edge bg-surface/60",
+        isOver ? "border-mars/50 bg-surface-2/60" : "border-edge bg-surface/60",
       )}
     >
       <header className="flex items-center justify-between gap-2 px-3 py-2.5">
@@ -532,7 +535,7 @@ function BoardColumn({
           type="button"
           onClick={onAdd}
           aria-label={`Add a task to ${label}`}
-          className="rounded p-1 text-ink-faint transition-colors hover:bg-surface-3 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+          className="rounded p-1 text-ink-faint transition-colors hover:bg-surface-3 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
         >
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
             <path d="M8 3a.75.75 0 0 1 .75.75v3.5h3.5a.75.75 0 0 1 0 1.5h-3.5v3.5a.75.75 0 0 1-1.5 0v-3.5h-3.5a.75.75 0 0 1 0-1.5h3.5v-3.5A.75.75 0 0 1 8 3Z" />
@@ -543,7 +546,7 @@ function BoardColumn({
       <div
         ref={setNodeRef}
         data-column-scroll
-        className="overscroll-none-safe flex-1 overflow-y-auto px-2 pb-2"
+        className="overscroll-y-contain-safe flex-1 overflow-y-auto px-2 pb-2"
       >
         <SortableContext
           items={tasks.map((t) => t.id)}

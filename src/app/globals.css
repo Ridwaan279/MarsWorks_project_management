@@ -5,29 +5,49 @@
  * all the signal. Every foreground/background pair here clears WCAG AA.
  */
 @theme {
-  --color-ground: #0a0d14;
-  --color-surface: #121722;
-  --color-surface-2: #1a2130;
-  --color-surface-3: #232b3d;
-  --color-edge: #2a3348;
-  --color-edge-soft: #1f2637;
+  /*
+   * MarsWorks brand palette, from the team's branding guide:
+   *   #020101 black        #a6a7a7 light grey     #3c1910 dark brown
+   *   #61321f dark brown   #8c4b2c brown          #ab683e grey orange
+   *   #f87624 MarsWorks orange
+   *
+   * The surfaces are warm throughout -- every grey is tinted towards the
+   * brown, so nothing reads as a cool grey sitting on a warm ground.
+   */
+  --color-ground: #0d0806;
+  --color-surface: #17100c;
+  --color-surface-2: #1f1611;
+  --color-surface-3: #3c1910;
+  --color-edge: #3a2519;
+  --color-edge-soft: #241811;
 
-  --color-ink: #e8ebf2;
-  --color-ink-muted: #9aa3b8;
-  --color-ink-faint: #6b7489;
+  --color-ink: #f6f1ee;
+  --color-ink-muted: #a6a7a7;
+  --color-ink-faint: #8a7466;
 
-  --color-mars: #ff6b35;
-  --color-mars-soft: #ff8c5f;
+  /* The one accent. Everything else is either neutral or a status. */
+  --color-mars: #f87624;
+  --color-mars-soft: #ab683e;
+  --color-clay: #8c4b2c;
+  --color-rust: #61321f;
 
-  --color-ok: #3ddc97;
-  --color-warn: #ffc857;
-  --color-late: #ff5d5d;
-  --color-info: #5eb3ff;
+  /*
+   * Status colours are warm-leaning so they belong to the same family as the
+   * brand rather than arriving from a different palette.
+   */
+  --color-ok: #7fa662;
+  --color-warn: #d9a13c;
+  --color-late: #d7503a;
+  /* Kept for the few informational accents; a warm clay rather than the
+     blue it replaced, so nothing cool appears on a warm ground. */
+  --color-info: #c98a5b;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-mono-brand), ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
 }
+
 
 html {
   /* Tells the browser to render native controls, scrollbars and form widgets
@@ -41,6 +61,8 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  /* Anchor links land below the sticky header rather than under it. */
+  scroll-behavior: smooth;
   /* Removes the 300ms tap delay without disabling pinch-zoom. */
   touch-action: manipulation;
 }
@@ -68,6 +90,16 @@ input[type="date"] {
    their own scroll boundary. */
 .overscroll-none-safe {
   overscroll-behavior: contain;
+}
+
+/*
+ * For a board column, containment must apply to the vertical axis only.
+ * Containing both axes also swallows a two-finger sideways swipe, so the
+ * gesture never reaches the board and the columns cannot be scrolled across.
+ */
+.overscroll-y-contain-safe {
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: auto;
 }
 
 /*
@@ -128,4 +160,36 @@ body.is-dragging {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/*
+ * A fixed grain overlay. Flat dark surfaces read as digital and lifeless;
+ * a little noise gives the browns some material quality without becoming a
+ * texture anyone notices.
+ */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body {
+    scroll-behavior: auto;
+  }
+}
+
+/* Numbers in dense tables should line up column to column. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pressed feedback on the primary actions, so clicks feel physical. */
+button:not(:disabled):active {
+  transform: translateY(0.5px);
 }

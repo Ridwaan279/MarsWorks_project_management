@@ -41,7 +41,7 @@ export function HealthPill({
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
   LOW: "text-ink-faint",
-  MEDIUM: "text-info",
+  MEDIUM: "text-mars-soft",
   HIGH: "text-warn",
   CRITICAL: "text-late",
 };
@@ -63,7 +63,7 @@ export function PriorityFlag({ priority }: { priority: TaskPriority }) {
 const STATUS_STYLES: Record<TaskStatus, string> = {
   BACKLOG: "bg-surface-3 text-ink-muted",
   TODO: "bg-surface-3 text-ink",
-  IN_PROGRESS: "bg-info/15 text-info",
+  IN_PROGRESS: "bg-mars/15 text-mars-soft",
   BLOCKED: "bg-late/15 text-late",
   IN_REVIEW: "bg-mars/15 text-mars-soft",
   DONE: "bg-ok/15 text-ok",
@@ -125,7 +125,7 @@ export function ProgressBar({
   const clamped = Math.min(100, Math.max(0, value));
   return (
     <div
-      className={clsx("h-1.5 w-full overflow-hidden rounded-full bg-surface-3", className)}
+      className={clsx("h-1.5 w-full overflow-hidden rounded-full bg-ink/10", className)}
       role="progressbar"
       aria-valuenow={clamped}
       aria-valuemin={0}

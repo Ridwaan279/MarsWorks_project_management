@@ -34,7 +34,7 @@ export default function Error({
         <h2 className="text-sm font-medium">Find out which</h2>
         <p className="mt-1.5 text-sm text-ink-muted">
           Open{" "}
-          <Link href="/api/health" className="text-info hover:underline">
+          <Link href="/api/health" className="text-mars-soft hover:underline">
             /api/health
           </Link>
           . It checks the connection string, the database and the schema in turn,

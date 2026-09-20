@@ -76,7 +76,7 @@ export function TaskCardBody({
               onToggleFlag(task.id, !task.flagged);
             }}
             className={clsx(
-              "-m-1 shrink-0 rounded p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-info",
+              "-m-1 shrink-0 rounded p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mars",
               task.flagged
                 ? "text-late hover:text-late/80"
                 : "text-ink-faint hover:text-ink-muted",
@@ -205,7 +205,7 @@ export function SortableTaskCard(props: TaskCardProps) {
           }
         }}
         aria-label={`${props.task.key}: ${props.task.title}`}
-        className="block w-full cursor-grab touch-none rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-info active:cursor-grabbing"
+        className="block w-full cursor-grab touch-none rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-mars active:cursor-grabbing"
       >
         <TaskCardBody {...props} />
       </div>

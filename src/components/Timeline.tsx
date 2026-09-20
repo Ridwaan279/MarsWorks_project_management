@@ -4,7 +4,15 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { format } from "date-fns";
-import { addDays, daysBetween, startOfDay, STATUS_LABEL } from "@/lib/domain";
+import {
+  addDays,
+  daysBetween,
+  SEASON_END,
+  STAGE_COLOUR,
+  STAGE_SHORT,
+  startOfDay,
+  STATUS_LABEL,
+} from "@/lib/domain";
 import type {
   MemberView,
   MilestoneView,
@@ -39,7 +47,7 @@ type Zoom = keyof typeof ZOOM;
 const RANGES = {
   current: { label: "Current", back: 30, forward: 90 },
   upcoming: { label: "Upcoming", back: 0, forward: null },
-  everything: { label: "Everything", back: null, forward: null },
+  everything: { label: "Whole season", back: null, forward: null },
 } as const;
 type RangeKey = keyof typeof RANGES;
 
@@ -95,6 +103,8 @@ export function Timeline({
       }
     }
     for (const m of milestones) dates.push(new Date(m.targetDate));
+    // The season runs to the September handover, so the chart does too.
+    if (range === "everything") dates.push(SEASON_END);
 
     let earliest = dates.reduce((a, d) => (d < a ? d : a), dates[0]);
     let latest = dates.reduce((a, d) => (d > a ? d : a), dates[0]);
@@ -149,11 +159,25 @@ export function Timeline({
           .sort((a, b) => a.position - b.position);
 
         const groups = teamStreams
-          .map((ws) => ({
-            id: ws.id,
-            label: ws.code ? `${ws.code}  ${ws.name}` : ws.name,
-            tasks: teamTasks.filter((t) => t.workstreamId === ws.id).sort(byStart),
-          }))
+          .map((ws) => {
+            const tasks = teamTasks
+              .filter((t) => t.workstreamId === ws.id)
+              .sort(byStart);
+            // Where every task in a group shares a lifecycle stage, colour the
+            // group by it; otherwise fall back to the sub-team's own colour.
+            const stages = new Set(tasks.map((t) => t.stage).filter(Boolean));
+            const colour =
+              stages.size === 1
+                ? STAGE_COLOUR[[...stages][0] as keyof typeof STAGE_COLOUR]
+                : team.colour;
+            return {
+              id: ws.id,
+              label: ws.code ? `${ws.code}  ${ws.name}` : ws.name,
+              colour,
+              stage: stages.size === 1 ? ([...stages][0] as keyof typeof STAGE_COLOUR) : null,
+              tasks,
+            };
+          })
           .filter((g) => g.tasks.length > 0);
 
         const ungrouped = teamTasks
@@ -162,7 +186,13 @@ export function Timeline({
           )
           .sort(byStart);
         if (ungrouped.length > 0) {
-          groups.push({ id: `${team.id}-none`, label: "", tasks: ungrouped });
+          groups.push({
+            id: `${team.id}-none`,
+            label: "",
+            colour: team.colour,
+            stage: null,
+            tasks: ungrouped,
+          });
         }
 
         return { team, groups, count: teamTasks.length };
@@ -201,7 +231,7 @@ export function Timeline({
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-info focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-mars focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
           >
             <option value="ALL">All teams</option>
             {teams.map((team) => (
@@ -217,7 +247,7 @@ export function Timeline({
           <select
             value={range}
             onChange={(e) => setRange(e.target.value as RangeKey)}
-            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-info focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+            className="rounded-md border border-edge bg-surface px-2 py-1 text-xs text-ink focus:border-mars focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
           >
             {(Object.keys(RANGES) as RangeKey[]).map((key) => (
               <option key={key} value={key}>
@@ -239,7 +269,7 @@ export function Timeline({
               onClick={() => setZoom(level)}
               aria-pressed={zoom === level}
               className={clsx(
-                "rounded px-2 py-1 text-xs capitalize transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-info",
+                "rounded px-2 py-1 text-xs capitalize transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mars",
                 zoom === level
                   ? "bg-surface-2 text-ink"
                   : "text-ink-faint hover:text-ink-muted",
@@ -269,7 +299,7 @@ export function Timeline({
             <span className="h-2 w-4 rounded-sm bg-mars" aria-hidden /> critical path
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-3.5 w-px bg-info" aria-hidden /> today
+            <span className="h-3.5 w-px bg-ink-muted" aria-hidden /> today
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-3.5 w-px bg-warn" aria-hidden /> milestone
@@ -350,7 +380,7 @@ export function Timeline({
                 ))}
                 <span
                   style={{ left: todayOffset }}
-                  className="absolute inset-y-0 w-px bg-info"
+                  className="absolute inset-y-0 w-px bg-ink-muted"
                 />
               </div>
 
@@ -369,9 +399,32 @@ export function Timeline({
                   {groups.map((group) => (
                     <div key={group.id}>
                       {group.label ? (
-                        <Row height={GROUP_HEIGHT} chartWidth={chartWidth} tone="group">
-                          <span className="truncate pl-2 text-[11px] font-medium text-ink-muted">
-                            {group.label}
+                        <Row
+                          height={GROUP_HEIGHT}
+                          chartWidth={chartWidth}
+                          tone="group"
+                          accent={group.colour}
+                        >
+                          <span className="flex w-full min-w-0 items-center gap-2 pl-3">
+                            <span
+                              aria-hidden
+                              className="h-2.5 w-0.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: group.colour }}
+                            />
+                            <span className="truncate text-[11px] font-medium text-ink-muted">
+                              {group.label}
+                            </span>
+                            {group.stage ? (
+                              <span
+                                className="ml-auto mr-2 shrink-0 rounded px-1.5 py-px text-[9px] font-medium"
+                                style={{
+                                  color: group.colour,
+                                  backgroundColor: `color-mix(in srgb, ${group.colour} 16%, transparent)`,
+                                }}
+                              >
+                                {STAGE_SHORT[group.stage]}
+                              </span>
+                            ) : null}
                           </span>
                         </Row>
                       ) : null}
@@ -395,7 +448,7 @@ export function Timeline({
                             rail={
                               <Link
                                 href={`/board?task=${task.id}`}
-                                className="flex h-full w-full items-center gap-2 pl-3 text-xs transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info focus-visible:ring-inset"
+                                className="flex h-full w-full items-center gap-2 pl-3 text-xs transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars focus-visible:ring-inset"
                               >
                                 <span className="shrink-0 font-mono text-[10px] text-ink-faint" translate="no">
                                   {task.key}
@@ -418,7 +471,7 @@ export function Timeline({
                                 title={`${task.key}: ${task.title}\n${format(new Date(sched.earliestStart as unknown as string), "d MMM")} – ${format(new Date(sched.earliestFinish as unknown as string), "d MMM")}\n${formatDays(-sched.slackDays)}`}
                                 style={{ left: barStart * dayWidth, width }}
                                 className={clsx(
-                                  "absolute top-1/2 flex h-4 -translate-y-1/2 items-center overflow-hidden rounded-sm ring-1 transition-[height,box-shadow] hover:h-5 hover:ring-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info",
+                                  "absolute top-1/2 flex h-4 -translate-y-1/2 items-center overflow-hidden rounded-sm ring-1 transition-[height,box-shadow] hover:h-5 hover:ring-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars",
                                   done
                                     ? "opacity-45 ring-transparent"
                                     : sched.isCritical
@@ -470,33 +523,38 @@ function Row({
   height,
   chartWidth,
   tone,
+  accent,
   rail,
   children,
 }: {
   height: number;
   chartWidth: number;
   tone: "team" | "group" | "task";
+  accent?: string;
   rail?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   // The label cell must be opaque: it is pinned over the gridlines behind it.
-  const background =
-    tone === "team" ? "bg-surface" : tone === "group" ? "bg-ground" : "bg-ground";
+  const background = tone === "team" ? "bg-surface-2" : "bg-ground";
+  const tint =
+    tone === "group" && accent
+      ? { backgroundColor: `color-mix(in srgb, ${accent} 10%, var(--color-ground))` }
+      : undefined;
   return (
-    <div className="flex" style={{ height }}>
+    <div className={clsx("flex", tone === "team" && "border-t border-edge")} style={{ height }}>
       <div
         className={clsx(
           "sticky left-0 z-20 flex shrink-0 items-center border-r border-edge",
           rail ? "" : "px-3",
           background,
         )}
-        style={{ width: RAIL }}
+        style={{ width: RAIL, ...tint }}
       >
         {rail ?? children}
       </div>
       <div
-        className={clsx("relative shrink-0", tone === "team" && "bg-surface/70")}
-        style={{ width: chartWidth }}
+        className={clsx("relative shrink-0", tone === "team" && "bg-surface-2/60")}
+        style={{ width: chartWidth, ...tint }}
       >
         {rail ? children : null}
       </div>

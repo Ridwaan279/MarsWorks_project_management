@@ -105,7 +105,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
               id="impact-task"
               value={taskId}
               onChange={(e) => setTaskId(e.target.value)}
-              className="w-full min-w-0 rounded-md border border-edge bg-surface-2 px-2.5 py-2 text-sm text-ink focus:border-info focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+              className="w-full min-w-0 rounded-md border border-edge bg-surface-2 px-2.5 py-2 text-sm text-ink focus:border-mars focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
             >
               {teams.map((team) => {
                 const teamTasks = open.filter((t) => t.teamId === team.id);
@@ -137,7 +137,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
               max={60}
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className="w-full accent-[var(--color-mars)] focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+              className="w-full accent-[var(--color-mars)] focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
             />
             <div className="flex justify-between text-[10px] text-ink-faint">
               <span>1 day</span>
@@ -294,7 +294,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
                     <li key={task.id}>
                       <Link
                         href={`/board?task=${task.id}`}
-                        className="flex items-center gap-3 rounded-lg border border-edge bg-surface px-3 py-2.5 transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                        className="flex items-center gap-3 rounded-lg border border-edge bg-surface px-3 py-2.5 transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
                       >
                         <TeamDot colour={task.colour} />
                         <div className="min-w-0 flex-1">

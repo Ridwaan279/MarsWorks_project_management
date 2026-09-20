@@ -85,12 +85,15 @@ const teams: {
   defaultView: TeamView;
   description: string;
 }[] = [
-  { key: "OPS", name: "Operations", colour: "#94a3b8", defaultView: "BOARD", description: "Sponsors, emails, communications, procurement, social media, health and safety, and project administration." },
-  { key: "MECH", name: "Mechanical", colour: "#f97316", defaultView: "TIMELINE", description: "Chassis, wheels, drivetrain, structure, and mechanical systems." },
-  { key: "ELEC", name: "Electronics", colour: "#06b6d4", defaultView: "BOARD", description: "Power, electronics, wiring, and communication between subsystems." },
-  { key: "ROBO", name: "Robotics", colour: "#84cc16", defaultView: "BOARD", description: "Robot arm and its mechanical, electrical and software integration." },
-  { key: "SCI", name: "Science", colour: "#ec4899", defaultView: "TIMELINE", description: "Science kit, experiments, and scientific requirements." },
-  { key: "SW", name: "Software", colour: "#8b5cf6", defaultView: "BOARD", description: "Software management, manual control, and autonomous navigation." },
+  // Six distinguishable hues, all desaturated towards the brand's warm
+  // palette so the board and the Gantt read as one family rather than a
+  // default rainbow. Mechanical carries the MarsWorks orange.
+  { key: "OPS", name: "Operations", colour: "#a6a7a7", defaultView: "BOARD", description: "Sponsors, emails, communications, procurement, social media, health and safety, and project administration." },
+  { key: "MECH", name: "Mechanical", colour: "#f87624", defaultView: "TIMELINE", description: "Chassis, wheels, drivetrain, structure, and mechanical systems." },
+  { key: "ELEC", name: "Electronics", colour: "#7d9ea3", defaultView: "BOARD", description: "Power, electronics, wiring, and communication between subsystems." },
+  { key: "ROBO", name: "Robotics", colour: "#9aa866", defaultView: "BOARD", description: "Robot arm and its mechanical, electrical and software integration." },
+  { key: "SCI", name: "Science", colour: "#c08a9c", defaultView: "TIMELINE", description: "Science kit, experiments, and scientific requirements." },
+  { key: "SW", name: "Software", colour: "#9a8bbd", defaultView: "BOARD", description: "Software management, manual control, and autonomous navigation." },
 ];
 
 /** People named in the existing planners. */

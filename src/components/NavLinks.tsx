@@ -17,7 +17,7 @@ export function NavLinks() {
   return (
     <nav
       aria-label="Main"
-      className="-mx-1 flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto px-1 sm:gap-1"
+      className="-mx-1 flex min-w-0 items-center gap-0.5 overflow-x-auto px-1 sm:gap-1"
     >
       {LINKS.map((link) => {
         const active =
@@ -29,9 +29,9 @@ export function NavLinks() {
             aria-current={active ? "page" : undefined}
             className={clsx(
               "rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors sm:px-3",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-info",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-mars",
               active
-                ? "bg-surface-2 text-ink"
+                ? "bg-surface-2 text-ink shadow-[inset_0_-2px_0_0_var(--color-mars)]"
                 : "text-ink-muted hover:bg-surface hover:text-ink",
             )}
           >

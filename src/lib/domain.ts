@@ -88,6 +88,26 @@ export const STAGE_SHORT: Record<ProjectStage, string> = {
 export type TeamView = "BOARD" | "TIMELINE";
 
 /**
+ * The last day of the MarsWorks season. The competition sits in spring 2027,
+ * but the year runs to the September handover, so the timeline reaches there
+ * even when no task does -- otherwise the chart appears to end mid-project.
+ */
+export const SEASON_END = new Date("2027-09-30T00:00:00Z");
+
+/** A colour per lifecycle stage, drawn from the brand browns and the orange,
+ *  so the stages read as one family rather than a rainbow. */
+export const STAGE_COLOUR: Record<ProjectStage, string> = {
+  INVESTIGATION: "#a6a7a7",
+  DESIGN: "#c98a5b",
+  PROTOTYPE: "#ab683e",
+  ORDER: "#f87624",
+  CONSTRUCTION: "#8c4b2c",
+  TESTING: "#d9a13c",
+  IMPROVEMENT: "#7fa662",
+  DOCUMENTATION: "#61321f",
+};
+
+/**
  * Status words used by the planners this tool replaces, mapped onto ours.
  * The sync adapters and any spreadsheet import go through this table so the
  * same phrase always lands in the same column, whichever tool it came from.

@@ -78,6 +78,21 @@ That importer is a one-off migration tool, but the **column mapping it encodes
 is the mapping the Google Sheets sync has to agree with**, which is why it is
 kept rather than thrown away.
 
+## Branding
+
+Colours come from the team's branding guide: `#020101`, `#a6a7a7`, `#3c1910`,
+`#61321f`, `#8c4b2c`, `#ab683e` and `#f87624`. Every surface and grey is tinted
+warm so nothing reads as a cool grey on a warm ground, and MarsWorks orange is
+the single accent — status colours aside, which are warm-leaning for the same
+reason.
+
+Sub-team colours are six desaturated hues chosen to sit inside that palette
+while staying distinguishable on a dense Gantt. On a database seeded before
+this, `scripts/brand-team-colours.sql` updates them in place.
+
+Type is Outfit for the interface and JetBrains Mono for task keys and figures.
+The logo lives at `public/marsworks-logo.png` and supplies the favicon.
+
 ## Architecture
 
 The Postgres database is the **single source of truth**. GitHub Projects and

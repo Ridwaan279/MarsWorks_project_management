@@ -46,7 +46,7 @@ export default async function OverviewPage() {
               {undatedCount} open {undatedCount === 1 ? "task has" : "tasks have"} no
               end date, so {undatedCount === 1 ? "it is" : "they are"} invisible to the
               forecast.{" "}
-              <Link href="/teams" className="text-info underline-offset-2 hover:underline">
+              <Link href="/teams" className="text-mars-soft underline-offset-2 hover:underline">
                 See the breakdown
               </Link>
               .
@@ -105,7 +105,7 @@ export default async function OverviewPage() {
           </h2>
           <Link
             href="/teams"
-            className="rounded text-xs text-info underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+            className="rounded text-xs text-mars-soft underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
           >
             Full breakdown &rarr;
           </Link>
@@ -120,7 +120,7 @@ export default async function OverviewPage() {
               <li key={team.id}>
                 <Link
                   href={`/teams#${team.key.toLowerCase()}`}
-                  className="block h-full rounded-xl border border-edge bg-surface p-4 transition-colors hover:border-edge-soft hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                  className="block h-full rounded-xl border border-edge bg-surface p-4 transition-colors hover:border-edge-soft hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
                 >
                   <div className="flex items-center gap-2">
                     <TeamDot colour={team.colour} />

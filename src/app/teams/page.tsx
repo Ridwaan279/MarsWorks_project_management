@@ -45,7 +45,7 @@ export default async function TeamsPage() {
       <header className="space-y-2">
         <Link
           href="/"
-          className="inline-block rounded text-xs text-ink-faint transition-colors hover:text-ink-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+          className="inline-block rounded text-xs text-ink-faint transition-colors hover:text-ink-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
         >
           &larr; Overview
         </Link>
@@ -172,7 +172,7 @@ export default async function TeamsPage() {
                 <li key={task.id}>
                   <Link
                     href={`/board?task=${task.id}`}
-                    className="flex items-start gap-3 rounded-lg border border-late/40 bg-late/10 px-3 py-2.5 transition-colors hover:bg-late/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                    className="flex items-start gap-3 rounded-lg border border-late/40 bg-late/10 px-3 py-2.5 transition-colors hover:bg-late/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
                   >
                     <TeamDot colour={team.colour} className="mt-1.5" />
                     <span className="min-w-0 flex-1">
@@ -209,7 +209,7 @@ export default async function TeamsPage() {
                   <li key={task.id}>
                     <Link
                       href={`/board?task=${task.id}`}
-                      className="flex items-start gap-3 rounded-lg border border-edge bg-surface px-3 py-2.5 transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                      className="flex items-start gap-3 rounded-lg border border-edge bg-surface px-3 py-2.5 transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
                     >
                       <TeamDot colour={team.colour} className="mt-1.5" />
                       <span className="min-w-0 flex-1">
@@ -244,7 +244,7 @@ export default async function TeamsPage() {
                   <li key={task.id}>
                     <Link
                       href={`/impact?task=${task.id}`}
-                      className="flex items-center gap-3 rounded-lg border border-edge bg-surface px-3 py-2.5 transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                      className="flex items-center gap-3 rounded-lg border border-edge bg-surface px-3 py-2.5 transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
                     >
                       <TeamDot colour={team.colour} />
                       <span className="min-w-0 flex-1">
@@ -282,7 +282,7 @@ export default async function TeamsPage() {
                 <li key={task.id}>
                   <Link
                     href={`/board?task=${task.id}`}
-                    className="flex items-center gap-2 rounded-lg border border-edge bg-surface px-2.5 py-1.5 text-xs transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                    className="flex items-center gap-2 rounded-lg border border-edge bg-surface px-2.5 py-1.5 text-xs transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-mars"
                   >
                     <TeamDot colour={team.colour} />
                     <span className="max-w-[16rem] truncate">{task.title}</span>
