@@ -15,18 +15,39 @@ export interface TaskCardProps {
   scheduled: ScheduledTask | undefined;
   onOpen: (taskId: string) => void;
   onToggleFlag?: (taskId: string, flagged: boolean) => void;
+  /** Marks one card as the anchor for the onboarding tour. */
+  tourAnchor?: boolean;
 }
 
 /**
- * Tint the card with its sub-team's colour so the board reads as six streams
- * at a glance rather than one undifferentiated wall. Kept faint: the colour
- * identifies the team, it must not compete with the red of a flagged card or
- * the ring on a late one.
+ * Dress a card in its sub-team's colour so the board reads as six streams at
+ * a glance rather than one undifferentiated wall: a solid rail down the left
+ * edge, an outline carrying the same hue, and a faint wash of it behind.
+ *
+ * The outline is mixed with the neutral border rather than used neat. Six
+ * saturated rectangles side by side fight each other and drown the schedule
+ * warnings, which matter more than whose card it is; mixed, each team is
+ * still told apart at a glance but red still means late.
+ *
+ * Schedule state rides on the ring rather than the border, because the border
+ * is spoken for. Both live in one box-shadow: an inline boxShadow replaces
+ * Tailwind's ring utilities wholesale, so they cannot be left to a class.
  */
-function teamTint(colour: string): React.CSSProperties {
+function cardStyle(
+  colour: string,
+  state: "late" | "tight" | null,
+): React.CSSProperties {
+  const rail = `inset 3px 0 0 0 ${colour}`;
+  const ring =
+    state === "late"
+      ? "0 0 0 1px color-mix(in srgb, var(--color-danger) 55%, transparent)"
+      : state === "tight"
+        ? "0 0 0 1px color-mix(in srgb, var(--color-warning) 45%, transparent)"
+        : null;
   return {
-    backgroundColor: `color-mix(in srgb, ${colour} 9%, var(--color-surface-2))`,
-    borderColor: `color-mix(in srgb, ${colour} 28%, var(--color-edge))`,
+    backgroundColor: `color-mix(in srgb, ${colour} 7%, var(--color-card))`,
+    borderColor: `color-mix(in srgb, ${colour} 70%, var(--color-border))`,
+    boxShadow: ring ? `${rail}, ${ring}` : rail,
   };
 }
 
@@ -44,16 +65,16 @@ export function TaskCardBody({
 
   return (
     <div
-      style={task.flagged ? undefined : teamTint(team.colour)}
-      className={clsx(
-        "space-y-2.5 rounded-lg border p-3 text-left",
+      style={
         task.flagged
-          ? "border-danger bg-danger/15 ring-1 ring-danger/40"
-          : late
-            ? "border-danger/40"
-            : tight
-              ? "border-warning/30"
-              : "",
+          ? { boxShadow: `inset 3px 0 0 0 ${team.colour}` }
+          : cardStyle(team.colour, late ? "late" : tight ? "tight" : null)
+      }
+      className={clsx(
+        "space-y-2.5 rounded-lg border p-3 pl-3.5 text-left transition-[transform,box-shadow] duration-200 group-hover/card:-translate-y-px",
+        // A flagged card keeps the red outline: "someone raised this by hand"
+        // outranks whose card it is. The team rail above still identifies it.
+        task.flagged && "border-danger bg-danger/10 ring-1 ring-danger/40",
         dragging && "card-overlay",
       )}
     >
@@ -76,7 +97,7 @@ export function TaskCardBody({
               onToggleFlag(task.id, !task.flagged);
             }}
             className={clsx(
-              "-m-1 shrink-0 rounded p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+              "-m-1 shrink-0 rounded p-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
               task.flagged
                 ? "text-danger hover:text-danger/80"
                 : "text-ink-3 hover:text-ink-2",
@@ -205,7 +226,8 @@ export function SortableTaskCard(props: TaskCardProps) {
           }
         }}
         aria-label={`${props.task.key}: ${props.task.title}`}
-        className="block w-full cursor-grab touch-none rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
+        data-tour={props.tourAnchor ? "card" : undefined}
+        className="group/card block w-full cursor-grab touch-none rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
       >
         <TaskCardBody {...props} />
       </div>

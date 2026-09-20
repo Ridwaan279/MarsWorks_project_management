@@ -40,10 +40,13 @@ export const metadata: Metadata = {
 };
 
 // themeColor belongs to the viewport export, not metadata; Next warns on
-// every route otherwise. Matches --color-ground so mobile browser chrome
-// blends with the page.
+// every route otherwise. Both entries mirror --color-bg so mobile browser
+// chrome blends with the page in either theme.
 export const viewport: Viewport = {
-  themeColor: "#0a0d14",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f7f9" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d0e10" },
+  ],
 };
 
 export default function RootLayout({

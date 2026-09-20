@@ -226,12 +226,12 @@ export function Timeline({
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
-        <label className="flex items-center gap-2 text-xs text-ink-2">
+        <label data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
           Sub-team
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="rounded-md border border-line bg-panel px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <option value="ALL">All teams</option>
             {teams.map((team) => (
@@ -242,12 +242,12 @@ export function Timeline({
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-xs text-ink-2">
+        <label data-tour="range" className="flex items-center gap-2 text-xs text-ink-2">
           Range
           <select
             value={range}
             onChange={(e) => setRange(e.target.value as RangeKey)}
-            className="rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="rounded-md border border-line bg-panel px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {(Object.keys(RANGES) as RangeKey[]).map((key) => (
               <option key={key} value={key}>
@@ -269,7 +269,7 @@ export function Timeline({
               onClick={() => setZoom(level)}
               aria-pressed={zoom === level}
               className={clsx(
-                "rounded px-2 py-1 text-xs capitalize transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                "rounded px-2.5 py-1.5 text-xs capitalize transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                 zoom === level
                   ? "bg-elevated text-ink"
                   : "text-ink-3 hover:text-ink-2",
@@ -285,7 +285,7 @@ export function Timeline({
             type="checkbox"
             checked={hideDone}
             onChange={(e) => setHideDone(e.target.checked)}
-            className="accent-[var(--color-accent)]"
+            className="h-4 w-4 cursor-pointer accent-[var(--color-accent)]"
           />
           Hide completed
         </label>
@@ -299,10 +299,20 @@ export function Timeline({
             <span className="h-2 w-4 rounded-sm bg-accent" aria-hidden /> critical path
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-3.5 w-px bg-accent/60" aria-hidden /> today
+            <span className="h-3.5 w-0.5 bg-today" aria-hidden /> today
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-3.5 w-px bg-accent/70" aria-hidden /> milestone
+            {/* Dashed, matching the line on the chart: colour alone is a weak
+                signal for a 1px rule, and it has to survive colour-blindness. */}
+            <span
+              aria-hidden
+              className="h-3.5 w-0.5 bg-[length:2px_5px] bg-repeat-y"
+              style={{
+                backgroundImage:
+                  "linear-gradient(var(--color-milestone) 60%, transparent 60%)",
+              }}
+            />{" "}
+            milestone
           </span>
         </div>
       </div>
@@ -318,7 +328,7 @@ export function Timeline({
          * vertically with their own bars instead of being a separate pane
          * that has to be kept in step.
          */
-        <div className="overscroll-none-safe relative flex-1 overflow-auto">
+        <div data-tour="chart" className="overscroll-none-safe relative flex-1 overflow-auto">
           <div
             className="relative"
             style={{ width: RAIL + chartWidth, minWidth: "100%" }}
@@ -343,12 +353,19 @@ export function Timeline({
                     {format(mark.date, zoom === "compact" ? "d/M" : "d MMM")}
                   </span>
                 ))}
+                {/* The chip is tinted from the milestone hue so that it and
+                    the rule below it plainly belong to the same marker. */}
                 {milestonesInView.map(({ milestone, offset, room }) => (
                   <span
                     key={milestone.id}
                     title={`${milestone.name} — ${format(new Date(milestone.targetDate), "d MMM yyyy")}`}
-                    style={{ left: offset * dayWidth + 2, maxWidth: Math.max(room, 18) }}
-                    className="absolute bottom-1 truncate rounded bg-accent-tint px-1 text-[9px] text-accent"
+                    style={{
+                      left: offset * dayWidth + 2,
+                      maxWidth: Math.max(room, 18),
+                      backgroundColor:
+                        "color-mix(in srgb, var(--color-milestone) 18%, var(--color-bg))",
+                    }}
+                    className="absolute bottom-1 truncate rounded px-1 text-[9px] text-milestone"
                   >
                     {milestone.name}
                   </span>
@@ -374,15 +391,20 @@ export function Timeline({
                 {milestonesInView.map(({ milestone, offset }) => (
                   <span
                     key={milestone.id}
-                    style={{ left: offset * dayWidth }}
-                    className="absolute inset-y-0 w-px bg-accent/70"
+                    style={{
+                      left: offset * dayWidth,
+                      backgroundImage:
+                        "linear-gradient(var(--color-milestone) 60%, transparent 60%)",
+                      backgroundSize: "1px 6px",
+                    }}
+                    className="absolute inset-y-0 w-px"
                   />
                 ))}
-                {/* Today: MarsWorks orange at partial opacity, per the
-                    palette document's timeline rules. */}
+                {/* Today reads as the one line you look for first, so it is
+                    solid, full strength and a shade wider than a gridline. */}
                 <span
                   style={{ left: todayOffset }}
-                  className="absolute inset-y-0 w-px bg-accent/60"
+                  className="absolute inset-y-0 w-0.5 bg-today"
                 />
               </div>
 
@@ -540,7 +562,7 @@ function Row({
   const background = tone === "team" ? "bg-elevated" : "bg-canvas";
   const tint =
     tone === "group" && accent
-      ? { backgroundColor: `color-mix(in srgb, ${accent} 10%, var(--color-ground))` }
+      ? { backgroundColor: `color-mix(in srgb, ${accent} 10%, var(--color-bg))` }
       : undefined;
   return (
     <div className={clsx("flex", tone === "team" && "border-t border-line")} style={{ height }}>

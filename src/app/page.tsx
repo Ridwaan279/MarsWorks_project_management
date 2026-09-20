@@ -28,14 +28,14 @@ export default async function OverviewPage() {
     <div className="mx-auto max-w-6xl space-y-10 px-4 py-10 sm:px-6">
       <header className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-pretty">
+          <h1 className="text-3xl font-semibold tracking-tight text-pretty sm:text-4xl">
             Project overview
           </h1>
           <p className="text-sm text-ink-3 tabular-nums">
             {format(project.asOf, "d MMM yyyy")}
           </p>
         </div>
-        <p className="max-w-2xl text-sm text-ink-2 text-pretty">
+        <p data-tour="summary" className="max-w-2xl text-base leading-relaxed text-ink-2 text-pretty">
           {behindCount > 0
             ? `${behindCount} of ${project.teams.length} sub-teams are behind their own plan.`
             : atRiskCount > 0
@@ -56,10 +56,11 @@ export default async function OverviewPage() {
       </header>
 
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
-          Milestones
-        </h2>
-        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
+        <h2 className="text-sm font-semibold text-ink-2">Milestones</h2>
+        <ul
+          data-tour="milestones"
+          className="divide-y divide-line overflow-hidden rounded-xl border border-line"
+        >
           {project.milestones.map((milestone) => {
             const forecast = project.schedule.milestones.find(
               (m) => m.id === milestone.id,
@@ -100,9 +101,7 @@ export default async function OverviewPage() {
 
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-4">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
-            Sub-teams
-          </h2>
+          <h2 className="text-sm font-semibold text-ink-2">Sub-teams</h2>
           <Link
             href="/teams"
             className="rounded text-xs text-accent underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -111,7 +110,7 @@ export default async function OverviewPage() {
           </Link>
         </div>
 
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul data-tour="teams" className="grid grid-flow-dense gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {project.teams.map((team) => {
             const health = healthByTeam.get(team.id);
             if (!health) return null;
@@ -120,7 +119,8 @@ export default async function OverviewPage() {
               <li key={team.id}>
                 <Link
                   href={`/teams#${team.key.toLowerCase()}`}
-                  className="block h-full rounded-xl border border-line bg-panel p-4 transition-colors hover:border-line hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  style={{ boxShadow: `inset 3px 0 0 0 ${team.colour}` }}
+                  className="block h-full rounded-xl border border-line bg-panel p-4 pl-5 transition-[transform,background-color,border-color] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <div className="flex items-center gap-2">
                     <TeamDot colour={team.colour} />

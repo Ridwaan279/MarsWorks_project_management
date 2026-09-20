@@ -27,6 +27,8 @@ interface Props {
   workstreams: WorkstreamView[];
   defaultTeamId?: string;
   onClose: () => void;
+  /** Lets the board adopt a workstream created from inside this dialog. */
+  onWorkstreamCreated: (workstream: WorkstreamView) => void;
   onCreated: (task: {
     id: string;
     teamId: string;
@@ -58,6 +60,7 @@ export function NewTaskDialog({
   defaultTeamId,
   onClose,
   onCreated,
+  onWorkstreamCreated,
 }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -80,6 +83,12 @@ export function NewTaskDialog({
   const [linkLabel, setLinkLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Adding a workstream from here, rather than sending someone elsewhere to
+  // create one first, which is how tasks end up ungrouped.
+  const [addingWorkstream, setAddingWorkstream] = useState(false);
+  const [newWorkstreamName, setNewWorkstreamName] = useState("");
+  const [newWorkstreamCode, setNewWorkstreamCode] = useState("");
+  const [creatingWorkstream, setCreatingWorkstream] = useState(false);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -106,6 +115,35 @@ export function NewTaskDialog({
     setLinkUrl("");
     setLinkLabel("");
     setError(null);
+  }
+
+  async function createWorkstream() {
+    const name = newWorkstreamName.trim();
+    if (!name || !teamId) return;
+    setCreatingWorkstream(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/workstreams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId, name, code: newWorkstreamCode.trim() || null }),
+      });
+      if (!response.ok) {
+        setError("Could not create that workstream.");
+        return;
+      }
+      const created: WorkstreamView = await response.json();
+      onWorkstreamCreated(created);
+      setWorkstreamId(created.id);
+      setAddingWorkstream(false);
+      setNewWorkstreamName("");
+      setNewWorkstreamCode("");
+    } catch (cause) {
+      console.error("Failed to create workstream", cause);
+      setError("Could not create that workstream.");
+    } finally {
+      setCreatingWorkstream(false);
+    }
   }
 
   async function submit(event: React.FormEvent) {
@@ -325,22 +363,68 @@ export function NewTaskDialog({
           </div>
 
           <div className="space-y-1.5">
-            <label className={LABEL} htmlFor="new-workstream">
-              Workstream
-            </label>
-            <select
-              id="new-workstream"
-              value={workstreamId}
-              onChange={(e) => setWorkstreamId(e.target.value)}
-              className={FIELD}
-            >
-              <option value="">Ungrouped</option>
-              {teamWorkstreams.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.code ? `${w.code} ${w.name}` : w.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-baseline justify-between gap-2">
+              <label className={LABEL} htmlFor="new-workstream">
+                Workstream
+              </label>
+              <button
+                type="button"
+                onClick={() => setAddingWorkstream((v) => !v)}
+                className="rounded text-[11px] text-accent transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                {addingWorkstream ? "Cancel" : "New workstream"}
+              </button>
+            </div>
+            {addingWorkstream ? (
+              <div className="space-y-2 rounded-md border border-line bg-panel p-2">
+                <div className="flex gap-2">
+                  <input
+                    value={newWorkstreamCode}
+                    onChange={(e) => setNewWorkstreamCode(e.target.value)}
+                    autoComplete="off"
+                    placeholder="1.0"
+                    aria-label="Workstream code, optional"
+                    className={`${FIELD} w-16 shrink-0 text-xs`}
+                  />
+                  <input
+                    value={newWorkstreamName}
+                    onChange={(e) => setNewWorkstreamName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void createWorkstream();
+                      }
+                    }}
+                    autoComplete="off"
+                    placeholder="Pivot Wheel Project"
+                    aria-label="Workstream name"
+                    className={`${FIELD} text-xs`}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={createWorkstream}
+                  disabled={!newWorkstreamName.trim() || creatingWorkstream}
+                  className="w-full rounded-md border border-line px-2 py-1 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  {creatingWorkstream ? "Adding…" : `Add to ${teams.find((t) => t.id === teamId)?.name ?? "team"}`}
+                </button>
+              </div>
+            ) : (
+              <select
+                id="new-workstream"
+                value={workstreamId}
+                onChange={(e) => setWorkstreamId(e.target.value)}
+                className={FIELD}
+              >
+                <option value="">Ungrouped</option>
+                {teamWorkstreams.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.code ? `${w.code} ${w.name}` : w.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="space-y-1.5">
