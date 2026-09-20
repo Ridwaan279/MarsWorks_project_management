@@ -172,8 +172,12 @@ deploy.
 Sub-teams are rows, not code, so redeploying does not change them. On a
 database that was seeded before the sub-teams were corrected, either:
 
-- run `npm run db:seed` again, which is simplest but **clears every table**,
-  so only do it while the data is still the imported archive; or
+- run `npm install && npm run db:seed` again, which is simplest but **clears
+  every table**, so only do it while the data is still the imported archive.
+  The install matters: the generated Prisma client is gitignored, so a
+  checkout that pulled a schema change without reinstalling still has the old
+  one and the seed fails partway through. Seeding also wants `DIRECT_URL`
+  (session pooler, port 5432) rather than the transaction pooler; or
 - run `scripts/fix-subteams.sql` in the Supabase SQL editor, which renames
   Electrical to Electronics, moves the Executive team's work and people to
   Operations, renumbers its task keys, removes the teams that are not

@@ -36,6 +36,17 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString, max: 4 }),
 });
 
+/** Host and database only -- the password must never reach a terminal log. */
+function describeTarget(url: string): { label: string; port: string } {
+  try {
+    const u = new URL(url);
+    const port = u.port || "5432";
+    return { label: `${u.hostname}:${port}${u.pathname}`, port };
+  } catch {
+    return { label: "unparseable connection string", port: "" };
+  }
+}
+
 interface ImportedTask {
   team: string;
   workstream?: string | null;
@@ -160,6 +171,31 @@ function findTask(
 }
 
 async function main() {
+  const target = describeTarget(connectionString!);
+  console.log(
+    `Seeding ${target.label} via ${process.env.DIRECT_URL ? "DIRECT_URL" : "DATABASE_URL"}`,
+  );
+  if (target.port === "6543") {
+    console.warn(
+      "\n  Warning: port 6543 is Supabase's transaction pooler. Seeding wants a\n" +
+        "  session-mode connection. Set DIRECT_URL to the session pooler URI\n" +
+        "  (port 5432) in .env if this run fails.\n",
+    );
+  }
+
+  // The generated client is derived from schema.prisma and is gitignored, so a
+  // checkout that has pulled a schema change but not reinstalled still has the
+  // old one. Catching that here beats failing halfway through the deletes and
+  // leaving the database in a state that looks untouched.
+  for (const model of ["workstream", "subtask", "taskDependency"] as const) {
+    if (!(model in prisma)) {
+      throw new Error(
+        `The generated Prisma client has no "${model}" model, so it predates the ` +
+          `current schema.\nRun "npm install" (or "npx prisma generate") and seed again.`,
+      );
+    }
+  }
+
   console.log("Clearing existing data...");
   await prisma.externalLink.deleteMany();
   await prisma.taskDependency.deleteMany();
@@ -305,6 +341,21 @@ async function main() {
     console.warn(`Could not match ${unmatched.length} dependency/ies:`);
     for (const u of unmatched) console.warn(`   ${u}`);
   }
+
+  // Read the result back rather than trusting the writes, and name what is
+  // actually in the database now. A seed that reports success while the old
+  // rows survive is the failure this whole script exists to rule out.
+  const finalTeams = await prisma.team.findMany({ orderBy: { position: "asc" } });
+  console.log(`\nSub-teams now in ${target.label}:`);
+  for (const team of finalTeams) {
+    console.log(`   ${team.position}  ${team.key.padEnd(6)} ${team.name}`);
+  }
+  if (finalTeams.length !== teams.length) {
+    throw new Error(
+      `Expected ${teams.length} sub-teams after seeding but found ${finalTeams.length}.`,
+    );
+  }
+  console.log("\nDone. Refresh the site -- no redeploy is needed.");
 }
 
 main()
