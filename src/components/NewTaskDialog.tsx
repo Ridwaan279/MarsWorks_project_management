@@ -3,32 +3,58 @@
 import { useEffect, useState } from "react";
 import {
   PRIORITY_LABEL,
+  PROJECT_STAGES,
+  STAGE_LABEL,
   STATUS_LABEL,
   TASK_PRIORITIES,
+  TASK_STATUSES,
+  type ProjectStage,
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/domain";
-import type { MemberView, MilestoneView, TeamView } from "@/lib/project";
+import type {
+  MemberView,
+  MilestoneView,
+  TeamView,
+  WorkstreamView,
+} from "@/lib/project";
 
 interface Props {
   status: TaskStatus;
   teams: TeamView[];
   members: MemberView[];
   milestones: MilestoneView[];
+  workstreams: WorkstreamView[];
   defaultTeamId?: string;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (task: {
+    id: string;
+    teamId: string;
+    status: TaskStatus;
+    plannedStart: string | null;
+    plannedEnd: string | null;
+  }) => void;
 }
 
 const FIELD =
   "w-full min-w-0 rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-info focus:outline-none focus-visible:ring-2 focus-visible:ring-info";
 const LABEL = "block text-xs font-medium text-ink-muted";
 
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Creating a task is the detailed step: everything the scheduler and the other
+ * sub-teams rely on should be set here, while it is in mind. Viewing a task
+ * afterwards is the abridged one, with the rest behind disclosures.
+ */
 export function NewTaskDialog({
   status,
   teams,
   members,
   milestones,
+  workstreams,
   defaultTeamId,
   onClose,
   onCreated,
@@ -37,9 +63,21 @@ export function NewTaskDialog({
   const [description, setDescription] = useState("");
   const [teamId, setTeamId] = useState(defaultTeamId ?? teams[0]?.id ?? "");
   const [assigneeId, setAssigneeId] = useState("");
+  const [ownerLabel, setOwnerLabel] = useState("");
   const [milestoneId, setMilestoneId] = useState("");
+  const [workstreamId, setWorkstreamId] = useState("");
+  const [stage, setStage] = useState<ProjectStage | "">("");
   const [priority, setPriority] = useState<TaskPriority>("MEDIUM");
+  const [taskStatus, setTaskStatus] = useState<TaskStatus>(status);
   const [estimateDays, setEstimateDays] = useState(3);
+  // Dated by default: an undated task cannot be forecast, cannot be late and
+  // does not appear on the board's Current view, which makes it look lost.
+  const [plannedStart, setPlannedStart] = useState(today());
+  const [plannedEnd, setPlannedEnd] = useState("");
+  const [notes, setNotes] = useState("");
+  const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkLabel, setLinkLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,10 +92,29 @@ export function NewTaskDialog({
   // Only offer assignees from the chosen sub-team; cross-team assignment is a
   // deliberate act, not something to do by mis-clicking a long list.
   const eligible = members.filter((m) => m.teamId === teamId);
+  const teamWorkstreams = workstreams.filter((w) => w.teamId === teamId);
+
+  function addLink(event: React.FormEvent) {
+    event.preventDefault();
+    const url = linkUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      setError("Links must start with http:// or https://");
+      return;
+    }
+    setLinks((current) => [...current, { label: linkLabel.trim(), url }]);
+    setLinkUrl("");
+    setLinkLabel("");
+    setError(null);
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!title.trim() || !teamId) return;
+    if (plannedStart && plannedEnd && plannedStart > plannedEnd) {
+      setError("The end date is before the start date.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -67,16 +124,40 @@ export function NewTaskDialog({
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim() || undefined,
+          notes: notes.trim() || null,
+          ownerLabel: ownerLabel.trim() || null,
           teamId,
-          status,
+          status: taskStatus,
           priority,
+          stage: stage || null,
           assigneeId: assigneeId || null,
           milestoneId: milestoneId || null,
+          workstreamId: workstreamId || null,
           estimateDays,
+          plannedStart: plannedStart || null,
+          plannedEnd: plannedEnd || null,
+          links,
         }),
       });
-      if (!response.ok) throw new Error(`Server returned ${response.status}`);
-      onCreated();
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const fieldErrors = body?.details?.fieldErrors ?? {};
+        setError(
+          fieldErrors.plannedEnd?.[0] ??
+            fieldErrors.links?.[0] ??
+            fieldErrors.title?.[0] ??
+            "Could not create that task.",
+        );
+        return;
+      }
+      const created = await response.json();
+      onCreated({
+        id: created.id,
+        teamId: created.teamId,
+        status: created.status,
+        plannedStart: created.plannedStart,
+        plannedEnd: created.plannedEnd,
+      });
     } catch (cause) {
       console.error("Failed to create task", cause);
       setError("Could not create that task.");
@@ -98,12 +179,13 @@ export function NewTaskDialog({
         role="dialog"
         aria-modal="true"
         aria-label="New task"
-        className="overscroll-none-safe relative max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-xl border border-edge bg-ground p-5 shadow-2xl"
+        className="selectable overscroll-none-safe relative max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-xl border border-edge bg-ground p-5 shadow-2xl"
       >
         <header>
-          <h2 className="text-sm font-semibold">New task</h2>
+          <h2 className="text-sm font-semibold">New Task</h2>
           <p className="mt-0.5 text-xs text-ink-faint">
-            It will land in the {STATUS_LABEL[status]} column.
+            Fill in what you know now. Dates matter most — an undated task cannot
+            be forecast and will not show on the board&apos;s Current view.
           </p>
         </header>
 
@@ -137,7 +219,34 @@ export function NewTaskDialog({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className={LABEL} htmlFor="new-start">
+              Planned start
+            </label>
+            <input
+              id="new-start"
+              type="date"
+              value={plannedStart}
+              onChange={(e) => setPlannedStart(e.target.value)}
+              className={FIELD}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className={LABEL} htmlFor="new-end">
+              Planned end
+            </label>
+            <input
+              id="new-end"
+              type="date"
+              value={plannedEnd}
+              min={plannedStart || undefined}
+              onChange={(e) => setPlannedEnd(e.target.value)}
+              className={FIELD}
+            />
+          </div>
+
           <div className="space-y-1.5">
             <label className={LABEL} htmlFor="new-team">
               Sub-team
@@ -148,6 +257,7 @@ export function NewTaskDialog({
               onChange={(e) => {
                 setTeamId(e.target.value);
                 setAssigneeId("");
+                setWorkstreamId("");
               }}
               className={FIELD}
             >
@@ -179,6 +289,24 @@ export function NewTaskDialog({
           </div>
 
           <div className="space-y-1.5">
+            <label className={LABEL} htmlFor="new-status">
+              Status
+            </label>
+            <select
+              id="new-status"
+              value={taskStatus}
+              onChange={(e) => setTaskStatus(e.target.value as TaskStatus)}
+              className={FIELD}
+            >
+              {TASK_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
             <label className={LABEL} htmlFor="new-priority">
               Priority
             </label>
@@ -191,6 +319,63 @@ export function NewTaskDialog({
               {TASK_PRIORITIES.map((p) => (
                 <option key={p} value={p}>
                   {PRIORITY_LABEL[p]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className={LABEL} htmlFor="new-workstream">
+              Workstream
+            </label>
+            <select
+              id="new-workstream"
+              value={workstreamId}
+              onChange={(e) => setWorkstreamId(e.target.value)}
+              className={FIELD}
+            >
+              <option value="">Ungrouped</option>
+              {teamWorkstreams.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.code ? `${w.code} ${w.name}` : w.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className={LABEL} htmlFor="new-stage">
+              Stage
+            </label>
+            <select
+              id="new-stage"
+              value={stage}
+              onChange={(e) => setStage(e.target.value as ProjectStage | "")}
+              className={FIELD}
+            >
+              <option value="">Not set</option>
+              {PROJECT_STAGES.map((s) => (
+                <option key={s} value={s}>
+                  {STAGE_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className={LABEL} htmlFor="new-milestone">
+              Milestone
+            </label>
+            <select
+              id="new-milestone"
+              value={milestoneId}
+              onChange={(e) => setMilestoneId(e.target.value)}
+              className={FIELD}
+            >
+              <option value="">None</option>
+              {milestones.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
                 </option>
               ))}
             </select>
@@ -210,26 +395,105 @@ export function NewTaskDialog({
               onChange={(e) => setEstimateDays(Number(e.target.value) || 0)}
               className={FIELD}
             />
+            <p className="text-[11px] text-ink-faint">
+              Only used when no dates are set.
+            </p>
           </div>
 
-          <div className="col-span-2 space-y-1.5">
-            <label className={LABEL} htmlFor="new-milestone">
-              Milestone
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className={LABEL} htmlFor="new-owner">
+              Owner (as written)
             </label>
-            <select
-              id="new-milestone"
-              value={milestoneId}
-              onChange={(e) => setMilestoneId(e.target.value)}
+            <input
+              id="new-owner"
+              value={ownerLabel}
+              onChange={(e) => setOwnerLabel(e.target.value)}
+              autoComplete="off"
+              placeholder="For work owned by more than one person, e.g. Owen &amp; Jack"
               className={FIELD}
-            >
-              <option value="">None</option>
-              {milestones.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <h3 className={LABEL}>Links</h3>
+          {links.length > 0 ? (
+            <ul className="space-y-1">
+              {links.map((link, i) => (
+                <li
+                  key={`${link.url}-${i}`}
+                  className="flex items-center gap-2 rounded-md bg-surface px-2.5 py-1.5 text-xs"
+                >
+                  <span className="min-w-0 flex-1 truncate text-info">
+                    {link.label || link.url}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setLinks((c) => c.filter((_, j) => j !== i))}
+                    aria-label={`Remove ${link.label || link.url}`}
+                    className="rounded p-0.5 text-ink-faint transition-colors hover:text-late focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                  >
+                    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                      <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <label className="sr-only" htmlFor="new-link-url">
+            Link address
+          </label>
+          <input
+            id="new-link-url"
+            type="url"
+            inputMode="url"
+            spellCheck={false}
+            autoComplete="off"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter inside the link field adds a link; it must not submit
+              // the whole form.
+              if (e.key === "Enter") addLink(e);
+            }}
+            placeholder="https://drive.google.com/…"
+            className={`${FIELD} text-xs`}
+          />
+          <div className="flex gap-2">
+            <label className="sr-only" htmlFor="new-link-label">
+              Link label
+            </label>
+            <input
+              id="new-link-label"
+              value={linkLabel}
+              onChange={(e) => setLinkLabel(e.target.value)}
+              autoComplete="off"
+              placeholder="Label (optional)"
+              className={`${FIELD} text-xs`}
+            />
+            <button
+              type="button"
+              onClick={addLink}
+              disabled={!linkUrl.trim()}
+              className="shrink-0 rounded-md border border-edge px-3 text-xs text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+            >
+              Add Link
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className={LABEL} htmlFor="new-notes">
+            Notes
+          </label>
+          <textarea
+            id="new-notes"
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className={`${FIELD} resize-y`}
+          />
         </div>
 
         <p aria-live="polite" className="text-xs text-late">

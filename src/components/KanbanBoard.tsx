@@ -75,6 +75,18 @@ export function KanbanBoard({
 }: BoardProps) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
+
+  /*
+   * The server is the source of truth; this state exists only to make drags
+   * and edits feel instant. useState keeps its first value forever, so
+   * without this the board never adopted anything the server sent afterwards
+   * -- a newly created task stayed invisible until a full page reload.
+   * router.refresh() only runs after a write has been accepted, so replacing
+   * local state here cannot lose an optimistic change.
+   */
+  useEffect(() => {
+    setTasks(initialTasks);
+  }, [initialTasks]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(initialTaskId ?? null);
   const [teamFilter, setTeamFilter] = useState<string | "ALL">("ALL");
@@ -453,10 +465,23 @@ export function KanbanBoard({
           teams={teams}
           members={members}
           milestones={milestones}
+          workstreams={workstreams}
           defaultTeamId={teamFilter === "ALL" ? teams[0]?.id : teamFilter}
           onClose={() => setCreatingIn(null)}
-          onCreated={() => {
+          onCreated={(created) => {
             setCreatingIn(null);
+            // A task the active filters would hide looks like a failed save.
+            // Relax whichever filter is in the way so the new card is on
+            // screen, rather than silently dropping it.
+            if (teamFilter !== "ALL" && teamFilter !== created.teamId) {
+              setTeamFilter("ALL");
+            }
+            setAssigneeFilter("ALL");
+            // Judge the real task, not a stand-in: a future start date makes
+            // it not current even though its end date is ahead of today.
+            if (scope === "CURRENT" && !isCurrent(created, today)) {
+              setScope("ALL");
+            }
             router.refresh();
           }}
         />
