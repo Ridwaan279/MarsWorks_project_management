@@ -15,6 +15,8 @@ export interface TaskCardProps {
   scheduled: ScheduledTask | undefined;
   onOpen: (taskId: string) => void;
   onToggleFlag?: (taskId: string, flagged: boolean) => void;
+  /** Marks one card as the anchor for the onboarding tour. */
+  tourAnchor?: boolean;
 }
 
 /**
@@ -25,8 +27,9 @@ export interface TaskCardProps {
  */
 function teamTint(colour: string): React.CSSProperties {
   return {
-    backgroundColor: `color-mix(in srgb, ${colour} 9%, var(--color-surface-2))`,
-    borderColor: `color-mix(in srgb, ${colour} 28%, var(--color-edge))`,
+    backgroundColor: `color-mix(in srgb, ${colour} 7%, var(--color-card))`,
+    borderColor: `color-mix(in srgb, ${colour} 32%, var(--color-border))`,
+    boxShadow: `inset 3px 0 0 0 ${colour}`,
   };
 }
 
@@ -44,11 +47,11 @@ export function TaskCardBody({
 
   return (
     <div
-      style={task.flagged ? undefined : teamTint(team.colour)}
+      style={task.flagged ? { boxShadow: `inset 3px 0 0 0 ${team.colour}` } : teamTint(team.colour)}
       className={clsx(
-        "space-y-2.5 rounded-lg border p-3 text-left",
+        "space-y-2.5 rounded-lg border p-3 pl-3.5 text-left transition-[transform,box-shadow] duration-200 group-hover/card:-translate-y-px",
         task.flagged
-          ? "border-danger bg-danger/15 ring-1 ring-danger/40"
+          ? "border-danger bg-danger/10 ring-1 ring-danger/40"
           : late
             ? "border-danger/40"
             : tight
@@ -76,7 +79,7 @@ export function TaskCardBody({
               onToggleFlag(task.id, !task.flagged);
             }}
             className={clsx(
-              "-m-1 shrink-0 rounded p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+              "-m-1 shrink-0 rounded p-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
               task.flagged
                 ? "text-danger hover:text-danger/80"
                 : "text-ink-3 hover:text-ink-2",
@@ -205,7 +208,8 @@ export function SortableTaskCard(props: TaskCardProps) {
           }
         }}
         aria-label={`${props.task.key}: ${props.task.title}`}
-        className="block w-full cursor-grab touch-none rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
+        data-tour={props.tourAnchor ? "card" : undefined}
+        className="group/card block w-full cursor-grab touch-none rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
       >
         <TaskCardBody {...props} />
       </div>

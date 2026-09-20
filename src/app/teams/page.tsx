@@ -49,7 +49,7 @@ export default async function TeamsPage() {
         >
           &larr; Overview
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight text-pretty">
+        <h1 className="text-3xl font-semibold tracking-tight text-pretty sm:text-4xl">
           Sub-team breakdown
         </h1>
         <p className="max-w-2xl text-sm text-ink-2 text-pretty">
@@ -60,10 +60,8 @@ export default async function TeamsPage() {
       </header>
 
       <section className="space-y-3">
-        <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
-          Per sub-team
-        </h2>
-        <div className="overflow-x-auto rounded-xl border border-line">
+        <h2 className="text-sm font-semibold text-ink-2">Per sub-team</h2>
+        <div data-tour="table" className="overflow-x-auto rounded-xl border border-line">
           <table className="w-full min-w-[680px] text-sm">
             <caption className="sr-only">
               Progress, open work and schedule position for each sub-team
@@ -158,8 +156,7 @@ export default async function TeamsPage() {
 
       {flagged.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold tracking-wide text-danger uppercase">
-            Flagged ({flagged.length})
+          <h2 className="text-sm font-semibold text-danger">Flagged ({flagged.length})
           </h2>
           <p className="max-w-2xl text-sm text-ink-2 text-pretty">
             Raised by hand on the board as needing attention.
@@ -193,10 +190,12 @@ export default async function TeamsPage() {
         </section>
       ) : null}
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
-            Blocked ({blocked.length})
+      {/* min-w-0 on each child: a grid item defaults to min-width:auto, so a
+          long unbreakable string inside one pushes the item past its track
+          and scrolls the whole page sideways on a phone. */}
+      <div data-tour="lists" className="grid items-start gap-8 lg:grid-cols-2">
+        <section className="min-w-0 space-y-3">
+          <h2 className="text-sm font-semibold text-ink-2">Blocked ({blocked.length})
           </h2>
           {blocked.length === 0 ? (
             <EmptyState title="Nothing is blocked." />
@@ -230,9 +229,8 @@ export default async function TeamsPage() {
           )}
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
-            Behind plan ({late.length})
+        <section className="min-w-0 space-y-3">
+          <h2 className="text-sm font-semibold text-ink-2">Behind plan ({late.length})
           </h2>
           {late.length === 0 ? (
             <EmptyState title="Nothing is late against its planned dates." />
@@ -267,9 +265,8 @@ export default async function TeamsPage() {
       </div>
 
       {undated.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-3 uppercase">
-            Undated ({undated.length})
+        <section data-tour="undated" className="space-y-3">
+          <h2 className="text-sm font-semibold text-ink-2">Undated ({undated.length})
           </h2>
           <p className="max-w-2xl text-sm text-ink-2 text-pretty">
             These carry no planned end date. Give each one a date and it joins the

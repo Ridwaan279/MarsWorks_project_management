@@ -150,12 +150,14 @@ export function formatDays(days: number): string {
 export function Card({
   children,
   className,
+  ...rest
 }: {
   children: React.ReactNode;
   className?: string;
-}) {
+} & React.HTMLAttributes<HTMLElement>) {
   return (
     <section
+      {...rest}
       className={clsx(
         "rounded-xl border border-line bg-panel p-4 sm:p-5",
         className,

@@ -85,14 +85,14 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
   return (
     <div className="mx-auto max-w-[1200px] space-y-6 px-4 py-8 sm:px-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Delay impact</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Delay impact</h1>
         <p className="mt-1 text-sm text-ink-2">
           Pick a task, say how late it runs, and see which other sub-teams and
           milestones move as a result. Nothing here is saved.
         </p>
       </header>
 
-      <Card className="space-y-4">
+      <Card data-tour="controls" className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
           <div className="space-y-1.5">
             <label
@@ -137,7 +137,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
               max={60}
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className="w-full accent-[var(--color-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="h-6 w-full cursor-pointer accent-[var(--color-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
             <div className="flex justify-between text-[10px] text-ink-3">
               <span>1 day</span>
@@ -163,7 +163,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
 
       {result ? (
         <div className={loading ? "space-y-6 opacity-60" : "space-y-6"}>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div data-tour="result" className="grid gap-3 sm:grid-cols-3">
             <Card className="space-y-1">
               <p className="text-[11px] tracking-wide text-ink-3 uppercase">
                 Other sub-teams hit

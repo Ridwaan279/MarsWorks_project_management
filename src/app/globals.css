@@ -49,10 +49,19 @@
   --color-border-strong: #c4c9d1;
   --color-text: #17191c;
   --color-text-secondary: #5e6672;
-  --color-text-muted: #8a919c;
+  --color-text-muted: #6b7280;
   --color-accent: #e96818;
   --color-accent-hover: #d95d12;
   --color-accent-subtle: #fff1e8;
+
+  /* The status colours above are tuned for a near-black background. Reused
+     unchanged on white they land at 2.2-2.5:1 -- below the 3:1 floor for any
+     text -- so a health pill becomes unreadable in light mode. These are the
+     same hues darkened until each clears 4.5:1 on every light surface. */
+  --color-success: #1a7f37;
+  --color-warning: #8a6300;
+  --color-danger: #cf222e;
+  --color-information: #0a58ca;
 
   color-scheme: light;
 }

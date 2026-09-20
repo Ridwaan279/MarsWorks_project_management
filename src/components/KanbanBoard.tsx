@@ -87,12 +87,19 @@ export function KanbanBoard({
   useEffect(() => {
     setTasks(initialTasks);
   }, [initialTasks]);
+
+  useEffect(() => {
+    setWorkstreamList(workstreams);
+  }, [workstreams]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(initialTaskId ?? null);
   const [teamFilter, setTeamFilter] = useState<string | "ALL">("ALL");
   const [assigneeFilter, setAssigneeFilter] = useState<string | "ALL">("ALL");
   const [creatingIn, setCreatingIn] = useState<TaskStatus | null>(null);
   const [scope, setScope] = useState<"CURRENT" | "ALL">("CURRENT");
+  // Workstreams can be created from the new-task dialog, so this list has to
+  // grow locally as well as arriving from the server.
+  const [workstreamList, setWorkstreamList] = useState(workstreams);
   const [error, setError] = useState<string | null>(null);
   /** Board state as it was when the current drag began, for rollback. */
   const rollbackRef = useRef<TaskView[] | null>(null);
@@ -307,6 +314,7 @@ export function KanbanBoard({
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
         <div
           role="group"
+          data-tour="scope"
           aria-label="Which tasks to show"
           className="flex items-center gap-0.5 rounded-md border border-line p-0.5"
         >
@@ -322,7 +330,7 @@ export function KanbanBoard({
               onClick={() => setScope(value)}
               aria-pressed={scope === value}
               className={clsx(
-                "rounded px-2.5 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                "rounded px-3 py-1.5 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                 scope === value
                   ? "bg-elevated text-ink"
                   : "text-ink-3 hover:text-ink-2",
@@ -333,12 +341,12 @@ export function KanbanBoard({
           ))}
         </div>
 
-        <label className="flex items-center gap-2 text-xs text-ink-2">
+        <label data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
           Sub-team
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink focus:border-accent focus:outline-none"
+            className="rounded-md border border-line bg-panel px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none"
           >
             <option value="ALL">All teams</option>
             {teams.map((team) => (
@@ -354,7 +362,7 @@ export function KanbanBoard({
           <select
             value={assigneeFilter}
             onChange={(e) => setAssigneeFilter(e.target.value)}
-            className="rounded-md border border-line bg-panel px-2 py-1 text-xs text-ink focus:border-accent focus:outline-none"
+            className="rounded-md border border-line bg-panel px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none"
           >
             <option value="ALL">Anyone</option>
             <option value="UNASSIGNED">Unassigned</option>
@@ -455,7 +463,7 @@ export function KanbanBoard({
           teams={teams}
           members={members}
           milestones={milestones}
-          workstreams={workstreams}
+          workstreams={workstreamList}
           scheduled={scheduled[openTask.id]}
           onClose={() => setOpenTaskId(null)}
           onSaved={handleTaskSaved}
@@ -468,7 +476,12 @@ export function KanbanBoard({
           teams={teams}
           members={members}
           milestones={milestones}
-          workstreams={workstreams}
+          workstreams={workstreamList}
+          onWorkstreamCreated={(created) =>
+            setWorkstreamList((current) =>
+              current.some((w) => w.id === created.id) ? current : [...current, created],
+            )
+          }
           defaultTeamId={teamFilter === "ALL" ? teams[0]?.id : teamFilter}
           onClose={() => setCreatingIn(null)}
           onCreated={(created) => {
@@ -534,8 +547,9 @@ function BoardColumn({
         <button
           type="button"
           onClick={onAdd}
+          data-tour={status === "BACKLOG" ? "add" : undefined}
           aria-label={`Add a task to ${label}`}
-          className="rounded p-1 text-ink-3 transition-colors hover:bg-elevated hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="rounded p-1.5 text-ink-3 transition-colors hover:bg-elevated hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
             <path d="M8 3a.75.75 0 0 1 .75.75v3.5h3.5a.75.75 0 0 1 0 1.5h-3.5v3.5a.75.75 0 0 1-1.5 0v-3.5h-3.5a.75.75 0 0 1 0-1.5h3.5v-3.5A.75.75 0 0 1 8 3Z" />
@@ -553,9 +567,10 @@ function BoardColumn({
           strategy={verticalListSortingStrategy}
         >
           <ul className="space-y-2">
-            {tasks.map((task) => (
+            {tasks.map((task, index) => (
               <SortableTaskCard
                 key={task.id}
+                tourAnchor={status === "IN_PROGRESS" && index === 0}
                 task={task}
                 team={teamById.get(task.teamId)!}
                 assignee={task.assigneeId ? memberById.get(task.assigneeId) ?? null : null}
