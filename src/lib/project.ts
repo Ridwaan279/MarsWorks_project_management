@@ -45,6 +45,12 @@ export interface TaskRef {
   key: string;
   title: string;
   teamId: string;
+  /**
+   * Id of the dependency edge that produced this reference, so the drawer can
+   * delete the link. The task's own id identifies the other end of the edge,
+   * not the edge, and one pair can only be joined once.
+   */
+  depId: string;
 }
 
 export interface TaskView {
@@ -114,7 +120,8 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
     prisma.taskDependency.findMany(),
   ]);
 
-  const taskMeta = new Map<string, TaskRef>(
+  // Identity only: a task has no edge id until it appears at one end of one.
+  const taskMeta = new Map<string, Omit<TaskRef, "depId">>(
     tasks.map((t) => [t.id, { id: t.id, key: t.key, title: t.title, teamId: t.teamId }]),
   );
 
@@ -124,8 +131,14 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
     const pred = taskMeta.get(dep.predecessorId);
     const succ = taskMeta.get(dep.successorId);
     if (!pred || !succ) continue;
-    blockedBy.set(dep.successorId, [...(blockedBy.get(dep.successorId) ?? []), pred]);
-    blocks.set(dep.predecessorId, [...(blocks.get(dep.predecessorId) ?? []), succ]);
+    blockedBy.set(dep.successorId, [
+      ...(blockedBy.get(dep.successorId) ?? []),
+      { ...pred, depId: dep.id },
+    ]);
+    blocks.set(dep.predecessorId, [
+      ...(blocks.get(dep.predecessorId) ?? []),
+      { ...succ, depId: dep.id },
+    ]);
   }
 
   return {

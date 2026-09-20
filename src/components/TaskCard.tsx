@@ -3,7 +3,6 @@
 import clsx from "clsx";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { STAGE_SHORT } from "@/lib/domain";
 import type { MemberView, TaskView, TeamView } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
 import { Avatar, ProgressBar, TeamDot } from "./ui";
@@ -112,21 +111,14 @@ export function TaskCardBody({
         )}
       </div>
 
-      {task.stage || !task.plannedEnd ? (
+      {!task.plannedEnd && task.status !== "DONE" ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          {task.stage ? (
-            <span className="rounded bg-canvas/40 px-1.5 py-0.5 text-[10px] text-ink-2">
-              {STAGE_SHORT[task.stage]}
-            </span>
-          ) : null}
-          {!task.plannedEnd && task.status !== "DONE" ? (
-            <span
-              title="No planned end date, so this task is invisible to the forecast"
-              className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] text-warning"
-            >
-              undated
-            </span>
-          ) : null}
+          <span
+            title="No planned end date, so this task is invisible to the forecast"
+            className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] text-warning"
+          >
+            undated
+          </span>
         </div>
       ) : null}
 

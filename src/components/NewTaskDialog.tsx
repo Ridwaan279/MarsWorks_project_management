@@ -3,12 +3,9 @@
 import { useEffect, useState } from "react";
 import {
   PRIORITY_LABEL,
-  PROJECT_STAGES,
-  STAGE_LABEL,
   STATUS_LABEL,
   TASK_PRIORITIES,
   TASK_STATUSES,
-  type ProjectStage,
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/domain";
@@ -69,10 +66,8 @@ export function NewTaskDialog({
   const [ownerLabel, setOwnerLabel] = useState("");
   const [milestoneId, setMilestoneId] = useState("");
   const [workstreamId, setWorkstreamId] = useState("");
-  const [stage, setStage] = useState<ProjectStage | "">("");
   const [priority, setPriority] = useState<TaskPriority>("MEDIUM");
   const [taskStatus, setTaskStatus] = useState<TaskStatus>(status);
-  const [estimateDays, setEstimateDays] = useState(3);
   // Dated by default: an undated task cannot be forecast, cannot be late and
   // does not appear on the board's Current view, which makes it look lost.
   const [plannedStart, setPlannedStart] = useState(today());
@@ -167,11 +162,9 @@ export function NewTaskDialog({
           teamId,
           status: taskStatus,
           priority,
-          stage: stage || null,
           assigneeId: assigneeId || null,
           milestoneId: milestoneId || null,
           workstreamId: workstreamId || null,
-          estimateDays,
           plannedStart: plannedStart || null,
           plannedEnd: plannedEnd || null,
           links,
@@ -257,56 +250,71 @@ export function NewTaskDialog({
           />
         </div>
 
+        {/* The three fields the rest of the tool depends on. Dates are what
+            make a task visible to the forecast at all, and the sub-team is
+            what the board, the timeline and every health number group by.
+            Boxed and accented so they do not read as just three more
+            selects among ten. */}
+        <section className="space-y-3 rounded-lg border border-accent/35 bg-accent-tint/40 p-3">
+          <p className="flex items-center gap-2 text-xs font-medium text-accent">
+            Key details
+            <span className="font-normal text-ink-3">
+              dates and sub-team drive the board, timeline and forecast
+            </span>
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <label className={LABEL} htmlFor="new-start">
+                Planned start
+              </label>
+              <input
+                id="new-start"
+                type="date"
+                value={plannedStart}
+                onChange={(e) => setPlannedStart(e.target.value)}
+                className={FIELD}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={LABEL} htmlFor="new-end">
+                Planned end
+              </label>
+              <input
+                id="new-end"
+                type="date"
+                value={plannedEnd}
+                min={plannedStart || undefined}
+                onChange={(e) => setPlannedEnd(e.target.value)}
+                className={FIELD}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={LABEL} htmlFor="new-team">
+                Sub-team
+              </label>
+              <select
+                id="new-team"
+                value={teamId}
+                onChange={(e) => {
+                  setTeamId(e.target.value);
+                  setAssigneeId("");
+                  setWorkstreamId("");
+                }}
+                className={FIELD}
+              >
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
+
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className={LABEL} htmlFor="new-start">
-              Planned start
-            </label>
-            <input
-              id="new-start"
-              type="date"
-              value={plannedStart}
-              onChange={(e) => setPlannedStart(e.target.value)}
-              className={FIELD}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className={LABEL} htmlFor="new-end">
-              Planned end
-            </label>
-            <input
-              id="new-end"
-              type="date"
-              value={plannedEnd}
-              min={plannedStart || undefined}
-              onChange={(e) => setPlannedEnd(e.target.value)}
-              className={FIELD}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className={LABEL} htmlFor="new-team">
-              Sub-team
-            </label>
-            <select
-              id="new-team"
-              value={teamId}
-              onChange={(e) => {
-                setTeamId(e.target.value);
-                setAssigneeId("");
-                setWorkstreamId("");
-              }}
-              className={FIELD}
-            >
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="space-y-1.5">
             <label className={LABEL} htmlFor="new-assignee">
               Assignee
@@ -428,25 +436,6 @@ export function NewTaskDialog({
           </div>
 
           <div className="space-y-1.5">
-            <label className={LABEL} htmlFor="new-stage">
-              Stage
-            </label>
-            <select
-              id="new-stage"
-              value={stage}
-              onChange={(e) => setStage(e.target.value as ProjectStage | "")}
-              className={FIELD}
-            >
-              <option value="">Not set</option>
-              {PROJECT_STAGES.map((s) => (
-                <option key={s} value={s}>
-                  {STAGE_LABEL[s]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
             <label className={LABEL} htmlFor="new-milestone">
               Milestone
             </label>
@@ -463,25 +452,6 @@ export function NewTaskDialog({
                 </option>
               ))}
             </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className={LABEL} htmlFor="new-estimate">
-              Estimate (days)
-            </label>
-            <input
-              id="new-estimate"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={365}
-              value={estimateDays}
-              onChange={(e) => setEstimateDays(Number(e.target.value) || 0)}
-              className={FIELD}
-            />
-            <p className="text-[11px] text-ink-3">
-              Only used when no dates are set.
-            </p>
           </div>
 
           <div className="space-y-1.5 sm:col-span-2">

@@ -309,9 +309,35 @@ export function KanbanBoard({
     [router],
   );
 
+  /*
+   * On a phone one column fills the screen, and the board starts at Backlog --
+   * which under the default Current filter is usually empty. That is a screen
+   * of nothing, with no sign that the work is two swipes to the right. Scroll
+   * to the first column that actually holds something instead. Only on narrow
+   * screens: on a desktop every column is already visible and moving the
+   * scroll position would just be confusing.
+   */
+  const firstOccupied = BOARD_COLUMNS.find(
+    (c) => (columns.get(c.status) ?? []).length > 0,
+  )?.status;
+  const firstOccupiedRef = useRef<HTMLElement | null>(null);
+  const scrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (scrolledRef.current || !firstOccupied) return;
+    const board = boardRef.current;
+    const target = firstOccupiedRef.current;
+    if (!board || !target) return;
+    if (!window.matchMedia("(max-width: 639px)").matches) return;
+    // Left-align the column rather than scrollIntoView, which would also
+    // scroll the page vertically.
+    board.scrollLeft = target.offsetLeft - board.offsetLeft;
+    scrolledRef.current = true;
+  }, [firstOccupied]);
+
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] min-w-0 flex-col overflow-hidden">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-2.5 sm:px-6 sm:py-3">
         <div
           role="group"
           data-tour="scope"
@@ -429,6 +455,9 @@ export function KanbanBoard({
           {BOARD_COLUMNS.map((column) => (
             <BoardColumn
               key={column.status}
+              columnRef={
+                column.status === firstOccupied ? firstOccupiedRef : undefined
+              }
               status={column.status}
               label={column.label}
               tasks={columns.get(column.status) ?? []}
@@ -464,6 +493,7 @@ export function KanbanBoard({
           members={members}
           milestones={milestones}
           workstreams={workstreamList}
+          allTasks={tasks}
           scheduled={scheduled[openTask.id]}
           onClose={() => setOpenTaskId(null)}
           onSaved={handleTaskSaved}
@@ -507,6 +537,7 @@ export function KanbanBoard({
 }
 
 function BoardColumn({
+  columnRef,
   status,
   label,
   tasks,
@@ -517,6 +548,7 @@ function BoardColumn({
   onToggleFlag,
   onAdd,
 }: {
+  columnRef?: React.MutableRefObject<HTMLElement | null>;
   status: TaskStatus;
   label: string;
   tasks: TaskView[];
@@ -532,8 +564,11 @@ function BoardColumn({
 
   return (
     <section
+      ref={columnRef}
       className={clsx(
-        "flex w-[290px] shrink-0 flex-col rounded-xl border transition-colors",
+        // 86vw leaves a sliver of the next column visible, which is the only
+        // cue on a phone that the board scrolls sideways at all.
+        "flex w-[86vw] shrink-0 flex-col rounded-xl border transition-colors sm:w-[290px]",
         isOver ? "border-accent/50 bg-elevated/60" : "border-line bg-panel/60",
       )}
     >
