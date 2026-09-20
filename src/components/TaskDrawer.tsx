@@ -35,6 +35,10 @@ interface DrawerProps {
   onSaved: (task: TaskView) => void;
 }
 
+const FIELD =
+  "w-full min-w-0 rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-info focus:outline-none focus-visible:ring-2 focus-visible:ring-info";
+const LABEL = "block text-xs font-medium text-ink-muted";
+
 /** <input type="date"> speaks YYYY-MM-DD; the API and the model speak Date. */
 function toDateInput(value: Date | string | null): string {
   if (!value) return "";
@@ -42,9 +46,37 @@ function toDateInput(value: Date | string | null): string {
   return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
 
-const FIELD =
-  "w-full rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-info focus:outline-none";
-const LABEL = "block text-[11px] font-medium tracking-wide text-ink-faint uppercase";
+/** A collapsed section. Native <details> so it works without JavaScript and
+ *  is keyboard-operable for free. */
+function Disclosure({
+  title,
+  badge,
+  children,
+}: {
+  title: string;
+  badge?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group rounded-lg border border-edge bg-surface">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm text-ink-muted transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-info">
+        <svg
+          viewBox="0 0 16 16"
+          aria-hidden
+          className="h-3.5 w-3.5 shrink-0 text-ink-faint transition-transform group-open:rotate-90"
+          fill="currentColor"
+        >
+          <path d="M6 4l4 4-4 4V4Z" />
+        </svg>
+        <span className="flex-1">{title}</span>
+        {badge ? (
+          <span className="text-xs tabular-nums text-ink-faint">{badge}</span>
+        ) : null}
+      </summary>
+      <div className="space-y-3 border-t border-edge-soft px-3 py-3">{children}</div>
+    </details>
+  );
+}
 
 export function TaskDrawer({
   task,
@@ -63,7 +95,6 @@ export function TaskDrawer({
   const [linkUrl, setLinkUrl] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Reset when a different card is opened without unmounting the drawer.
   useEffect(() => setDraft(task), [task]);
 
   useEffect(() => {
@@ -77,6 +108,8 @@ export function TaskDrawer({
 
   const team = teams.find((t) => t.id === draft.teamId);
   const teamWorkstreams = workstreams.filter((w) => w.teamId === draft.teamId);
+  const assignee = members.find((m) => m.id === draft.assigneeId);
+
   const dirty =
     draft.title !== task.title ||
     draft.description !== task.description ||
@@ -137,15 +170,25 @@ export function TaskDrawer({
 
   async function addLink(event: React.FormEvent) {
     event.preventDefault();
-    if (!linkLabel.trim() || !linkUrl.trim()) return;
+    if (!linkUrl.trim()) return;
+    // A URL with no label is far more common than the reverse, so fall back to
+    // the hostname rather than rejecting it.
+    let label = linkLabel.trim();
+    if (!label) {
+      try {
+        label = new URL(linkUrl.trim()).hostname.replace(/^www\./, "");
+      } catch {
+        label = "Link";
+      }
+    }
     try {
       const response = await fetch(`/api/tasks/${task.id}/links`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: linkLabel.trim(), url: linkUrl.trim() }),
+        body: JSON.stringify({ label, url: linkUrl.trim() }),
       });
       if (!response.ok) {
-        setError("That link was rejected. Links must start with http:// or https://");
+        setError("Links must start with http:// or https://");
         return;
       }
       const created = await response.json();
@@ -167,6 +210,8 @@ export function TaskDrawer({
     await fetch(`/api/links/${linkId}`, { method: "DELETE" }).catch(() => {});
   }
 
+  const doneSubtasks = draft.subtasks.filter((st) => st.done).length;
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <button
@@ -181,19 +226,21 @@ export function TaskDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={`${task.key}: ${task.title}`}
-        className="relative flex h-full w-full max-w-xl flex-col border-l border-edge bg-ground shadow-2xl focus:outline-none"
+        className="relative flex h-full w-full max-w-lg flex-col border-l border-edge bg-ground shadow-2xl focus:outline-none"
       >
         <header className="flex items-center justify-between gap-3 border-b border-edge px-5 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             {team ? <TeamDot colour={team.colour} /> : null}
-            <span className="font-mono text-xs text-ink-faint">{task.key}</span>
+            <span className="font-mono text-xs text-ink-faint" translate="no">
+              {task.key}
+            </span>
             <StatusBadge status={draft.status} label={STATUS_LABEL[draft.status]} />
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded p-1 text-ink-faint hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+            className="rounded p-1 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
               <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
@@ -201,7 +248,7 @@ export function TaskDrawer({
           </button>
         </header>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+        <div className="overscroll-none-safe flex-1 space-y-5 overflow-y-auto px-5 py-5">
           <div className="space-y-1.5">
             <label className={LABEL} htmlFor="task-title">
               Title
@@ -210,6 +257,7 @@ export function TaskDrawer({
               id="task-title"
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+              autoComplete="off"
               className={`${FIELD} text-base font-medium`}
             />
           </div>
@@ -220,7 +268,7 @@ export function TaskDrawer({
             </label>
             <textarea
               id="task-description"
-              rows={5}
+              rows={3}
               value={draft.description ?? ""}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               placeholder="What needs doing, and what counts as finished?"
@@ -230,45 +278,41 @@ export function TaskDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className={LABEL} htmlFor="task-workstream">
-                Workstream
+              <label className={LABEL} htmlFor="task-status">
+                Status
               </label>
               <select
-                id="task-workstream"
-                value={draft.workstreamId ?? ""}
+                id="task-status"
+                value={draft.status}
                 onChange={(e) =>
-                  setDraft({ ...draft, workstreamId: e.target.value || null })
+                  setDraft({ ...draft, status: e.target.value as TaskStatus })
                 }
                 className={FIELD}
               >
-                <option value="">Ungrouped</option>
-                {teamWorkstreams.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.code ? `${w.code} ${w.name}` : w.name}
+                {TASK_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {STATUS_LABEL[status]}
                   </option>
                 ))}
               </select>
             </div>
 
             <div className="space-y-1.5">
-              <label className={LABEL} htmlFor="task-stage">
-                Stage
+              <label className={LABEL} htmlFor="task-assignee">
+                Assignee
               </label>
               <select
-                id="task-stage"
-                value={draft.stage ?? ""}
+                id="task-assignee"
+                value={draft.assigneeId ?? ""}
                 onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    stage: (e.target.value || null) as ProjectStage | null,
-                  })
+                  setDraft({ ...draft, assigneeId: e.target.value || null })
                 }
                 className={FIELD}
               >
-                <option value="">Not set</option>
-                {PROJECT_STAGES.map((stage) => (
-                  <option key={stage} value={stage}>
-                    {STAGE_LABEL[stage]}
+                <option value="">Unassigned</option>
+                {members.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
                   </option>
                 ))}
               </select>
@@ -309,154 +353,255 @@ export function TaskDrawer({
                 className={FIELD}
               />
             </div>
-
-            <div className="space-y-1.5">
-              <label className={LABEL} htmlFor="task-status">
-                Status
-              </label>
-              <select
-                id="task-status"
-                value={draft.status}
-                onChange={(e) =>
-                  setDraft({ ...draft, status: e.target.value as TaskStatus })
-                }
-                className={FIELD}
-              >
-                {TASK_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {STATUS_LABEL[status]}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className={LABEL} htmlFor="task-priority">
-                Priority
-              </label>
-              <select
-                id="task-priority"
-                value={draft.priority}
-                onChange={(e) =>
-                  setDraft({ ...draft, priority: e.target.value as TaskPriority })
-                }
-                className={FIELD}
-              >
-                {TASK_PRIORITIES.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {PRIORITY_LABEL[priority]}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className={LABEL} htmlFor="task-assignee">
-                Assignee
-              </label>
-              <select
-                id="task-assignee"
-                value={draft.assigneeId ?? ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, assigneeId: e.target.value || null })
-                }
-                className={FIELD}
-              >
-                <option value="">Unassigned</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className={LABEL} htmlFor="task-owner-label">
-                Owner (as written)
-              </label>
-              <input
-                id="task-owner-label"
-                value={draft.ownerLabel ?? ""}
-                onChange={(e) => setDraft({ ...draft, ownerLabel: e.target.value })}
-                placeholder="e.g. Owen &amp; Jack, Team"
-                className={FIELD}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className={LABEL} htmlFor="task-milestone">
-                Milestone
-              </label>
-              <select
-                id="task-milestone"
-                value={draft.milestoneId ?? ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, milestoneId: e.target.value || null })
-                }
-                className={FIELD}
-              >
-                <option value="">None</option>
-                {milestones.map((milestone) => (
-                  <option key={milestone.id} value={milestone.id}>
-                    {milestone.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className={LABEL} htmlFor="task-estimate">
-                Estimate (days)
-              </label>
-              <input
-                id="task-estimate"
-                type="number"
-                min={0}
-                max={365}
-                value={draft.estimateDays}
-                onChange={(e) =>
-                  setDraft({ ...draft, estimateDays: Number(e.target.value) || 0 })
-                }
-                className={FIELD}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className={LABEL} htmlFor="task-progress">
-                Progress ({draft.progress}%)
-              </label>
-              <input
-                id="task-progress"
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={draft.progress}
-                onChange={(e) => setDraft({ ...draft, progress: Number(e.target.value) })}
-                className="w-full accent-[var(--color-mars)]"
-              />
-              <ProgressBar value={draft.progress} colour={team?.colour} />
-            </div>
           </div>
 
+          <div className="space-y-1.5">
+            <label className={LABEL} htmlFor="task-progress">
+              Progress &mdash; <span className="tabular-nums">{draft.progress}%</span>
+            </label>
+            <input
+              id="task-progress"
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={draft.progress}
+              onChange={(e) => setDraft({ ...draft, progress: Number(e.target.value) })}
+              className="w-full accent-[var(--color-mars)] focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+            />
+            <ProgressBar value={draft.progress} colour={team?.colour} />
+          </div>
+
+          <section className="space-y-2">
+            <h3 className={LABEL}>Links</h3>
+            {draft.links.length > 0 ? (
+              <ul className="space-y-1">
+                {draft.links.map((link) => (
+                  <li
+                    key={link.id}
+                    className="flex items-center gap-2 rounded-md bg-surface px-2.5 py-1.5"
+                  >
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="min-w-0 flex-1 truncate rounded text-xs text-info hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                    >
+                      {link.label}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => removeLink(link.id)}
+                      aria-label={`Remove link ${link.label}`}
+                      className="rounded p-0.5 text-ink-faint transition-colors hover:text-late focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                        <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
+                      </svg>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {/* The URL gets a row of its own: it is the long value, and sharing
+                one row with the label left neither enough room to read. */}
+            <form onSubmit={addLink} className="space-y-2">
+              <label className="sr-only" htmlFor="link-url">
+                Link address
+              </label>
+              <input
+                id="link-url"
+                type="url"
+                inputMode="url"
+                spellCheck={false}
+                autoComplete="off"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="https://drive.google.com/…"
+                className={`${FIELD} text-xs`}
+              />
+              <div className="flex gap-2">
+                <label className="sr-only" htmlFor="link-label">
+                  Link label
+                </label>
+                <input
+                  id="link-label"
+                  value={linkLabel}
+                  onChange={(e) => setLinkLabel(e.target.value)}
+                  autoComplete="off"
+                  placeholder="Label (optional)"
+                  className={`${FIELD} text-xs`}
+                />
+                <button
+                  type="submit"
+                  disabled={!linkUrl.trim()}
+                  className="shrink-0 rounded-md border border-edge px-3 text-xs text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
+                >
+                  Add Link
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <Disclosure title="More details">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className={LABEL} htmlFor="task-workstream">
+                  Workstream
+                </label>
+                <select
+                  id="task-workstream"
+                  value={draft.workstreamId ?? ""}
+                  onChange={(e) =>
+                    setDraft({ ...draft, workstreamId: e.target.value || null })
+                  }
+                  className={FIELD}
+                >
+                  <option value="">Ungrouped</option>
+                  {teamWorkstreams.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.code ? `${w.code} ${w.name}` : w.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className={LABEL} htmlFor="task-stage">
+                  Stage
+                </label>
+                <select
+                  id="task-stage"
+                  value={draft.stage ?? ""}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      stage: (e.target.value || null) as ProjectStage | null,
+                    })
+                  }
+                  className={FIELD}
+                >
+                  <option value="">Not set</option>
+                  {PROJECT_STAGES.map((stage) => (
+                    <option key={stage} value={stage}>
+                      {STAGE_LABEL[stage]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className={LABEL} htmlFor="task-priority">
+                  Priority
+                </label>
+                <select
+                  id="task-priority"
+                  value={draft.priority}
+                  onChange={(e) =>
+                    setDraft({ ...draft, priority: e.target.value as TaskPriority })
+                  }
+                  className={FIELD}
+                >
+                  {TASK_PRIORITIES.map((priority) => (
+                    <option key={priority} value={priority}>
+                      {PRIORITY_LABEL[priority]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className={LABEL} htmlFor="task-milestone">
+                  Milestone
+                </label>
+                <select
+                  id="task-milestone"
+                  value={draft.milestoneId ?? ""}
+                  onChange={(e) =>
+                    setDraft({ ...draft, milestoneId: e.target.value || null })
+                  }
+                  className={FIELD}
+                >
+                  <option value="">None</option>
+                  {milestones.map((milestone) => (
+                    <option key={milestone.id} value={milestone.id}>
+                      {milestone.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className={LABEL} htmlFor="task-estimate">
+                  Estimate (days)
+                </label>
+                <input
+                  id="task-estimate"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={365}
+                  value={draft.estimateDays}
+                  onChange={(e) =>
+                    setDraft({ ...draft, estimateDays: Number(e.target.value) || 0 })
+                  }
+                  className={FIELD}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className={LABEL} htmlFor="task-owner-label">
+                  Owner (as written)
+                </label>
+                <input
+                  id="task-owner-label"
+                  value={draft.ownerLabel ?? ""}
+                  onChange={(e) => setDraft({ ...draft, ownerLabel: e.target.value })}
+                  autoComplete="off"
+                  placeholder="e.g. Owen &amp; Jack"
+                  className={FIELD}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className={LABEL} htmlFor="task-notes">
+                Notes
+              </label>
+              <textarea
+                id="task-notes"
+                rows={2}
+                value={draft.notes ?? ""}
+                onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+                className={`${FIELD} resize-y`}
+              />
+            </div>
+          </Disclosure>
+
           {scheduled ? (
-            <section className="space-y-2 rounded-lg border border-edge bg-surface px-4 py-3">
-              <h3 className={LABEL}>Schedule</h3>
+            <Disclosure
+              title="Schedule"
+              badge={
+                scheduled.planVarianceDays !== null && scheduled.planVarianceDays > 0
+                  ? `${scheduled.planVarianceDays}d late`
+                  : undefined
+              }
+            >
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <dt className="text-ink-faint">Can start</dt>
                   <dd className="tabular-nums">{format(scheduled.earliestStart, "d MMM")}</dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <dt className="text-ink-faint">Forecast finish</dt>
                   <dd className="tabular-nums">{format(scheduled.earliestFinish, "d MMM")}</dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <dt className="text-ink-faint">Must finish by</dt>
                   <dd className="tabular-nums">{format(scheduled.latestFinish, "d MMM")}</dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <dt className="text-ink-faint">Float</dt>
                   <dd
                     className={
@@ -469,41 +614,30 @@ export function TaskDrawer({
                   </dd>
                 </div>
               </dl>
-              {scheduled.planVarianceDays !== null ? (
-                <p
-                  className={
-                    scheduled.planVarianceDays > 0
-                      ? "text-xs text-late"
-                      : "text-xs text-ok"
-                  }
-                >
-                  {scheduled.planVarianceDays > 0
-                    ? `Forecast to finish ${scheduled.planVarianceDays} day(s) after the planned end date.`
-                    : "Forecast to finish on or before the planned end date."}
-                </p>
-              ) : (
+              {scheduled.planVarianceDays === null ? (
                 <p className="text-xs text-warn">
-                  No planned end date, so this task cannot be measured against
-                  a plan or counted in anyone&apos;s forecast.
+                  No planned end date, so this task is invisible to the forecast.
                 </p>
-              )}
+              ) : null}
               {scheduled.isCritical ? (
                 <p className="text-xs text-mars-soft">
-                  On the critical path &mdash; any slip here moves the whole project.
+                  On the critical path — any slip moves the whole project.
                 </p>
               ) : null}
               <Link
                 href={`/impact?task=${task.id}`}
-                className="inline-block text-xs text-info hover:underline"
+                className="inline-block rounded text-xs text-info hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
               >
                 What happens if this slips? &rarr;
               </Link>
-            </section>
+            </Disclosure>
           ) : null}
 
           {draft.blockedBy.length > 0 || draft.blocks.length > 0 ? (
-            <section className="space-y-3">
-              <h3 className={LABEL}>Dependencies</h3>
+            <Disclosure
+              title="Dependencies"
+              badge={`${draft.blockedBy.length + draft.blocks.length}`}
+            >
               {draft.blockedBy.length > 0 ? (
                 <div className="space-y-1.5">
                   <p className="text-xs text-ink-muted">Waiting on</p>
@@ -524,21 +658,17 @@ export function TaskDrawer({
                   </ul>
                 </div>
               ) : null}
-            </section>
+            </Disclosure>
           ) : null}
 
           {draft.subtasks.length > 0 ? (
-            <section className="space-y-2">
-              <h3 className={LABEL}>
-                Checklist ({draft.subtasks.filter((st) => st.done).length}/
-                {draft.subtasks.length})
-              </h3>
+            <Disclosure
+              title="Checklist"
+              badge={`${doneSubtasks}/${draft.subtasks.length}`}
+            >
               <ul className="space-y-1">
                 {draft.subtasks.map((st) => (
-                  <li
-                    key={st.id}
-                    className="flex items-start gap-2 rounded-md bg-surface px-2.5 py-1.5 text-xs"
-                  >
+                  <li key={st.id} className="flex items-start gap-2 text-xs">
                     <span
                       aria-hidden
                       className={
@@ -553,86 +683,23 @@ export function TaskDrawer({
                   </li>
                 ))}
               </ul>
-            </section>
+            </Disclosure>
           ) : null}
-
-          <section className="space-y-2">
-            <h3 className={LABEL}>Links</h3>
-            {draft.links.length > 0 ? (
-              <ul className="space-y-1">
-                {draft.links.map((link) => (
-                  <li
-                    key={link.id}
-                    className="flex items-center gap-2 rounded-md bg-surface px-2.5 py-1.5"
-                  >
-                    <a
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="min-w-0 flex-1 truncate text-xs text-info hover:underline"
-                    >
-                      {link.label}
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => removeLink(link.id)}
-                      aria-label={`Remove link ${link.label}`}
-                      className="rounded p-0.5 text-ink-faint hover:text-late focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
-                    >
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
-                        <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
-                      </svg>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-ink-faint">
-                No links yet. Attach the CAD file, the datasheet, the pull request.
-              </p>
-            )}
-            <form onSubmit={addLink} className="flex gap-2">
-              <input
-                value={linkLabel}
-                onChange={(e) => setLinkLabel(e.target.value)}
-                placeholder="Label"
-                className={`${FIELD} w-28 shrink-0 text-xs`}
-              />
-              <input
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://..."
-                className={`${FIELD} text-xs`}
-              />
-              <button
-                type="submit"
-                className="shrink-0 rounded-md border border-edge px-2.5 text-xs text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
-              >
-                Add
-              </button>
-            </form>
-          </section>
         </div>
 
         <footer className="flex items-center justify-between gap-3 border-t border-edge px-5 py-3">
-          {error ? (
-            <p role="alert" className="text-xs text-late">
-              {error}
-            </p>
-          ) : (
-            <p className="flex items-center gap-2 text-xs text-ink-faint">
-              {draft.assigneeId ? (
-                <>
-                  <Avatar
-                    name={members.find((m) => m.id === draft.assigneeId)?.name ?? "?"}
-                  />
-                  {members.find((m) => m.id === draft.assigneeId)?.name}
-                </>
-              ) : (
-                "Nobody assigned"
-              )}
-            </p>
-          )}
+          <p aria-live="polite" className="min-w-0 flex-1 text-xs">
+            {error ? (
+              <span className="text-late">{error}</span>
+            ) : assignee ? (
+              <span className="flex items-center gap-2 text-ink-faint">
+                <Avatar name={assignee.name} />
+                <span className="truncate">{assignee.name}</span>
+              </span>
+            ) : (
+              <span className="text-ink-faint">Nobody assigned</span>
+            )}
+          </p>
           <div className="flex shrink-0 gap-2">
             <button
               type="button"
@@ -647,7 +714,7 @@ export function TaskDrawer({
               disabled={!dirty || saving}
               className="rounded-md bg-mars px-3 py-1.5 text-sm font-medium text-ground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
             >
-              {saving ? "Saving..." : "Save changes"}
+              {saving ? "Saving…" : "Save Changes"}
             </button>
           </div>
         </footer>
@@ -665,9 +732,11 @@ function DependencyRow({
 }) {
   const team = teams.find((t) => t.id === dep.teamId);
   return (
-    <li className="flex items-center gap-2 rounded-md bg-surface px-2.5 py-1.5 text-xs">
+    <li className="flex items-center gap-2 rounded-md bg-surface-2 px-2.5 py-1.5 text-xs">
       {team ? <TeamDot colour={team.colour} /> : null}
-      <span className="font-mono text-ink-faint">{dep.key}</span>
+      <span className="font-mono text-ink-faint" translate="no">
+        {dep.key}
+      </span>
       <span className="min-w-0 flex-1 truncate">{dep.title}</span>
       {team ? <span className="shrink-0 text-ink-faint">{team.name}</span> : null}
     </li>

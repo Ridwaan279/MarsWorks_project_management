@@ -28,7 +28,7 @@ export function TaskCardBody({
   const tight = scheduled ? scheduled.slackDays >= 0 && scheduled.slackDays <= 2 : false;
 
   return (
-    <article
+    <div
       className={clsx(
         "space-y-2.5 rounded-lg border bg-surface-2 p-3 text-left",
         late ? "border-late/40" : tight ? "border-warn/30" : "border-edge",
@@ -106,7 +106,7 @@ export function TaskCardBody({
           <span className="text-[11px] text-ink-faint">Unassigned</span>
         )}
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -125,7 +125,8 @@ export function SortableTaskCard(props: TaskCardProps) {
         {...attributes}
         {...listeners}
         onClick={() => props.onOpen(props.task.id)}
-        className="block w-full cursor-grab rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-info active:cursor-grabbing"
+        aria-label={`${props.task.key}: ${props.task.title}`}
+        className="block w-full cursor-grab touch-none rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-info active:cursor-grabbing"
       >
         <TaskCardBody {...props} />
       </button>

@@ -29,12 +29,40 @@
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
+html {
+  /* Tells the browser to render native controls, scrollbars and form widgets
+     for a dark UI, which is what makes <select> and date pickers legible. */
+  color-scheme: dark;
+}
+
 html,
 body {
   background: var(--color-ground);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  /* Removes the 300ms tap delay without disabling pinch-zoom. */
+  touch-action: manipulation;
+}
+
+/* Native selects and date inputs do not inherit colour reliably across
+   browsers, so state it explicitly rather than relying on color-scheme alone. */
+select,
+input[type="date"] {
+  background-color: var(--color-surface-2);
+  color: var(--color-ink);
+}
+
+/* Modals and drawers should not scroll the page behind them once they reach
+   their own scroll boundary. */
+.overscroll-none-safe {
+  overscroll-behavior: contain;
+}
+
+/* While a card is being dragged, stop the pointer selecting label text. */
+body.is-dragging {
+  user-select: none;
+  cursor: grabbing;
 }
 
 * {

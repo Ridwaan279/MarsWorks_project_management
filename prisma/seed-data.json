@@ -70,7 +70,7 @@
   ],
   "tasks": [
     {
-      "team": "EXEC",
+      "team": "OPS",
       "title": "Sub-Team Dev Plans",
       "ownerLabel": "Sub-Team Leads",
       "plannedStart": "2026-08-17",
@@ -80,7 +80,7 @@
       "source": "master-sheet"
     },
     {
-      "team": "EXEC",
+      "team": "OPS",
       "title": "Create Application Form",
       "ownerLabel": "Executive Team",
       "plannedStart": "2026-09-07",
@@ -90,7 +90,7 @@
       "source": "master-sheet"
     },
     {
-      "team": "EXEC",
+      "team": "OPS",
       "title": "Advertise Drone and Mini-Rover Lead Positions",
       "ownerLabel": "Executive Team",
       "plannedStart": "2026-09-14",
@@ -100,7 +100,7 @@
       "source": "master-sheet"
     },
     {
-      "team": "EXEC",
+      "team": "OPS",
       "title": "Advertise Applications",
       "ownerLabel": "Executive Team",
       "plannedStart": "2026-09-21",
@@ -110,7 +110,7 @@
       "source": "master-sheet"
     },
     {
-      "team": "EXEC",
+      "team": "OPS",
       "title": "Create Technical Questions For Application Form",
       "ownerLabel": "Sub-Team Leads",
       "plannedStart": "2026-09-12",
@@ -120,7 +120,7 @@
       "source": "master-sheet"
     },
     {
-      "team": "EXEC",
+      "team": "OPS",
       "title": "Interview Stage",
       "ownerLabel": "All Leadership",
       "plannedStart": "2026-09-21",
@@ -130,7 +130,7 @@
       "source": "master-sheet"
     },
     {
-      "team": "EXEC",
+      "team": "OPS",
       "title": "Prepare Onboarding",
       "ownerLabel": "Sub-Team Leads & Chief Engineer",
       "plannedStart": "2026-09-07",
@@ -140,7 +140,7 @@
       "source": "master-sheet"
     },
     {
-      "team": "EXEC",
+      "team": "OPS",
       "title": "Design Phase",
       "ownerLabel": "Sub-Teams",
       "plannedStart": "2026-11-01",

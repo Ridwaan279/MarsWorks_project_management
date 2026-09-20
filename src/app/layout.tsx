@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   title: "MarsWorks Mission Control",
   description:
     "One view of every MarsWorks sub-team: board, timeline, and what a delay in one team does to the others.",
+  // Matches --color-ground so mobile browser chrome blends with the page.
+  themeColor: "#0a0d14",
 };
 
 export default function RootLayout({
@@ -16,7 +18,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="min-h-screen bg-ground text-ink">
         <header className="sticky top-0 z-40 border-b border-edge bg-ground/85 backdrop-blur">
-          <div className="flex h-14 items-center gap-6 px-4 sm:px-6">
+          <div className="flex h-14 items-center gap-3 px-4 sm:gap-6 sm:px-6">
             <Link href="/" className="flex shrink-0 items-center gap-2.5">
               <span
                 aria-hidden
@@ -27,9 +29,13 @@ export default function RootLayout({
                   <path d="M12 4a8 8 0 0 1 0 16 5 5 0 0 0 0-16Z" />
                 </svg>
               </span>
-              <span className="text-sm font-semibold tracking-tight">
+              <span className="text-sm font-semibold tracking-tight" translate="no">
                 MarsWorks
-                <span className="ml-1.5 font-normal text-ink-faint">Mission Control</span>
+                {/* The subtitle costs more than it earns on a phone, where it
+                    pushes the nav links off screen. */}
+                <span className="ml-1.5 hidden font-normal text-ink-faint sm:inline">
+                  Mission Control
+                </span>
               </span>
             </Link>
             <NavLinks />

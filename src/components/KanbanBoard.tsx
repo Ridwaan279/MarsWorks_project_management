@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import {
@@ -112,6 +112,8 @@ export function KanbanBoard({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  useEffect(() => () => document.body.classList.remove("is-dragging"), []);
+
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) ?? null : null;
   const openTask = openTaskId ? tasks.find((t) => t.id === openTaskId) ?? null : null;
 
@@ -144,6 +146,8 @@ export function KanbanBoard({
     // Snapshot before any optimistic move so a failed write rolls back to the
     // board as it was when the drag started, not to a half-applied state.
     rollbackRef.current = tasks.map((t) => ({ ...t }));
+    // Stop the pointer selecting card text while dragging across the board.
+    document.body.classList.add("is-dragging");
     setActiveId(String(event.active.id));
     setError(null);
   }
@@ -165,6 +169,7 @@ export function KanbanBoard({
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
+    document.body.classList.remove("is-dragging");
     setActiveId(null);
     if (!over) return;
 
@@ -251,6 +256,7 @@ export function KanbanBoard({
       {error ? (
         <p
           role="alert"
+          aria-live="polite"
           className="border-b border-late/30 bg-late/10 px-4 py-2 text-xs text-late sm:px-6"
         >
           {error}
@@ -265,6 +271,7 @@ export function KanbanBoard({
         onDragEnd={handleDragEnd}
         onDragCancel={() => {
           if (rollbackRef.current) setTasks(rollbackRef.current);
+          document.body.classList.remove("is-dragging");
           setActiveId(null);
         }}
       >
@@ -378,7 +385,7 @@ function BoardColumn({
         </button>
       </header>
 
-      <div ref={setNodeRef} className="flex-1 overflow-y-auto px-2 pb-2">
+      <div ref={setNodeRef} className="overscroll-none-safe flex-1 overflow-y-auto px-2 pb-2">
         <SortableContext
           items={tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}

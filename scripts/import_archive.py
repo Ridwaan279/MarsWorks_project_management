@@ -50,12 +50,16 @@ STAGE = {
 }
 
 # Master-timeline tab name -> canonical team key.
+#
+# There are six sub-teams. The master timeline also has a "Leadership and
+# Milestones" tab and tabs for Drone and Mini-Rover. The milestone rows on the
+# leadership tab become Milestone records; its remaining rows are recruitment
+# and administration, which belong to Operations. The Drone and Mini-Rover tabs
+# hold no tasks and no sub-team owns them, so they are not imported.
 TAB_TO_TEAM = {
-    "Leadership and Milestones": "EXEC",
-    "Drone Tasks": "DRONE",
+    "Leadership and Milestones": "OPS",
     "Elec Tasks": "ELEC",
     "Mech Tasks": "MECH",
-    "Mini Tasks": "MINI",
     "Robotics Tasks": "ROBO",
     "Sci Tasks": "SCI",
     "Software Tasks": "SW",

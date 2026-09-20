@@ -132,7 +132,7 @@ export function Timeline({
               onClick={() => setZoom(level)}
               aria-pressed={zoom === level}
               className={clsx(
-                "rounded px-2 py-1 text-xs capitalize transition-colors",
+                "rounded px-2 py-1 text-xs capitalize transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-info",
                 zoom === level
                   ? "bg-surface-2 text-ink"
                   : "text-ink-faint hover:text-ink-muted",
@@ -167,7 +167,7 @@ export function Timeline({
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-60 shrink-0 overflow-y-auto border-r border-edge">
+        <div className="overscroll-none-safe w-60 shrink-0 overflow-y-auto border-r border-edge">
           <div className="sticky top-0 z-10 h-9 border-b border-edge bg-ground px-3 text-xs leading-9 font-semibold text-ink-muted">
             Sub-team / task
           </div>
@@ -195,7 +195,7 @@ export function Timeline({
                       key={task.id}
                       href={`/board?task=${task.id}`}
                       style={{ height: ROW_HEIGHT }}
-                      className="flex items-center gap-2 px-3 pl-6 text-xs transition-colors hover:bg-surface-2"
+                      className="flex items-center gap-2 px-3 pl-6 text-xs transition-colors hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-info focus-visible:ring-inset"
                     >
                       <span className="shrink-0 font-mono text-[10px] text-ink-faint">
                         {task.key}
@@ -214,7 +214,7 @@ export function Timeline({
           ))}
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div className="overscroll-none-safe flex-1 overflow-auto">
           <div style={{ width: chartWidth, minWidth: "100%" }} className="relative">
             <div className="sticky top-0 z-10 flex h-9 border-b border-edge bg-ground">
               {weekMarks.map((mark) => (

@@ -15,7 +15,7 @@ It is deliberately **not** a Jira clone. It does four things:
 
 ## The agreed way of working
 
-Eight sub-teams arrived here with four different planning methods. Rather than
+Six sub-teams arrived here with four different planning methods. Rather than
 force everyone onto one, the tool defines a **shared spine** every team must
 fill in, and then renders it two ways.
 
@@ -33,15 +33,23 @@ fill in, and then renders it two ways.
 
 **Two views over that same data**, picked per team via `Team.defaultView`:
 
-- **Timeline** — Executive, Mechanical, Science, Drone, Mini-Rover. Date-driven,
-  WBS-grouped, the way the Mechanical Gantt already works.
-- **Board** — Electrical, Software, Robotics, Operations. Kanban flow, the way
-  the Electrical dashboard and the Robotics Jira board already work.
+- **Timeline** — Mechanical and Science. Date-driven, WBS-grouped, the way the
+  Mechanical Gantt already works.
+- **Board** — Electronics, Software, Robotics and Operations. Kanban flow, the
+  way the Electronics dashboard and the Robotics Jira board already work.
+
+The six sub-teams are those named in
+`MarsWorks_Team_Structure_and_Responsibilities.docx`: Operations, Mechanical,
+Electronics, Robotics, Science and Software. The master timeline also carries a
+"Leadership and Milestones" tab; its milestone rows become milestones, and its
+remaining recruitment and administration rows belong to Operations. Its Drone
+and Mini-Rover tabs hold no tasks and no sub-team owns them, so they are not
+imported.
 
 Nobody has to change how they think. The board and the Gantt are two renderings
 of one table, so a Kanban team's cards still appear on everyone else's timeline.
 
-**Why the lifecycle stage is project-wide.** It comes from Electrical, and it
+**Why the lifecycle stage is project-wide.** It comes from Electronics, and it
 is the only one of the four methods with an explicit `Order` phase. Procurement
 lead time is the largest single source of slip on a hardware project, and no
 other sub-team was tracking it at all.
@@ -53,10 +61,10 @@ them and writes `prisma/seed-data.json`:
 
 | Source | Contributed |
 | --- | --- |
-| `Master Timeline ... .xlsx` | Executive and Software tasks, and the five project milestones |
+| `Master Timeline ... .xlsx` | Operations and Software tasks, and the five project milestones |
 | `Mechanical_Gantt chart.xlsx` | The WBS workstreams and 37 Mechanical tasks |
-| `Electrical Project Dashboard.xlsx` | 11 tasks with lifecycle stages and checklist sub-tasks |
-| `MarsWorks_Team_Structure_....docx` | The nine sub-teams and the cross-team dependency map |
+| `Electrical Project Dashboard.xlsx` | 11 Electronics tasks with lifecycle stages and checklist sub-tasks |
+| `MarsWorks_Team_Structure_....docx` | The six sub-teams and the cross-team dependency map |
 
 That importer is a one-off migration tool, but the **column mapping it encodes
 is the mapping the Google Sheets sync has to agree with**, which is why it is

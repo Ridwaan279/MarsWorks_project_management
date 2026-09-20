@@ -77,15 +77,12 @@ const teams: {
   defaultView: TeamView;
   description: string;
 }[] = [
-  { key: "EXEC", name: "Executive & Admin", colour: "#ff6b35", defaultView: "TIMELINE", description: "Overall planning, milestones, and coordination between sub-teams." },
-  { key: "OPS", name: "Operations", colour: "#94a3b8", defaultView: "BOARD", description: "Sponsorship, communications, procurement, social media, health and safety." },
+  { key: "OPS", name: "Operations", colour: "#94a3b8", defaultView: "BOARD", description: "Sponsors, emails, communications, procurement, social media, health and safety, and project administration." },
   { key: "MECH", name: "Mechanical", colour: "#f97316", defaultView: "TIMELINE", description: "Chassis, wheels, drivetrain, structure, and mechanical systems." },
-  { key: "ELEC", name: "Electrical", colour: "#06b6d4", defaultView: "BOARD", description: "Power, electronics, wiring, and interfaces between subsystems." },
-  { key: "SW", name: "Software", colour: "#8b5cf6", defaultView: "BOARD", description: "Manual control, autonomous navigation, and software management." },
+  { key: "ELEC", name: "Electronics", colour: "#06b6d4", defaultView: "BOARD", description: "Power, electronics, wiring, and communication between subsystems." },
   { key: "ROBO", name: "Robotics", colour: "#84cc16", defaultView: "BOARD", description: "Robot arm and its mechanical, electrical and software integration." },
   { key: "SCI", name: "Science", colour: "#ec4899", defaultView: "TIMELINE", description: "Science kit, experiments, and scientific requirements." },
-  { key: "DRONE", name: "Drone", colour: "#eab308", defaultView: "TIMELINE", description: "Drone development and operation." },
-  { key: "MINI", name: "Mini-Rover", colour: "#3b82f6", defaultView: "TIMELINE", description: "Mini-rover development." },
+  { key: "SW", name: "Software", colour: "#8b5cf6", defaultView: "BOARD", description: "Software management, manual control, and autonomous navigation." },
 ];
 
 /** People named in the existing planners. */
@@ -123,9 +120,9 @@ const dependencies: {
   { from: ["MECH", "Manufacture hopper"], to: ["MECH", "Assemble rover"], note: "Cannot assemble before parts exist." },
   { from: ["MECH", "Manufacture excavator"], to: ["MECH", "Assemble rover"], note: "Cannot assemble before parts exist." },
   { from: ["MECH", "Final CAD release"], to: ["MECH", "Manufacture pivot wheels"], note: "Manufacture follows CAD release." },
-  { from: ["EXEC", "Advertise Applications"], to: ["MECH", "Recruitment"], note: "Sub-team recruitment follows the central application round." },
-  { from: ["EXEC", "Interview Stage"], to: ["SW", "Onboarding"], note: "Onboarding follows interviews." },
-  { from: ["EXEC", "Prepare Onboarding"], to: ["EXEC", "Design Phase"], note: "Teams must be onboarded before the design phase opens." },
+  { from: ["OPS", "Advertise Applications"], to: ["MECH", "Recruitment"], note: "Sub-team recruitment follows the central application round." },
+  { from: ["OPS", "Interview Stage"], to: ["SW", "Onboarding"], note: "Onboarding follows interviews." },
+  { from: ["OPS", "Prepare Onboarding"], to: ["OPS", "Design Phase"], note: "Teams must be onboarded before the design phase opens." },
 ];
 
 /**

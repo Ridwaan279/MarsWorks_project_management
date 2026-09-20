@@ -21,8 +21,8 @@ interface Props {
 }
 
 const FIELD =
-  "w-full rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-info focus:outline-none";
-const LABEL = "block text-[11px] font-medium tracking-wide text-ink-faint uppercase";
+  "w-full min-w-0 rounded-md border border-edge bg-surface-2 px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-info focus:outline-none focus-visible:ring-2 focus-visible:ring-info";
+const LABEL = "block text-xs font-medium text-ink-muted";
 
 export function NewTaskDialog({
   status,
@@ -98,7 +98,7 @@ export function NewTaskDialog({
         role="dialog"
         aria-modal="true"
         aria-label="New task"
-        className="relative w-full max-w-lg space-y-4 rounded-xl border border-edge bg-ground p-5 shadow-2xl"
+        className="overscroll-none-safe relative max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-xl border border-edge bg-ground p-5 shadow-2xl"
       >
         <header>
           <h2 className="text-sm font-semibold">New task</h2>
@@ -116,7 +116,8 @@ export function NewTaskDialog({
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Machine the suspension uprights"
+            autoComplete="off"
+            placeholder="e.g. Machine the suspension uprights"
             className={FIELD}
             required
           />
@@ -202,6 +203,7 @@ export function NewTaskDialog({
             <input
               id="new-estimate"
               type="number"
+              inputMode="numeric"
               min={0}
               max={365}
               value={estimateDays}
@@ -230,26 +232,24 @@ export function NewTaskDialog({
           </div>
         </div>
 
-        {error ? (
-          <p role="alert" className="text-xs text-late">
-            {error}
-          </p>
-        ) : null}
+        <p aria-live="polite" className="text-xs text-late">
+          {error}
+        </p>
 
         <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-3 py-1.5 text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
+            className="rounded-md px-3 py-1.5 text-sm text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving || !title.trim()}
-            className="rounded-md bg-mars px-3 py-1.5 text-sm font-medium text-ground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-md bg-mars px-3 py-1.5 text-sm font-medium text-ground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-info"
           >
-            {saving ? "Creating..." : "Create task"}
+            {saving ? "Creating…" : "Create Task"}
           </button>
         </div>
       </form>
