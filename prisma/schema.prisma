@@ -156,6 +156,9 @@ model Task {
   /// priority: priority is how important the work is, a flag is a request for
   /// attention now, and a task can be low priority and still need eyes on it.
   flagged Boolean @default(false)
+  /// Why this task was flagged, captured at the moment it was raised. Shown
+  /// wherever the flag is, so "needs attention" says what kind of attention.
+  flagReason String?
 
   /// Earliest the work can begin regardless of predecessors (part delivery,
   /// lab access). The scheduler treats this as a hard lower bound.

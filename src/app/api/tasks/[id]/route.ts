@@ -19,6 +19,7 @@ const updateTask = z
     workstreamId: z.string().nullable(),
     ownerLabel: z.string().max(200).nullable(),
     flagged: z.boolean(),
+    flagReason: z.string().max(500).nullable(),
     notes: z.string().max(10_000).nullable(),
     // Dates arrive as plain YYYY-MM-DD from the date inputs.
     plannedStart: z.string().date().nullable(),

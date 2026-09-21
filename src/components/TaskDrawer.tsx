@@ -368,6 +368,22 @@ export function TaskDrawer({
         </header>
 
         <div className="selectable overscroll-none-safe flex-1 space-y-5 overflow-y-auto px-5 py-5">
+          {/* Opening a flagged task should answer "why is this flagged?"
+              before anything else on the screen. */}
+          {draft.flagged ? (
+            <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-danger">
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                  <path d="M3.75 2v12M3.75 3h7.7a.6.6 0 0 1 .47.97L10.4 6.2a.5.5 0 0 0 0 .6l1.52 2.23a.6.6 0 0 1-.47.97h-7.7" />
+                </svg>
+                Flagged
+              </p>
+              <p className="mt-1 text-sm text-ink-2 text-pretty">
+                {draft.flagReason || "No reason was given."}
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <label className={LABEL} htmlFor="task-title">
               Title
@@ -668,6 +684,130 @@ export function TaskDrawer({
                 className={`${FIELD} resize-y`}
               />
             </div>
+            <Disclosure
+              title="Dependencies"
+              badge={
+                draft.blockedBy.length + draft.blocks.length > 0
+                  ? `${draft.blockedBy.length + draft.blocks.length}`
+                  : undefined
+              }
+            >
+              <div className="space-y-1.5">
+                <p className="text-xs text-ink-2">Waiting on</p>
+                {draft.blockedBy.length > 0 ? (
+                  <ul className="space-y-1">
+                    {draft.blockedBy.map((dep) => (
+                      <DependencyRow
+                        key={dep.depId}
+                        dep={dep}
+                        teams={teams}
+                        onRemove={() => removeDependency(dep.depId)}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-ink-3">
+                    Nothing yet &mdash; this task can start whenever.
+                  </p>
+                )}
+                <form onSubmit={addDependency} className="flex gap-2">
+                  <select
+                    aria-label="Task this one waits on"
+                    value={dependencyId}
+                    onChange={(e) => setDependencyId(e.target.value)}
+                    className={`${FIELD} text-xs`}
+                  >
+                    <option value="">Add a task this one waits on…</option>
+                    {dependencyOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.key} — {option.title}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={!dependencyId}
+                    className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    Add
+                  </button>
+                </form>
+              </div>
+
+              {draft.blocks.length > 0 ? (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-ink-2">Blocking</p>
+                  <ul className="space-y-1">
+                    {draft.blocks.map((dep) => (
+                      <DependencyRow
+                        key={dep.depId}
+                        dep={dep}
+                        teams={teams}
+                        onRemove={() => removeDependency(dep.depId)}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </Disclosure>
+
+            <Disclosure
+              title="Checklist"
+              badge={
+                draft.subtasks.length > 0
+                  ? `${doneSubtasks}/${draft.subtasks.length}`
+                  : undefined
+              }
+            >
+              {draft.subtasks.length > 0 ? (
+                <ul className="space-y-0.5">
+                  {draft.subtasks.map((st) => (
+                    <li key={st.id} className="group/st flex items-start gap-2">
+                      <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded px-1 py-1 text-xs hover:bg-elevated">
+                        <input
+                          type="checkbox"
+                          checked={st.done}
+                          onChange={(e) => toggleSubtask(st.id, e.target.checked)}
+                          className="mt-px h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--color-success)]"
+                        />
+                        <span className={st.done ? "text-ink-3 line-through" : ""}>
+                          {st.title}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removeSubtask(st.id)}
+                        aria-label={`Remove "${st.title}"`}
+                        className="mt-0.5 shrink-0 rounded p-1 text-ink-3 opacity-0 transition-opacity group-hover/st:opacity-100 hover:text-danger focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      >
+                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
+                          <path d="M4.3 3.3 8 7l3.7-3.7 1 1L9 8l3.7 3.7-1 1L8 9l-3.7 3.7-1-1L7 8 3.3 4.3Z" />
+                        </svg>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-ink-3">No checklist items yet.</p>
+              )}
+              <form onSubmit={addSubtask} className="flex gap-2">
+                <input
+                  value={subtaskTitle}
+                  onChange={(e) => setSubtaskTitle(e.target.value)}
+                  placeholder="Add a checklist item"
+                  aria-label="New checklist item"
+                  autoComplete="off"
+                  className={`${FIELD} text-xs`}
+                />
+                <button
+                  type="submit"
+                  disabled={!subtaskTitle.trim()}
+                  className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  Add
+                </button>
+              </form>
+            </Disclosure>
           </Disclosure>
 
           {scheduled ? (
@@ -727,130 +867,7 @@ export function TaskDrawer({
           {/* Both sections are offered on every task, empty or not: a checklist
               you cannot start and a dependency you cannot record are the two
               things people gave up on this tool for. */}
-          <Disclosure
-            title="Dependencies"
-            badge={
-              draft.blockedBy.length + draft.blocks.length > 0
-                ? `${draft.blockedBy.length + draft.blocks.length}`
-                : undefined
-            }
-          >
-            <div className="space-y-1.5">
-              <p className="text-xs text-ink-2">Waiting on</p>
-              {draft.blockedBy.length > 0 ? (
-                <ul className="space-y-1">
-                  {draft.blockedBy.map((dep) => (
-                    <DependencyRow
-                      key={dep.depId}
-                      dep={dep}
-                      teams={teams}
-                      onRemove={() => removeDependency(dep.depId)}
-                    />
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-ink-3">
-                  Nothing yet &mdash; this task can start whenever.
-                </p>
-              )}
-              <form onSubmit={addDependency} className="flex gap-2">
-                <select
-                  aria-label="Task this one waits on"
-                  value={dependencyId}
-                  onChange={(e) => setDependencyId(e.target.value)}
-                  className={`${FIELD} text-xs`}
-                >
-                  <option value="">Add a task this one waits on…</option>
-                  {dependencyOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.key} — {option.title}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="submit"
-                  disabled={!dependencyId}
-                  className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                >
-                  Add
-                </button>
-              </form>
-            </div>
 
-            {draft.blocks.length > 0 ? (
-              <div className="space-y-1.5">
-                <p className="text-xs text-ink-2">Blocking</p>
-                <ul className="space-y-1">
-                  {draft.blocks.map((dep) => (
-                    <DependencyRow
-                      key={dep.depId}
-                      dep={dep}
-                      teams={teams}
-                      onRemove={() => removeDependency(dep.depId)}
-                    />
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </Disclosure>
-
-          <Disclosure
-            title="Checklist"
-            badge={
-              draft.subtasks.length > 0
-                ? `${doneSubtasks}/${draft.subtasks.length}`
-                : undefined
-            }
-          >
-            {draft.subtasks.length > 0 ? (
-              <ul className="space-y-0.5">
-                {draft.subtasks.map((st) => (
-                  <li key={st.id} className="group/st flex items-start gap-2">
-                    <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded px-1 py-1 text-xs hover:bg-elevated">
-                      <input
-                        type="checkbox"
-                        checked={st.done}
-                        onChange={(e) => toggleSubtask(st.id, e.target.checked)}
-                        className="mt-px h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--color-success)]"
-                      />
-                      <span className={st.done ? "text-ink-3 line-through" : ""}>
-                        {st.title}
-                      </span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => removeSubtask(st.id)}
-                      aria-label={`Remove "${st.title}"`}
-                      className="mt-0.5 shrink-0 rounded p-1 text-ink-3 opacity-0 transition-opacity group-hover/st:opacity-100 hover:text-danger focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    >
-                      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
-                        <path d="M4.3 3.3 8 7l3.7-3.7 1 1L9 8l3.7 3.7-1 1L8 9l-3.7 3.7-1-1L7 8 3.3 4.3Z" />
-                      </svg>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-ink-3">No checklist items yet.</p>
-            )}
-            <form onSubmit={addSubtask} className="flex gap-2">
-              <input
-                value={subtaskTitle}
-                onChange={(e) => setSubtaskTitle(e.target.value)}
-                placeholder="Add a checklist item"
-                aria-label="New checklist item"
-                autoComplete="off"
-                className={`${FIELD} text-xs`}
-              />
-              <button
-                type="submit"
-                disabled={!subtaskTitle.trim()}
-                className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                Add
-              </button>
-            </form>
-          </Disclosure>
         </div>
 
         <footer className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">

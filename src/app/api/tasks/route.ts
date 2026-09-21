@@ -30,6 +30,7 @@ const createTask = z
     plannedStart: z.string().date().nullable().optional(),
     plannedEnd: z.string().date().nullable().optional(),
     links: z.array(z.object({ label: z.string().trim().max(120), url: httpUrl })).max(20).optional(),
+    subtasks: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   })
   .refine(
     (v) =>
@@ -106,6 +107,14 @@ export async function POST(request: Request) {
                   // so fall back to the hostname rather than rejecting it.
                   label: link.label || hostnameOf(link.url),
                   url: link.url,
+                })),
+              }
+            : undefined,
+          subtasks: data.subtasks?.length
+            ? {
+                create: data.subtasks.map((title, index) => ({
+                  title,
+                  position: index,
                 })),
               }
             : undefined,

@@ -73,6 +73,8 @@ export function NewTaskDialog({
   const [plannedStart, setPlannedStart] = useState(today());
   const [plannedEnd, setPlannedEnd] = useState("");
   const [notes, setNotes] = useState("");
+  const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [subtaskTitle, setSubtaskTitle] = useState("");
   const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkLabel, setLinkLabel] = useState("");
@@ -168,6 +170,7 @@ export function NewTaskDialog({
           plannedStart: plannedStart || null,
           plannedEnd: plannedEnd || null,
           links,
+          subtasks,
         }),
       });
       if (!response.ok) {
@@ -466,6 +469,75 @@ export function NewTaskDialog({
               placeholder="For work owned by more than one person, e.g. Owen &amp; Jack"
               className={FIELD}
             />
+          </div>
+        </div>
+
+        {/* Most tasks arrive with their steps already in someone's head.
+            Capturing them here saves reopening the task to type them in. */}
+        <div className="space-y-2">
+          <h3 className={LABEL}>Checklist</h3>
+          {subtasks.length > 0 ? (
+            <ul className="space-y-1">
+              {subtasks.map((title, i) => (
+                <li
+                  key={`${title}-${i}`}
+                  className="flex items-center gap-2 rounded-md bg-panel px-2.5 py-1.5 text-xs"
+                >
+                  <span
+                    aria-hidden
+                    className="h-3.5 w-3.5 shrink-0 rounded-sm ring-1 ring-line"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{title}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSubtasks((c) => c.filter((_, j) => j !== i))}
+                    aria-label={`Remove "${title}"`}
+                    className="rounded p-0.5 text-ink-3 transition-colors hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                      <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="flex gap-2">
+            <label className="sr-only" htmlFor="new-subtask">
+              Checklist item
+            </label>
+            <input
+              id="new-subtask"
+              value={subtaskTitle}
+              onChange={(e) => setSubtaskTitle(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter would otherwise submit the whole form, creating the
+                // task while the author is still listing its steps.
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const title = subtaskTitle.trim();
+                  if (!title) return;
+                  setSubtasks((c) => [...c, title]);
+                  setSubtaskTitle("");
+                }
+              }}
+              placeholder="Add a step, then press Enter"
+              autoComplete="off"
+              className={`${FIELD} text-xs`}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const title = subtaskTitle.trim();
+                if (!title) return;
+                setSubtasks((c) => [...c, title]);
+                setSubtaskTitle("");
+              }}
+              disabled={!subtaskTitle.trim()}
+              className="shrink-0 rounded-md border border-line px-3 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              Add
+            </button>
           </div>
         </div>
 

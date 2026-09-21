@@ -94,6 +94,14 @@ export type TeamView = "BOARD" | "TIMELINE";
  */
 export const SEASON_END = new Date("2027-09-30T00:00:00Z");
 
+/**
+ * The first day the timeline will show. Work and planning before this date
+ * belongs to the previous season; charting it only pushes the current year
+ * off to the right. The chart is clamped here however far back a task's
+ * planned start reaches.
+ */
+export const SEASON_START = new Date("2026-09-20T00:00:00Z");
+
 /** A colour per lifecycle stage, drawn from the brand browns and the orange,
  *  so the stages read as one family rather than a rainbow. */
 export const STAGE_COLOUR: Record<ProjectStage, string> = {

@@ -32,6 +32,8 @@ import type {
 import type { ScheduledTask } from "@/lib/schedule";
 import { SortableTaskCard, TaskCardBody } from "./TaskCard";
 import { TaskDrawer } from "./TaskDrawer";
+import { FlagDialog } from "./FlagDialog";
+import { TeamFilter } from "./TeamFilter";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { TeamDot } from "./ui";
 
@@ -93,8 +95,10 @@ export function KanbanBoard({
   }, [workstreams]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(initialTaskId ?? null);
-  const [teamFilter, setTeamFilter] = useState<string | "ALL">("ALL");
+  // Empty means every team; see TeamFilter.
+  const [teamFilter, setTeamFilter] = useState<string[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string | "ALL">("ALL");
+  const [flagging, setFlagging] = useState<string | null>(null);
   const [creatingIn, setCreatingIn] = useState<TaskStatus | null>(null);
   const [scope, setScope] = useState<"CURRENT" | "ALL">("CURRENT");
   // Workstreams can be created from the new-task dialog, so this list has to
@@ -149,7 +153,7 @@ export function KanbanBoard({
 
   const matchesFilters = useCallback(
     (task: TaskView) =>
-      (teamFilter === "ALL" || task.teamId === teamFilter) &&
+      (teamFilter.length === 0 || teamFilter.includes(task.teamId)) &&
       (assigneeFilter === "ALL" ||
         (assigneeFilter === "UNASSIGNED"
           ? task.assigneeId === null
@@ -278,17 +282,17 @@ export function KanbanBoard({
     void persist(taskId, { status: targetStatus, boardOrder }, previous);
   }
 
-  const toggleFlag = useCallback(
-    async (taskId: string, flagged: boolean) => {
+  const applyFlag = useCallback(
+    async (taskId: string, flagged: boolean, flagReason: string | null) => {
       const previous = tasks.map((t) => ({ ...t }));
       setTasks((current) =>
-        current.map((t) => (t.id === taskId ? { ...t, flagged } : t)),
+        current.map((t) => (t.id === taskId ? { ...t, flagged, flagReason } : t)),
       );
       try {
         const response = await fetch(`/api/tasks/${taskId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ flagged }),
+          body: JSON.stringify({ flagged, flagReason }),
         });
         if (!response.ok) throw new Error(`Server returned ${response.status}`);
         router.refresh();
@@ -299,6 +303,19 @@ export function KanbanBoard({
       }
     },
     [tasks, router],
+  );
+
+  /*
+   * Raising a flag asks why; clearing one does not. Taking a flag down is
+   * already an unambiguous act, and its reason has to go with it, or the next
+   * person to raise one inherits a note about something else.
+   */
+  const toggleFlag = useCallback(
+    (taskId: string, flagged: boolean) => {
+      if (flagged) setFlagging(taskId);
+      else void applyFlag(taskId, false, null);
+    },
+    [applyFlag],
   );
 
   const handleTaskSaved = useCallback(
@@ -317,6 +334,8 @@ export function KanbanBoard({
    * screens: on a desktop every column is already visible and moving the
    * scroll position would just be confusing.
    */
+  const flaggingTask = flagging ? tasks.find((t) => t.id === flagging) ?? null : null;
+
   const firstOccupied = BOARD_COLUMNS.find(
     (c) => (columns.get(c.status) ?? []).length > 0,
   )?.status;
@@ -367,21 +386,15 @@ export function KanbanBoard({
           ))}
         </div>
 
-        <label data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
-          Sub-team
-          <select
-            value={teamFilter}
-            onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-line bg-panel px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none"
-          >
-            <option value="ALL">All teams</option>
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
+          <label htmlFor="board-team-filter">Sub-team</label>
+          <TeamFilter
+            id="board-team-filter"
+            teams={teams}
+            selected={teamFilter}
+            onChange={setTeamFilter}
+          />
+        </div>
 
         <label className="flex items-center gap-2 text-xs text-ink-2">
           Assignee
@@ -415,10 +428,14 @@ export function KanbanBoard({
               </>
             ) : null}
           </span>
-          {teamFilter !== "ALL" ? (
+          {teamFilter.length > 0 ? (
             <span className="flex items-center gap-1.5">
-              <TeamDot colour={teamById.get(teamFilter)?.colour ?? "#64748b"} />
-              {teamById.get(teamFilter)?.name}
+              {teamFilter.map((id) => (
+                <TeamDot key={id} colour={teamById.get(id)?.colour ?? "#64748b"} />
+              ))}
+              {teamFilter.length === 1
+                ? teamById.get(teamFilter[0])?.name
+                : `${teamFilter.length} teams`}
             </span>
           ) : null}
         </div>
@@ -500,6 +517,18 @@ export function KanbanBoard({
         />
       ) : null}
 
+      {flaggingTask ? (
+        <FlagDialog
+          taskKey={flaggingTask.key}
+          taskTitle={flaggingTask.title}
+          onCancel={() => setFlagging(null)}
+          onConfirm={(reason) => {
+            void applyFlag(flaggingTask.id, true, reason);
+            setFlagging(null);
+          }}
+        />
+      ) : null}
+
       {creatingIn ? (
         <NewTaskDialog
           status={creatingIn}
@@ -512,15 +541,17 @@ export function KanbanBoard({
               current.some((w) => w.id === created.id) ? current : [...current, created],
             )
           }
-          defaultTeamId={teamFilter === "ALL" ? teams[0]?.id : teamFilter}
+          defaultTeamId={teamFilter.length === 1 ? teamFilter[0] : teams[0]?.id}
           onClose={() => setCreatingIn(null)}
           onCreated={(created) => {
             setCreatingIn(null);
             // A task the active filters would hide looks like a failed save.
             // Relax whichever filter is in the way so the new card is on
             // screen, rather than silently dropping it.
-            if (teamFilter !== "ALL" && teamFilter !== created.teamId) {
-              setTeamFilter("ALL");
+            if (teamFilter.length > 0 && !teamFilter.includes(created.teamId)) {
+              // Widen rather than clear: the other chosen teams were a
+              // deliberate choice and the new task just joins them.
+              setTeamFilter([...teamFilter, created.teamId]);
             }
             setAssigneeFilter("ALL");
             // Judge the real task, not a stand-in: a future start date makes

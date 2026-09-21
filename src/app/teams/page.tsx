@@ -179,9 +179,18 @@ export default async function TeamsPage() {
                         {" · "}
                         {team.name}
                       </span>
+                      {/* The reason is the point of the flag: this page is
+                          where leads read them, so it is not truncated. */}
+                      {task.flagReason ? (
+                        <span className="mt-1.5 block border-l-2 border-danger/50 pl-2 text-xs text-ink-2 text-pretty">
+                          {task.flagReason}
+                        </span>
+                      ) : null}
                     </span>
-                    <StatusBadge status={task.status} label={STATUS_LABEL[task.status]} />
-                    {assignee ? <Avatar name={assignee.name} /> : null}
+                    <span className="flex shrink-0 items-center gap-2 self-start">
+                      <StatusBadge status={task.status} label={STATUS_LABEL[task.status]} />
+                      {assignee ? <Avatar name={assignee.name} /> : null}
+                    </span>
                   </Link>
                 </li>
               );

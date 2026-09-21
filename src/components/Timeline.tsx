@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
+import { TeamFilter } from "./TeamFilter";
 import { format } from "date-fns";
 import {
   addDays,
   daysBetween,
   SEASON_END,
+  SEASON_START,
   startOfDay,
   STATUS_LABEL,
 } from "@/lib/domain";
@@ -93,7 +95,8 @@ export function Timeline({
 }: TimelineProps) {
   const [zoom, setZoom] = useState<Zoom>("normal");
   const [hideDone, setHideDone] = useState(false);
-  const [teamFilter, setTeamFilter] = useState<string | "ALL">("ALL");
+  // Empty means every team; see TeamFilter.
+  const [teamFilter, setTeamFilter] = useState<string[]>([]);
   const [range, setRange] = useState<RangeKey>("current");
   const dayWidth = ZOOM[zoom];
   const narrow = useNarrow();
@@ -107,7 +110,7 @@ export function Timeline({
       tasks.filter(
         (t) =>
           (!hideDone || t.status !== "DONE") &&
-          (teamFilter === "ALL" || t.teamId === teamFilter),
+          (teamFilter.length === 0 || teamFilter.includes(t.teamId)),
       ),
     [tasks, hideDone, teamFilter],
   );
@@ -147,7 +150,12 @@ export function Timeline({
     // Never start after today, or the "today" marker falls off the chart.
     if (earliest > today) earliest = today;
 
-    const chartStart = addDays(startOfDay(earliest), -3);
+    // The three-day lead-in keeps a bar starting on day one from being flush
+    // against the axis; the season floor then wins over it, so the chart
+    // opens on the season's first day and never earlier.
+    let chartStart = addDays(startOfDay(earliest), -3);
+    const floor = startOfDay(SEASON_START);
+    if (chartStart < floor) chartStart = floor;
     return {
       start: chartStart,
       totalDays: Math.max(daysBetween(chartStart, startOfDay(latest)) + 7, 14),
@@ -269,21 +277,15 @@ export function Timeline({
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
-        <label data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
-          Sub-team
-          <select
-            value={teamFilter}
-            onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-line bg-panel px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <option value="ALL">All teams</option>
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
+          <label htmlFor="timeline-team-filter">Sub-team</label>
+          <TeamFilter
+            id="timeline-team-filter"
+            teams={teams}
+            selected={teamFilter}
+            onChange={setTeamFilter}
+          />
+        </div>
 
         <label data-tour="range" className="flex items-center gap-2 text-xs text-ink-2">
           Range
@@ -515,7 +517,12 @@ export function Timeline({
                                 <span className="shrink-0 font-mono text-[10px] text-ink-3" translate="no">
                                   {task.key}
                                 </span>
-                                <span className="min-w-0 flex-1 truncate text-ink-2">
+                                <span
+                                  className={clsx(
+                                    "min-w-0 flex-1 truncate",
+                                    done ? "text-ink-3 line-through" : "text-ink-2",
+                                  )}
+                                >
                                   {task.title}
                                 </span>
                                 {task.assigneeId ? (
@@ -535,7 +542,7 @@ export function Timeline({
                                 className={clsx(
                                   "absolute top-1/2 flex h-4 -translate-y-1/2 items-center overflow-hidden rounded-sm ring-1 transition-[height,box-shadow] hover:h-5 hover:ring-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                                   done
-                                    ? "opacity-50 ring-transparent"
+                                    ? "opacity-80 ring-transparent"
                                     : sched.isCritical
                                       ? "ring-accent"
                                       : sched.slackDays < 0
@@ -553,9 +560,20 @@ export function Timeline({
                                   className="absolute inset-y-0 left-0"
                                   style={{
                                     width: `${done ? 100 : task.progress}%`,
-                                    backgroundColor: team.colour,
+                                    backgroundColor: done
+                                      ? `color-mix(in srgb, ${team.colour} 45%, var(--color-bg))`
+                                      : team.colour,
                                   }}
                                 />
+                                {done ? (
+                                  <span
+                                    aria-hidden
+                                    className="absolute inset-x-1 top-1/2 h-px -translate-y-1/2"
+                                    style={{
+                                      backgroundColor: `color-mix(in srgb, ${team.colour} 85%, var(--color-text))`,
+                                    }}
+                                  />
+                                ) : null}
                                 <span className="sr-only">
                                   {task.key} {task.title}, {STATUS_LABEL[task.status]}
                                 </span>

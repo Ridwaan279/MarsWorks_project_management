@@ -1,3 +1,4 @@
+import { projectToday } from "./clock";
 import { prisma } from "./db";
 import {
   computeSchedule,
@@ -71,6 +72,8 @@ export interface TaskView {
   ownerLabel: string | null;
   notes: string | null;
   flagged: boolean;
+  /** Why it was flagged, if a reason was given. */
+  flagReason: string | null;
   boardOrder: number;
   teamId: string;
   assigneeId: string | null;
@@ -142,7 +145,7 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
   }
 
   return {
-    asOf: new Date(),
+    asOf: projectToday(),
     teams: teams.map((t) => ({
       id: t.id,
       key: t.key,
@@ -189,6 +192,7 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
       ownerLabel: t.ownerLabel,
       notes: t.notes,
       flagged: t.flagged,
+      flagReason: t.flagReason,
       boardOrder: t.boardOrder,
       teamId: t.teamId,
       assigneeId: t.assigneeId,
