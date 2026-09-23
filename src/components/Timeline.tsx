@@ -93,6 +93,15 @@ export function Timeline({
   scheduled,
   asOf,
 }: TimelineProps) {
+  /*
+   * "normal" on a desktop, "compact" on a phone.
+   *
+   * At 9px a day, a 250px-wide chart shows under four weeks, so a task that
+   * runs a month has no visible end and the chart reads as a wall of bars.
+   * 5px a day fits about seven weeks in the same space, which is enough to
+   * see where a bar stops. Still a normal state variable, so the density
+   * buttons continue to override it.
+   */
   const [zoom, setZoom] = useState<Zoom>("normal");
   const [hideDone, setHideDone] = useState(false);
   // Empty means every team; see TeamFilter.
@@ -101,6 +110,15 @@ export function Timeline({
   const dayWidth = ZOOM[zoom];
   const narrow = useNarrow();
   const RAIL = narrow ? RAIL_NARROW : RAIL_WIDE;
+
+  // Applied once, when the viewport width first becomes known. Guarded so it
+  // never undoes a density the reader picked themselves.
+  const zoomDefaulted = useRef(false);
+  useEffect(() => {
+    if (zoomDefaulted.current || !narrow) return;
+    zoomDefaulted.current = true;
+    setZoom("compact");
+  }, [narrow]);
 
   const today = startOfDay(new Date(asOf));
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);

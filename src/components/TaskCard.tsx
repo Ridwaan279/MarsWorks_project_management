@@ -14,6 +14,8 @@ export interface TaskCardProps {
   scheduled: ScheduledTask | undefined;
   onOpen: (taskId: string) => void;
   onToggleFlag?: (taskId: string, flagged: boolean) => void;
+  /** Opens the move-to sheet. Phone only; a mouse drags instead. */
+  onMove?: (taskId: string) => void;
   /** Marks one card as the anchor for the onboarding tour. */
   tourAnchor?: boolean;
 }
@@ -58,6 +60,7 @@ export function TaskCardBody({
   scheduled,
   dragging,
   onToggleFlag,
+  onMove,
 }: Omit<TaskCardProps, "onOpen"> & { dragging?: boolean }) {
   const late = scheduled ? scheduled.slackDays < 0 : false;
   const tight = scheduled ? scheduled.slackDays >= 0 && scheduled.slackDays <= 2 : false;
@@ -82,6 +85,24 @@ export function TaskCardBody({
         <p className="min-w-0 flex-1 text-sm leading-snug">{task.title}</p>
         {/* Rendered as a real button only on the board; the drag overlay gets
             a plain icon, because a button inside the overlay cannot be used. */}
+        {onMove ? (
+          <button
+            type="button"
+            aria-label={`Move ${task.key} to another column`}
+            title="Move to another column"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onMove(task.id);
+            }}
+            className="-m-1 shrink-0 rounded p-1.5 text-ink-3 transition-colors hover:text-ink-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:hidden"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+              <path d="M9.3 2.3a1 1 0 0 1 1.4 0l3 3a1 1 0 0 1 0 1.4l-3 3a1 1 0 0 1-1.4-1.4L10.6 7H3a1 1 0 0 1 0-2h7.6L9.3 3.7a1 1 0 0 1 0-1.4Z" />
+            </svg>
+          </button>
+        ) : null}
         {onToggleFlag ? (
           <button
             type="button"

@@ -7,7 +7,8 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCorners,
   useDroppable,
   useSensor,
@@ -33,6 +34,7 @@ import type { ScheduledTask } from "@/lib/schedule";
 import { SortableTaskCard, TaskCardBody } from "./TaskCard";
 import { TaskDrawer } from "./TaskDrawer";
 import { FlagDialog } from "./FlagDialog";
+import { MoveSheet } from "./MoveSheet";
 import { TeamFilter } from "./TeamFilter";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { TeamDot } from "./ui";
@@ -99,6 +101,8 @@ export function KanbanBoard({
   const [teamFilter, setTeamFilter] = useState<string[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string | "ALL">("ALL");
   const [flagging, setFlagging] = useState<string | null>(null);
+  const [moving, setMoving] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [creatingIn, setCreatingIn] = useState<TaskStatus | null>(null);
   const [scope, setScope] = useState<"CURRENT" | "ALL">("CURRENT");
   // Workstreams can be created from the new-task dialog, so this list has to
@@ -188,11 +192,25 @@ export function KanbanBoard({
     return grouped;
   }, [visible]);
 
+  /*
+   * Mouse and touch need opposite activation rules, which is why they are
+   * separate sensors rather than one PointerSensor.
+   *
+   * With a mouse, a few pixels of travel is the right threshold: it separates
+   * a click-to-open from a drag without any wait.
+   *
+   * A finger cannot use a distance threshold at all. The same gesture that
+   * starts a drag -- put finger down, move -- is also the gesture for
+   * scrolling the column and the board, so a distance rule makes every scroll
+   * attempt pick up a card and the board fights every swipe. A short press
+   * instead separates the two by intent: swipe to scroll, hold to pick up.
+   * The tolerance lets a finger wobble during the hold without cancelling.
+   */
   const sensors = useSensors(
-    // A small distance threshold keeps a click-to-open from registering as a
-    // drag, which is the difference between a board that feels precise and one
-    // that fights you.
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 180, tolerance: 8 },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -200,6 +218,20 @@ export function KanbanBoard({
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) ?? null : null;
   const openTask = openTaskId ? tasks.find((t) => t.id === openTaskId) ?? null : null;
+
+  const columnRefs = useRef(new Map<TaskStatus, HTMLElement | null>());
+
+  const scrollToColumn = useCallback((status: TaskStatus) => {
+    const board = boardRef.current;
+    const target = columnRefs.current.get(status);
+    if (!board || !target) return;
+    // scrollIntoView would drag the page vertically too; this moves only the
+    // board's own horizontal scroll.
+    board.scrollTo({
+      left: target.offsetLeft - board.offsetLeft,
+      behavior: "smooth",
+    });
+  }, []);
 
   const persist = useCallback(
     async (taskId: string, patch: Record<string, unknown>, previous: TaskView[]) => {
@@ -282,6 +314,31 @@ export function KanbanBoard({
     void persist(taskId, { status: targetStatus, boardOrder }, previous);
   }
 
+  /**
+   * The move-to sheet's counterpart to a drag: same optimistic update, same
+   * rollback, same persisted fields. The card lands at the top of its new
+   * column, which is where the person who just moved it will look for it.
+   */
+  const moveToStatus = useCallback(
+    async (taskId: string, targetStatus: TaskStatus) => {
+      const previous = tasks.map((t) => ({ ...t }));
+      const moved = previous.find((t) => t.id === taskId);
+      if (!moved || moved.status === targetStatus) return;
+
+      const column = (columns.get(targetStatus) ?? []).filter((t) => t.id !== taskId);
+      const boardOrder = orderBetween(undefined, column[0]?.boardOrder);
+
+      setTasks((current) =>
+        current.map((task) =>
+          task.id === taskId ? { ...task, status: targetStatus, boardOrder } : task,
+        ),
+      );
+      await persist(taskId, { status: targetStatus, boardOrder }, previous);
+      scrollToColumn(targetStatus);
+    },
+    [tasks, columns, persist, scrollToColumn],
+  );
+
   const applyFlag = useCallback(
     async (taskId: string, flagged: boolean, flagReason: string | null) => {
       const previous = tasks.map((t) => ({ ...t }));
@@ -335,12 +392,50 @@ export function KanbanBoard({
    * scroll position would just be confusing.
    */
   const flaggingTask = flagging ? tasks.find((t) => t.id === flagging) ?? null : null;
+  const movingTask = moving ? tasks.find((t) => t.id === moving) ?? null : null;
 
   const firstOccupied = BOARD_COLUMNS.find(
     (c) => (columns.get(c.status) ?? []).length > 0,
   )?.status;
   const firstOccupiedRef = useRef<HTMLElement | null>(null);
   const scrolledRef = useRef(false);
+  const chipRefs = useRef(new Map<TaskStatus, HTMLElement | null>());
+  const [columnInView, setColumnInView] = useState<TaskStatus | null>(null);
+
+  /*
+   * Which column the board is currently showing. With one column per screen
+   * the chips are the only indication of where you are, so a chip that cannot
+   * light up is just six buttons with no sense of place.
+   */
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    function sync() {
+      const left = board!.scrollLeft;
+      let nearest: TaskStatus | null = null;
+      let best = Infinity;
+      for (const [status, element] of columnRefs.current) {
+        if (!element) continue;
+        const distance = Math.abs(element.offsetLeft - board!.offsetLeft - left);
+        if (distance < best) {
+          best = distance;
+          nearest = status;
+        }
+      }
+      setColumnInView(nearest);
+    }
+    sync();
+    board.addEventListener("scroll", sync, { passive: true });
+    return () => board.removeEventListener("scroll", sync);
+  }, [columns]);
+
+  // Keep the lit chip reachable: six of them do not fit across a phone.
+  useEffect(() => {
+    if (!columnInView) return;
+    chipRefs.current
+      .get(columnInView)
+      ?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  }, [columnInView]);
 
   useEffect(() => {
     if (scrolledRef.current || !firstOccupied) return;
@@ -386,32 +481,58 @@ export function KanbanBoard({
           ))}
         </div>
 
-        <div data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
-          <label htmlFor="board-team-filter">Sub-team</label>
-          <TeamFilter
-            id="board-team-filter"
-            teams={teams}
-            selected={teamFilter}
-            onChange={setTeamFilter}
-          />
-        </div>
+        {/*
+          On a phone the two filters wrapped onto a line of their own, and with
+          the scope buttons and the counts that put roughly half the screen
+          above the first card. They fold behind this button instead; a dot
+          shows when one is set, so a hidden filter cannot quietly exclude
+          work. From sm upwards nothing is hidden and the button disappears.
+        */}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs text-ink-2 transition-colors hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:hidden"
+        >
+          Filters
+          {teamFilter.length > 0 || assigneeFilter !== "ALL" ? (
+            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
+          ) : null}
+        </button>
 
-        <label className="flex items-center gap-2 text-xs text-ink-2">
-          Assignee
-          <select
-            value={assigneeFilter}
-            onChange={(e) => setAssigneeFilter(e.target.value)}
-            className="rounded-md border border-line bg-panel px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none"
-          >
-            <option value="ALL">Anyone</option>
-            <option value="UNASSIGNED">Unassigned</option>
-            {members.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div
+          className={clsx(
+            "w-full items-center gap-x-3 gap-y-2 sm:flex sm:w-auto",
+            filtersOpen ? "flex flex-wrap" : "hidden",
+          )}
+        >
+          <div data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
+            <label htmlFor="board-team-filter">Sub-team</label>
+            <TeamFilter
+              id="board-team-filter"
+              teams={teams}
+              selected={teamFilter}
+              onChange={setTeamFilter}
+            />
+          </div>
+
+          <label className="flex items-center gap-2 text-xs text-ink-2">
+            Assignee
+            <select
+              value={assigneeFilter}
+              onChange={(e) => setAssigneeFilter(e.target.value)}
+              className="rounded-md border border-line bg-panel px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none"
+            >
+              <option value="ALL">Anyone</option>
+              <option value="UNASSIGNED">Unassigned</option>
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         <div className="ml-auto flex items-center gap-3 text-xs text-ink-3">
           <span className="tabular-nums">
@@ -439,6 +560,40 @@ export function KanbanBoard({
             </span>
           ) : null}
         </div>
+      </div>
+
+      {/*
+        Phone only: one column fills the screen, so the other five are off to
+        the right with nothing to say how much is in them. These chips are both
+        the answer to "where is everything" and the way to get there -- tapping
+        one scrolls that column into view, which beats swiping blind.
+      */}
+      <div className="flex gap-1.5 overflow-x-auto border-b border-line px-4 py-2 sm:hidden">
+        {BOARD_COLUMNS.map((column) => {
+          const count = (columns.get(column.status) ?? []).length;
+          return (
+            <button
+              key={column.status}
+              type="button"
+              ref={(element) => {
+                chipRefs.current.set(column.status, element);
+              }}
+              onClick={() => scrollToColumn(column.status)}
+              aria-current={columnInView === column.status ? "true" : undefined}
+              className={clsx(
+                "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs whitespace-nowrap transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                columnInView === column.status
+                  ? "border-accent bg-accent-tint text-ink"
+                  : count > 0
+                    ? "border-line bg-panel text-ink-2"
+                    : "border-line/60 text-ink-3",
+              )}
+            >
+              {column.label}
+              <span className="tabular-nums opacity-70">{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {error ? (
@@ -472,9 +627,12 @@ export function KanbanBoard({
           {BOARD_COLUMNS.map((column) => (
             <BoardColumn
               key={column.status}
-              columnRef={
-                column.status === firstOccupied ? firstOccupiedRef : undefined
-              }
+              columnRef={(element) => {
+                columnRefs.current.set(column.status, element);
+                if (column.status === firstOccupied) {
+                  firstOccupiedRef.current = element;
+                }
+              }}
               status={column.status}
               label={column.label}
               tasks={columns.get(column.status) ?? []}
@@ -483,6 +641,7 @@ export function KanbanBoard({
               scheduled={scheduled}
               onOpen={setOpenTaskId}
               onToggleFlag={toggleFlag}
+              onMove={setMoving}
               onAdd={() => setCreatingIn(column.status)}
             />
           ))}
@@ -514,6 +673,19 @@ export function KanbanBoard({
           scheduled={scheduled[openTask.id]}
           onClose={() => setOpenTaskId(null)}
           onSaved={handleTaskSaved}
+        />
+      ) : null}
+
+      {movingTask ? (
+        <MoveSheet
+          taskKey={movingTask.key}
+          taskTitle={movingTask.title}
+          current={movingTask.status}
+          onCancel={() => setMoving(null)}
+          onMove={(status) => {
+            void moveToStatus(movingTask.id, status);
+            setMoving(null);
+          }}
         />
       ) : null}
 
@@ -577,9 +749,10 @@ function BoardColumn({
   scheduled,
   onOpen,
   onToggleFlag,
+  onMove,
   onAdd,
 }: {
-  columnRef?: React.MutableRefObject<HTMLElement | null>;
+  columnRef?: (element: HTMLElement | null) => void;
   status: TaskStatus;
   label: string;
   tasks: TaskView[];
@@ -588,6 +761,7 @@ function BoardColumn({
   scheduled: Record<string, ScheduledTask>;
   onOpen: (id: string) => void;
   onToggleFlag: (taskId: string, flagged: boolean) => void;
+  onMove: (taskId: string) => void;
   onAdd: () => void;
 }) {
   // A column-level droppable so an empty column is still a valid drop target.
@@ -643,6 +817,7 @@ function BoardColumn({
                 scheduled={scheduled[task.id]}
                 onOpen={onOpen}
                 onToggleFlag={onToggleFlag}
+                onMove={onMove}
               />
             ))}
           </ul>
