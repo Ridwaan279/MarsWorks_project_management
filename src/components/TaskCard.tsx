@@ -6,6 +6,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { MemberView, TaskView, TeamView } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
 import { Avatar, ProgressBar, TeamDot } from "./ui";
+import { useCoarsePointer } from "./media";
 
 export interface TaskCardProps {
   task: TaskView;
@@ -212,25 +213,47 @@ function FlagIcon({ filled }: { filled: boolean }) {
 }
 
 export function SortableTaskCard(props: TaskCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: props.task.id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.task.id });
+  const coarse = useCoarsePointer();
 
   /*
-   * The card is a div carrying role="button", not a real <button>. It has to
-   * contain the flag button, and a button inside a button is invalid HTML:
-   * the parser rewrites the DOM, which breaks hydration. Keyboard support is
-   * supplied explicitly so the card is still operable without a pointer.
+   * Where a drag may start depends on the input device.
+   *
+   * With a mouse the whole card is the handle, which is what a pointer user
+   * expects. With a finger it cannot be: the card's surface is also the only
+   * thing there is to swipe on, so a card-wide drag target means every attempt
+   * to scroll the column picks up a task instead. A press delay narrows that
+   * but does not close it -- a slow scroll still reads as a hold.
+   *
+   * On touch the listeners move to the grip on the left edge and nowhere else.
+   * The rest of the card scrolls, and a drag has to be deliberate.
+   */
+  const activator = coarse ? {} : listeners;
+
+  /*
+   * touch-action matters as much as the listeners. `touch-none` tells the
+   * browser to hand every touch gesture to the page instead of scrolling,
+   * which on a column full of cards disables scrolling almost everywhere.
+   * It belongs on the grip alone; the card itself must stay pannable.
    */
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={clsx("touch-none", isDragging && "card-dragging")}
+      className={clsx(coarse ? "touch-manipulation" : "touch-none", isDragging && "card-dragging")}
     >
       <div
         // dnd-kit's attributes already supply role="button" and tabIndex.
         {...attributes}
-        {...listeners}
+        {...activator}
         onClick={() => props.onOpen(props.task.id)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -240,9 +263,42 @@ export function SortableTaskCard(props: TaskCardProps) {
         }}
         aria-label={`${props.task.key}: ${props.task.title}`}
         data-tour={props.tourAnchor ? "card" : undefined}
-        className="group/card block w-full cursor-grab touch-none rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
+        className={clsx(
+          "group/card relative block w-full rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+          // manipulation, not pan-y: the board scrolls sideways too, and
+          // pan-y would swallow every horizontal swipe that began on a card.
+          coarse
+            ? "touch-manipulation"
+            : "cursor-grab touch-none active:cursor-grabbing",
+        )}
       >
-        <TaskCardBody {...props} />
+        {coarse ? (
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            {...listeners}
+            aria-label={`Drag ${props.task.key} to reorder`}
+            onClick={(event) => {
+              // The grip only drags. Without this a tap on it would fall
+              // through to the card and open the task.
+              event.stopPropagation();
+              event.preventDefault();
+            }}
+            className="absolute top-0 bottom-0 left-0 z-10 flex w-7 touch-none cursor-grab items-center justify-center rounded-l-lg text-ink-3 active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          >
+            <svg viewBox="0 0 8 16" className="h-4 w-2" fill="currentColor" aria-hidden>
+              <circle cx="2" cy="4" r="1" />
+              <circle cx="6" cy="4" r="1" />
+              <circle cx="2" cy="8" r="1" />
+              <circle cx="6" cy="8" r="1" />
+              <circle cx="2" cy="12" r="1" />
+              <circle cx="6" cy="12" r="1" />
+            </svg>
+          </button>
+        ) : null}
+        <div className={coarse ? "pl-6" : undefined}>
+          <TaskCardBody {...props} />
+        </div>
       </div>
     </li>
   );
