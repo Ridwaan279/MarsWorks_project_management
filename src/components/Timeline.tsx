@@ -1,15 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
+import { TeamFilter } from "./TeamFilter";
 import { format } from "date-fns";
 import {
   addDays,
   daysBetween,
   SEASON_END,
-  STAGE_COLOUR,
-  STAGE_SHORT,
+  SEASON_START,
   startOfDay,
   STATUS_LABEL,
 } from "@/lib/domain";
@@ -55,8 +55,34 @@ const ROW_HEIGHT = 30;
 const GROUP_HEIGHT = 24;
 const TEAM_HEIGHT = 32;
 const HEADER_HEIGHT = 44;
-/** Width of the frozen task-name column. */
-const RAIL = 240;
+/**
+ * Width of the frozen task-name column.
+ *
+ * 240px of a 390px phone leaves about 150px of actual chart, which is not a
+ * timeline. The narrow value trades full task names (they truncate) for a
+ * chart wide enough to read, which is the reason to open this page at all.
+ */
+const RAIL_WIDE = 240;
+const RAIL_NARROW = 124;
+
+/**
+ * True on phone-width viewports.
+ *
+ * Starts false so the server and the first client render agree; the effect
+ * corrects it after mount. Matching on the client during render instead would
+ * be a hydration mismatch.
+ */
+function useNarrow() {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 639px)");
+    const sync = () => setNarrow(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return narrow;
+}
 
 export function Timeline({
   tasks,
@@ -69,9 +95,12 @@ export function Timeline({
 }: TimelineProps) {
   const [zoom, setZoom] = useState<Zoom>("normal");
   const [hideDone, setHideDone] = useState(false);
-  const [teamFilter, setTeamFilter] = useState<string | "ALL">("ALL");
+  // Empty means every team; see TeamFilter.
+  const [teamFilter, setTeamFilter] = useState<string[]>([]);
   const [range, setRange] = useState<RangeKey>("current");
   const dayWidth = ZOOM[zoom];
+  const narrow = useNarrow();
+  const RAIL = narrow ? RAIL_NARROW : RAIL_WIDE;
 
   const today = startOfDay(new Date(asOf));
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
@@ -81,7 +110,7 @@ export function Timeline({
       tasks.filter(
         (t) =>
           (!hideDone || t.status !== "DONE") &&
-          (teamFilter === "ALL" || t.teamId === teamFilter),
+          (teamFilter.length === 0 || teamFilter.includes(t.teamId)),
       ),
     [tasks, hideDone, teamFilter],
   );
@@ -121,7 +150,12 @@ export function Timeline({
     // Never start after today, or the "today" marker falls off the chart.
     if (earliest > today) earliest = today;
 
-    const chartStart = addDays(startOfDay(earliest), -3);
+    // The three-day lead-in keeps a bar starting on day one from being flush
+    // against the axis; the season floor then wins over it, so the chart
+    // opens on the season's first day and never earlier.
+    let chartStart = addDays(startOfDay(earliest), -3);
+    const floor = startOfDay(SEASON_START);
+    if (chartStart < floor) chartStart = floor;
     return {
       start: chartStart,
       totalDays: Math.max(daysBetween(chartStart, startOfDay(latest)) + 7, 14),
@@ -163,18 +197,12 @@ export function Timeline({
             const tasks = teamTasks
               .filter((t) => t.workstreamId === ws.id)
               .sort(byStart);
-            // Where every task in a group shares a lifecycle stage, colour the
-            // group by it; otherwise fall back to the sub-team's own colour.
-            const stages = new Set(tasks.map((t) => t.stage).filter(Boolean));
-            const colour =
-              stages.size === 1
-                ? STAGE_COLOUR[[...stages][0] as keyof typeof STAGE_COLOUR]
-                : team.colour;
             return {
               id: ws.id,
               label: ws.code ? `${ws.code}  ${ws.name}` : ws.name,
-              colour,
-              stage: stages.size === 1 ? ([...stages][0] as keyof typeof STAGE_COLOUR) : null,
+              // Workstream bands carry their sub-team's colour, the same
+              // identity the board and the overview use.
+              colour: team.colour,
               tasks,
             };
           })
@@ -190,7 +218,6 @@ export function Timeline({
             id: `${team.id}-none`,
             label: "",
             colour: team.colour,
-            stage: null,
             tasks: ungrouped,
           });
         }
@@ -223,24 +250,42 @@ export function Timeline({
 
   const todayOffset = daysBetween(start, today) * dayWidth;
 
+  /*
+   * Open on today rather than on the left edge of the range.
+   *
+   * The range starts weeks before now so that work already under way has its
+   * run-up visible, but that means the first screenful is empty history --
+   * and on a phone, where only about 250px of chart fits, the bars can be
+   * entirely off-screen with nothing to suggest scrolling right. A week of
+   * lead-in keeps the immediate past in view without burying the present.
+   */
+  const chartRef = useRef<HTMLDivElement>(null);
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || scrolledRef.current) return;
+    const lead = 7 * dayWidth;
+    chart.scrollLeft = Math.max(0, todayOffset - lead);
+    scrolledRef.current = true;
+  }, [todayOffset, dayWidth]);
+
+  // Range and zoom changes rebuild the axis, so re-anchor on the next paint.
+  useEffect(() => {
+    scrolledRef.current = false;
+  }, [range, zoom]);
+
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
-        <label data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
-          Sub-team
-          <select
-            value={teamFilter}
-            onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-line bg-panel px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <option value="ALL">All teams</option>
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
+          <label htmlFor="timeline-team-filter">Sub-team</label>
+          <TeamFilter
+            id="timeline-team-filter"
+            teams={teams}
+            selected={teamFilter}
+            onChange={setTeamFilter}
+          />
+        </div>
 
         <label data-tour="range" className="flex items-center gap-2 text-xs text-ink-2">
           Range
@@ -328,7 +373,11 @@ export function Timeline({
          * vertically with their own bars instead of being a separate pane
          * that has to be kept in step.
          */
-        <div data-tour="chart" className="overscroll-none-safe relative flex-1 overflow-auto">
+        <div
+          ref={chartRef}
+          data-tour="chart"
+          className="overscroll-none-safe relative flex-1 overflow-auto"
+        >
           <div
             className="relative"
             style={{ width: RAIL + chartWidth, minWidth: "100%" }}
@@ -410,7 +459,7 @@ export function Timeline({
 
               {grouped.map(({ team, groups, count }) => (
                 <div key={team.id} className="relative z-10">
-                  <Row height={TEAM_HEIGHT} chartWidth={chartWidth} tone="team">
+                  <Row height={TEAM_HEIGHT} chartWidth={chartWidth} railWidth={RAIL} tone="team">
                     <span className="flex w-full items-center gap-2">
                       <TeamDot colour={team.colour} />
                       <span className="truncate text-xs font-semibold">{team.name}</span>
@@ -426,6 +475,7 @@ export function Timeline({
                         <Row
                           height={GROUP_HEIGHT}
                           chartWidth={chartWidth}
+                          railWidth={RAIL}
                           tone="group"
                           accent={group.colour}
                         >
@@ -438,17 +488,6 @@ export function Timeline({
                             <span className="truncate text-[11px] font-medium text-ink-2">
                               {group.label}
                             </span>
-                            {group.stage ? (
-                              <span
-                                className="ml-auto mr-2 shrink-0 rounded px-1.5 py-px text-[9px] font-medium"
-                                style={{
-                                  color: group.colour,
-                                  backgroundColor: `color-mix(in srgb, ${group.colour} 16%, transparent)`,
-                                }}
-                              >
-                                {STAGE_SHORT[group.stage]}
-                              </span>
-                            ) : null}
                           </span>
                         </Row>
                       ) : null}
@@ -468,6 +507,7 @@ export function Timeline({
                             key={task.id}
                             height={ROW_HEIGHT}
                             chartWidth={chartWidth}
+                            railWidth={RAIL}
                             tone="task"
                             rail={
                               <Link
@@ -477,7 +517,12 @@ export function Timeline({
                                 <span className="shrink-0 font-mono text-[10px] text-ink-3" translate="no">
                                   {task.key}
                                 </span>
-                                <span className="min-w-0 flex-1 truncate text-ink-2">
+                                <span
+                                  className={clsx(
+                                    "min-w-0 flex-1 truncate",
+                                    done ? "text-ink-3 line-through" : "text-ink-2",
+                                  )}
+                                >
                                   {task.title}
                                 </span>
                                 {task.assigneeId ? (
@@ -497,7 +542,7 @@ export function Timeline({
                                 className={clsx(
                                   "absolute top-1/2 flex h-4 -translate-y-1/2 items-center overflow-hidden rounded-sm ring-1 transition-[height,box-shadow] hover:h-5 hover:ring-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                                   done
-                                    ? "opacity-50 ring-transparent"
+                                    ? "opacity-80 ring-transparent"
                                     : sched.isCritical
                                       ? "ring-accent"
                                       : sched.slackDays < 0
@@ -515,9 +560,20 @@ export function Timeline({
                                   className="absolute inset-y-0 left-0"
                                   style={{
                                     width: `${done ? 100 : task.progress}%`,
-                                    backgroundColor: team.colour,
+                                    backgroundColor: done
+                                      ? `color-mix(in srgb, ${team.colour} 45%, var(--color-bg))`
+                                      : team.colour,
                                   }}
                                 />
+                                {done ? (
+                                  <span
+                                    aria-hidden
+                                    className="absolute inset-x-1 top-1/2 h-px -translate-y-1/2"
+                                    style={{
+                                      backgroundColor: `color-mix(in srgb, ${team.colour} 85%, var(--color-text))`,
+                                    }}
+                                  />
+                                ) : null}
                                 <span className="sr-only">
                                   {task.key} {task.title}, {STATUS_LABEL[task.status]}
                                 </span>
@@ -546,6 +602,7 @@ export function Timeline({
 function Row({
   height,
   chartWidth,
+  railWidth,
   tone,
   accent,
   rail,
@@ -553,6 +610,7 @@ function Row({
 }: {
   height: number;
   chartWidth: number;
+  railWidth: number;
   tone: "team" | "group" | "task";
   accent?: string;
   rail?: React.ReactNode;
@@ -572,7 +630,7 @@ function Row({
           rail ? "" : "px-3",
           background,
         )}
-        style={{ width: RAIL, ...tint }}
+        style={{ width: railWidth, ...tint }}
       >
         {rail ?? children}
       </div>

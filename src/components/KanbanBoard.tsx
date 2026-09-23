@@ -32,6 +32,8 @@ import type {
 import type { ScheduledTask } from "@/lib/schedule";
 import { SortableTaskCard, TaskCardBody } from "./TaskCard";
 import { TaskDrawer } from "./TaskDrawer";
+import { FlagDialog } from "./FlagDialog";
+import { TeamFilter } from "./TeamFilter";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { TeamDot } from "./ui";
 
@@ -93,8 +95,10 @@ export function KanbanBoard({
   }, [workstreams]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(initialTaskId ?? null);
-  const [teamFilter, setTeamFilter] = useState<string | "ALL">("ALL");
+  // Empty means every team; see TeamFilter.
+  const [teamFilter, setTeamFilter] = useState<string[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string | "ALL">("ALL");
+  const [flagging, setFlagging] = useState<string | null>(null);
   const [creatingIn, setCreatingIn] = useState<TaskStatus | null>(null);
   const [scope, setScope] = useState<"CURRENT" | "ALL">("CURRENT");
   // Workstreams can be created from the new-task dialog, so this list has to
@@ -149,7 +153,7 @@ export function KanbanBoard({
 
   const matchesFilters = useCallback(
     (task: TaskView) =>
-      (teamFilter === "ALL" || task.teamId === teamFilter) &&
+      (teamFilter.length === 0 || teamFilter.includes(task.teamId)) &&
       (assigneeFilter === "ALL" ||
         (assigneeFilter === "UNASSIGNED"
           ? task.assigneeId === null
@@ -278,17 +282,17 @@ export function KanbanBoard({
     void persist(taskId, { status: targetStatus, boardOrder }, previous);
   }
 
-  const toggleFlag = useCallback(
-    async (taskId: string, flagged: boolean) => {
+  const applyFlag = useCallback(
+    async (taskId: string, flagged: boolean, flagReason: string | null) => {
       const previous = tasks.map((t) => ({ ...t }));
       setTasks((current) =>
-        current.map((t) => (t.id === taskId ? { ...t, flagged } : t)),
+        current.map((t) => (t.id === taskId ? { ...t, flagged, flagReason } : t)),
       );
       try {
         const response = await fetch(`/api/tasks/${taskId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ flagged }),
+          body: JSON.stringify({ flagged, flagReason }),
         });
         if (!response.ok) throw new Error(`Server returned ${response.status}`);
         router.refresh();
@@ -301,6 +305,19 @@ export function KanbanBoard({
     [tasks, router],
   );
 
+  /*
+   * Raising a flag asks why; clearing one does not. Taking a flag down is
+   * already an unambiguous act, and its reason has to go with it, or the next
+   * person to raise one inherits a note about something else.
+   */
+  const toggleFlag = useCallback(
+    (taskId: string, flagged: boolean) => {
+      if (flagged) setFlagging(taskId);
+      else void applyFlag(taskId, false, null);
+    },
+    [applyFlag],
+  );
+
   const handleTaskSaved = useCallback(
     (updated: TaskView) => {
       setTasks((current) => current.map((t) => (t.id === updated.id ? updated : t)));
@@ -309,9 +326,37 @@ export function KanbanBoard({
     [router],
   );
 
+  /*
+   * On a phone one column fills the screen, and the board starts at Backlog --
+   * which under the default Current filter is usually empty. That is a screen
+   * of nothing, with no sign that the work is two swipes to the right. Scroll
+   * to the first column that actually holds something instead. Only on narrow
+   * screens: on a desktop every column is already visible and moving the
+   * scroll position would just be confusing.
+   */
+  const flaggingTask = flagging ? tasks.find((t) => t.id === flagging) ?? null : null;
+
+  const firstOccupied = BOARD_COLUMNS.find(
+    (c) => (columns.get(c.status) ?? []).length > 0,
+  )?.status;
+  const firstOccupiedRef = useRef<HTMLElement | null>(null);
+  const scrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (scrolledRef.current || !firstOccupied) return;
+    const board = boardRef.current;
+    const target = firstOccupiedRef.current;
+    if (!board || !target) return;
+    if (!window.matchMedia("(max-width: 639px)").matches) return;
+    // Left-align the column rather than scrollIntoView, which would also
+    // scroll the page vertically.
+    board.scrollLeft = target.offsetLeft - board.offsetLeft;
+    scrolledRef.current = true;
+  }, [firstOccupied]);
+
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] min-w-0 flex-col overflow-hidden">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-2.5 sm:px-6 sm:py-3">
         <div
           role="group"
           data-tour="scope"
@@ -341,21 +386,15 @@ export function KanbanBoard({
           ))}
         </div>
 
-        <label data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
-          Sub-team
-          <select
-            value={teamFilter}
-            onChange={(e) => setTeamFilter(e.target.value)}
-            className="rounded-md border border-line bg-panel px-2 py-1.5 text-xs text-ink focus:border-accent focus:outline-none"
-          >
-            <option value="ALL">All teams</option>
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
+          <label htmlFor="board-team-filter">Sub-team</label>
+          <TeamFilter
+            id="board-team-filter"
+            teams={teams}
+            selected={teamFilter}
+            onChange={setTeamFilter}
+          />
+        </div>
 
         <label className="flex items-center gap-2 text-xs text-ink-2">
           Assignee
@@ -389,10 +428,14 @@ export function KanbanBoard({
               </>
             ) : null}
           </span>
-          {teamFilter !== "ALL" ? (
+          {teamFilter.length > 0 ? (
             <span className="flex items-center gap-1.5">
-              <TeamDot colour={teamById.get(teamFilter)?.colour ?? "#64748b"} />
-              {teamById.get(teamFilter)?.name}
+              {teamFilter.map((id) => (
+                <TeamDot key={id} colour={teamById.get(id)?.colour ?? "#64748b"} />
+              ))}
+              {teamFilter.length === 1
+                ? teamById.get(teamFilter[0])?.name
+                : `${teamFilter.length} teams`}
             </span>
           ) : null}
         </div>
@@ -429,6 +472,9 @@ export function KanbanBoard({
           {BOARD_COLUMNS.map((column) => (
             <BoardColumn
               key={column.status}
+              columnRef={
+                column.status === firstOccupied ? firstOccupiedRef : undefined
+              }
               status={column.status}
               label={column.label}
               tasks={columns.get(column.status) ?? []}
@@ -464,9 +510,22 @@ export function KanbanBoard({
           members={members}
           milestones={milestones}
           workstreams={workstreamList}
+          allTasks={tasks}
           scheduled={scheduled[openTask.id]}
           onClose={() => setOpenTaskId(null)}
           onSaved={handleTaskSaved}
+        />
+      ) : null}
+
+      {flaggingTask ? (
+        <FlagDialog
+          taskKey={flaggingTask.key}
+          taskTitle={flaggingTask.title}
+          onCancel={() => setFlagging(null)}
+          onConfirm={(reason) => {
+            void applyFlag(flaggingTask.id, true, reason);
+            setFlagging(null);
+          }}
         />
       ) : null}
 
@@ -482,15 +541,17 @@ export function KanbanBoard({
               current.some((w) => w.id === created.id) ? current : [...current, created],
             )
           }
-          defaultTeamId={teamFilter === "ALL" ? teams[0]?.id : teamFilter}
+          defaultTeamId={teamFilter.length === 1 ? teamFilter[0] : teams[0]?.id}
           onClose={() => setCreatingIn(null)}
           onCreated={(created) => {
             setCreatingIn(null);
             // A task the active filters would hide looks like a failed save.
             // Relax whichever filter is in the way so the new card is on
             // screen, rather than silently dropping it.
-            if (teamFilter !== "ALL" && teamFilter !== created.teamId) {
-              setTeamFilter("ALL");
+            if (teamFilter.length > 0 && !teamFilter.includes(created.teamId)) {
+              // Widen rather than clear: the other chosen teams were a
+              // deliberate choice and the new task just joins them.
+              setTeamFilter([...teamFilter, created.teamId]);
             }
             setAssigneeFilter("ALL");
             // Judge the real task, not a stand-in: a future start date makes
@@ -507,6 +568,7 @@ export function KanbanBoard({
 }
 
 function BoardColumn({
+  columnRef,
   status,
   label,
   tasks,
@@ -517,6 +579,7 @@ function BoardColumn({
   onToggleFlag,
   onAdd,
 }: {
+  columnRef?: React.MutableRefObject<HTMLElement | null>;
   status: TaskStatus;
   label: string;
   tasks: TaskView[];
@@ -532,8 +595,11 @@ function BoardColumn({
 
   return (
     <section
+      ref={columnRef}
       className={clsx(
-        "flex w-[290px] shrink-0 flex-col rounded-xl border transition-colors",
+        // 86vw leaves a sliver of the next column visible, which is the only
+        // cue on a phone that the board scrolls sideways at all.
+        "flex w-[86vw] shrink-0 flex-col rounded-xl border transition-colors sm:w-[290px]",
         isOver ? "border-accent/50 bg-elevated/60" : "border-line bg-panel/60",
       )}
     >

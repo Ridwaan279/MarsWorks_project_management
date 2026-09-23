@@ -150,8 +150,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
           <p className="text-xs text-ink-3">
             <TeamDot colour={teamById.get(selected.teamId)?.colour ?? "#64748b"} />{" "}
             <span className="ml-1">
-              {teamById.get(selected.teamId)?.name} &middot;{" "}
-              {selected.estimateDays} day estimate &middot; {selected.progress}% done
+              {teamById.get(selected.teamId)?.name} &middot; {selected.progress}% done
             </span>
           </p>
         ) : null}

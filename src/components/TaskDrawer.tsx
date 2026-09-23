@@ -5,12 +5,9 @@ import Link from "next/link";
 import { format } from "date-fns";
 import {
   PRIORITY_LABEL,
-  PROJECT_STAGES,
-  STAGE_LABEL,
   STATUS_LABEL,
   TASK_PRIORITIES,
   TASK_STATUSES,
-  type ProjectStage,
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/domain";
@@ -30,6 +27,8 @@ interface DrawerProps {
   members: MemberView[];
   milestones: MilestoneView[];
   workstreams: WorkstreamView[];
+  /** Every task on the board, so this one can be made to wait on another. */
+  allTasks: TaskView[];
   scheduled: ScheduledTask | undefined;
   onClose: () => void;
   onSaved: (task: TaskView) => void;
@@ -84,6 +83,7 @@ export function TaskDrawer({
   members,
   milestones,
   workstreams,
+  allTasks,
   scheduled,
   onClose,
   onSaved,
@@ -93,6 +93,8 @@ export function TaskDrawer({
   const [error, setError] = useState<string | null>(null);
   const [linkLabel, setLinkLabel] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+  const [subtaskTitle, setSubtaskTitle] = useState("");
+  const [dependencyId, setDependencyId] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setDraft(task), [task]);
@@ -117,9 +119,7 @@ export function TaskDrawer({
     draft.priority !== task.priority ||
     draft.assigneeId !== task.assigneeId ||
     draft.milestoneId !== task.milestoneId ||
-    draft.estimateDays !== task.estimateDays ||
     draft.progress !== task.progress ||
-    draft.stage !== task.stage ||
     draft.workstreamId !== task.workstreamId ||
     draft.ownerLabel !== task.ownerLabel ||
     draft.notes !== task.notes ||
@@ -140,9 +140,7 @@ export function TaskDrawer({
           priority: draft.priority,
           assigneeId: draft.assigneeId,
           milestoneId: draft.milestoneId,
-          estimateDays: draft.estimateDays,
           progress: draft.status === "DONE" ? 100 : draft.progress,
-          stage: draft.stage,
           workstreamId: draft.workstreamId,
           ownerLabel: draft.ownerLabel || null,
           notes: draft.notes || null,
@@ -210,7 +208,128 @@ export function TaskDrawer({
     await fetch(`/api/links/${linkId}`, { method: "DELETE" }).catch(() => {});
   }
 
+  async function addSubtask(event: React.FormEvent) {
+    event.preventDefault();
+    const title = subtaskTitle.trim();
+    if (!title) return;
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/subtasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      if (!response.ok) {
+        setError("Could not add that checklist item.");
+        return;
+      }
+      const created = await response.json();
+      const next = {
+        ...draft,
+        subtasks: [
+          ...draft.subtasks,
+          { id: created.id, title: created.title, done: created.done },
+        ],
+      };
+      setDraft(next);
+      onSaved(next);
+      setSubtaskTitle("");
+      setError(null);
+    } catch {
+      setError("Could not add that checklist item.");
+    }
+  }
+
+  async function toggleSubtask(subtaskId: string, done: boolean) {
+    const next = {
+      ...draft,
+      subtasks: draft.subtasks.map((st) =>
+        st.id === subtaskId ? { ...st, done } : st,
+      ),
+    };
+    setDraft(next);
+    onSaved(next);
+    await fetch(`/api/subtasks/${subtaskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ done }),
+    }).catch(() => {});
+  }
+
+  async function removeSubtask(subtaskId: string) {
+    const next = {
+      ...draft,
+      subtasks: draft.subtasks.filter((st) => st.id !== subtaskId),
+    };
+    setDraft(next);
+    onSaved(next);
+    await fetch(`/api/subtasks/${subtaskId}`, { method: "DELETE" }).catch(() => {});
+  }
+
+  async function addDependency(event: React.FormEvent) {
+    event.preventDefault();
+    if (!dependencyId) return;
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/dependencies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ predecessorId: dependencyId }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        // The API explains a refused link (a loop, a duplicate); it is more
+        // useful than anything this component could guess.
+        setError(body?.error ?? "Could not add that dependency.");
+        return;
+      }
+      const created = await response.json();
+      const predecessor = allTasks.find((t) => t.id === dependencyId);
+      if (predecessor) {
+        const next = {
+          ...draft,
+          blockedBy: [
+            ...draft.blockedBy,
+            {
+              depId: created.id,
+              id: predecessor.id,
+              key: predecessor.key,
+              title: predecessor.title,
+              teamId: predecessor.teamId,
+            },
+          ],
+        };
+        setDraft(next);
+        onSaved(next);
+      }
+      setDependencyId("");
+      setError(null);
+    } catch {
+      setError("Could not add that dependency.");
+    }
+  }
+
+  async function removeDependency(depId: string) {
+    const next = {
+      ...draft,
+      blockedBy: draft.blockedBy.filter((d) => d.depId !== depId),
+      blocks: draft.blocks.filter((d) => d.depId !== depId),
+    };
+    setDraft(next);
+    onSaved(next);
+    await fetch(`/api/dependencies/${depId}`, { method: "DELETE" }).catch(() => {});
+  }
+
   const doneSubtasks = draft.subtasks.filter((st) => st.done).length;
+
+  // Anything already linked either way is left out, as is the task itself;
+  // the API refuses those, and offering them just invites the error.
+  const linkedIds = new Set([
+    task.id,
+    ...draft.blockedBy.map((d) => d.id),
+    ...draft.blocks.map((d) => d.id),
+  ]);
+  const dependencyOptions = allTasks
+    .filter((t) => !linkedIds.has(t.id))
+    .sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -249,6 +368,22 @@ export function TaskDrawer({
         </header>
 
         <div className="selectable overscroll-none-safe flex-1 space-y-5 overflow-y-auto px-5 py-5">
+          {/* Opening a flagged task should answer "why is this flagged?"
+              before anything else on the screen. */}
+          {draft.flagged ? (
+            <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-danger">
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                  <path d="M3.75 2v12M3.75 3h7.7a.6.6 0 0 1 .47.97L10.4 6.2a.5.5 0 0 0 0 .6l1.52 2.23a.6.6 0 0 1-.47.97h-7.7" />
+                </svg>
+                Flagged
+              </p>
+              <p className="mt-1 text-sm text-ink-2 text-pretty">
+                {draft.flagReason || "No reason was given."}
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <label className={LABEL} htmlFor="task-title">
               Title
@@ -482,30 +617,6 @@ export function TaskDrawer({
               </div>
 
               <div className="space-y-1.5">
-                <label className={LABEL} htmlFor="task-stage">
-                  Stage
-                </label>
-                <select
-                  id="task-stage"
-                  value={draft.stage ?? ""}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      stage: (e.target.value || null) as ProjectStage | null,
-                    })
-                  }
-                  className={FIELD}
-                >
-                  <option value="">Not set</option>
-                  {PROJECT_STAGES.map((stage) => (
-                    <option key={stage} value={stage}>
-                      {STAGE_LABEL[stage]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
                 <label className={LABEL} htmlFor="task-priority">
                   Priority
                 </label>
@@ -547,24 +658,6 @@ export function TaskDrawer({
               </div>
 
               <div className="space-y-1.5">
-                <label className={LABEL} htmlFor="task-estimate">
-                  Estimate (days)
-                </label>
-                <input
-                  id="task-estimate"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={365}
-                  value={draft.estimateDays}
-                  onChange={(e) =>
-                    setDraft({ ...draft, estimateDays: Number(e.target.value) || 0 })
-                  }
-                  className={FIELD}
-                />
-              </div>
-
-              <div className="space-y-1.5">
                 <label className={LABEL} htmlFor="task-owner-label">
                   Owner (as written)
                 </label>
@@ -591,6 +684,130 @@ export function TaskDrawer({
                 className={`${FIELD} resize-y`}
               />
             </div>
+            <Disclosure
+              title="Dependencies"
+              badge={
+                draft.blockedBy.length + draft.blocks.length > 0
+                  ? `${draft.blockedBy.length + draft.blocks.length}`
+                  : undefined
+              }
+            >
+              <div className="space-y-1.5">
+                <p className="text-xs text-ink-2">Waiting on</p>
+                {draft.blockedBy.length > 0 ? (
+                  <ul className="space-y-1">
+                    {draft.blockedBy.map((dep) => (
+                      <DependencyRow
+                        key={dep.depId}
+                        dep={dep}
+                        teams={teams}
+                        onRemove={() => removeDependency(dep.depId)}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-ink-3">
+                    Nothing yet &mdash; this task can start whenever.
+                  </p>
+                )}
+                <form onSubmit={addDependency} className="flex gap-2">
+                  <select
+                    aria-label="Task this one waits on"
+                    value={dependencyId}
+                    onChange={(e) => setDependencyId(e.target.value)}
+                    className={`${FIELD} text-xs`}
+                  >
+                    <option value="">Add a task this one waits on…</option>
+                    {dependencyOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.key} — {option.title}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={!dependencyId}
+                    className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    Add
+                  </button>
+                </form>
+              </div>
+
+              {draft.blocks.length > 0 ? (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-ink-2">Blocking</p>
+                  <ul className="space-y-1">
+                    {draft.blocks.map((dep) => (
+                      <DependencyRow
+                        key={dep.depId}
+                        dep={dep}
+                        teams={teams}
+                        onRemove={() => removeDependency(dep.depId)}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </Disclosure>
+
+            <Disclosure
+              title="Checklist"
+              badge={
+                draft.subtasks.length > 0
+                  ? `${doneSubtasks}/${draft.subtasks.length}`
+                  : undefined
+              }
+            >
+              {draft.subtasks.length > 0 ? (
+                <ul className="space-y-0.5">
+                  {draft.subtasks.map((st) => (
+                    <li key={st.id} className="group/st flex items-start gap-2">
+                      <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded px-1 py-1 text-xs hover:bg-elevated">
+                        <input
+                          type="checkbox"
+                          checked={st.done}
+                          onChange={(e) => toggleSubtask(st.id, e.target.checked)}
+                          className="mt-px h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--color-success)]"
+                        />
+                        <span className={st.done ? "text-ink-3 line-through" : ""}>
+                          {st.title}
+                        </span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removeSubtask(st.id)}
+                        aria-label={`Remove "${st.title}"`}
+                        className="mt-0.5 shrink-0 rounded p-1 text-ink-3 opacity-0 transition-opacity group-hover/st:opacity-100 hover:text-danger focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      >
+                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
+                          <path d="M4.3 3.3 8 7l3.7-3.7 1 1L9 8l3.7 3.7-1 1L8 9l-3.7 3.7-1-1L7 8 3.3 4.3Z" />
+                        </svg>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-ink-3">No checklist items yet.</p>
+              )}
+              <form onSubmit={addSubtask} className="flex gap-2">
+                <input
+                  value={subtaskTitle}
+                  onChange={(e) => setSubtaskTitle(e.target.value)}
+                  placeholder="Add a checklist item"
+                  aria-label="New checklist item"
+                  autoComplete="off"
+                  className={`${FIELD} text-xs`}
+                />
+                <button
+                  type="submit"
+                  disabled={!subtaskTitle.trim()}
+                  className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  Add
+                </button>
+              </form>
+            </Disclosure>
           </Disclosure>
 
           {scheduled ? (
@@ -647,58 +864,10 @@ export function TaskDrawer({
             </Disclosure>
           ) : null}
 
-          {draft.blockedBy.length > 0 || draft.blocks.length > 0 ? (
-            <Disclosure
-              title="Dependencies"
-              badge={`${draft.blockedBy.length + draft.blocks.length}`}
-            >
-              {draft.blockedBy.length > 0 ? (
-                <div className="space-y-1.5">
-                  <p className="text-xs text-ink-2">Waiting on</p>
-                  <ul className="space-y-1">
-                    {draft.blockedBy.map((dep) => (
-                      <DependencyRow key={dep.id} dep={dep} teams={teams} />
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {draft.blocks.length > 0 ? (
-                <div className="space-y-1.5">
-                  <p className="text-xs text-ink-2">Blocking</p>
-                  <ul className="space-y-1">
-                    {draft.blocks.map((dep) => (
-                      <DependencyRow key={dep.id} dep={dep} teams={teams} />
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </Disclosure>
-          ) : null}
+          {/* Both sections are offered on every task, empty or not: a checklist
+              you cannot start and a dependency you cannot record are the two
+              things people gave up on this tool for. */}
 
-          {draft.subtasks.length > 0 ? (
-            <Disclosure
-              title="Checklist"
-              badge={`${doneSubtasks}/${draft.subtasks.length}`}
-            >
-              <ul className="space-y-1">
-                {draft.subtasks.map((st) => (
-                  <li key={st.id} className="flex items-start gap-2 text-xs">
-                    <span
-                      aria-hidden
-                      className={
-                        st.done
-                          ? "mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm bg-success"
-                          : "mt-0.5 inline-block h-3 w-3 shrink-0 rounded-sm ring-1 ring-line"
-                      }
-                    />
-                    <span className={st.done ? "text-ink-3 line-through" : ""}>
-                      {st.title}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Disclosure>
-          ) : null}
         </div>
 
         <footer className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
@@ -740,19 +909,35 @@ export function TaskDrawer({
 function DependencyRow({
   dep,
   teams,
+  onRemove,
 }: {
   dep: { id: string; key: string; title: string; teamId: string };
   teams: TeamView[];
+  onRemove?: () => void;
 }) {
   const team = teams.find((t) => t.id === dep.teamId);
   return (
-    <li className="flex items-center gap-2 rounded-md bg-elevated px-2.5 py-1.5 text-xs">
+    <li className="group/dep flex items-center gap-2 rounded-md bg-elevated px-2.5 py-1.5 text-xs">
       {team ? <TeamDot colour={team.colour} /> : null}
       <span className="font-mono text-ink-3" translate="no">
         {dep.key}
       </span>
       <span className="min-w-0 flex-1 truncate">{dep.title}</span>
-      {team ? <span className="shrink-0 text-ink-3">{team.name}</span> : null}
+      {team ? (
+        <span className="hidden shrink-0 text-ink-3 sm:inline">{team.name}</span>
+      ) : null}
+      {onRemove ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove dependency on ${dep.key}`}
+          className="-mr-1 shrink-0 rounded p-1 text-ink-3 opacity-0 transition-opacity group-hover/dep:opacity-100 hover:text-danger focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
+            <path d="M4.3 3.3 8 7l3.7-3.7 1 1L9 8l3.7 3.7-1 1L8 9l-3.7 3.7-1-1L7 8 3.3 4.3Z" />
+          </svg>
+        </button>
+      ) : null}
     </li>
   );
 }
