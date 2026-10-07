@@ -125,7 +125,30 @@ export async function GET() {
       ok: false,
       detail:
         code === "P2021"
-          ? "The tables do not exist. Run `npx prisma db push` locally with DATABASE_URL pointing at this database; the build never touches the database, so it cannot do this for you."
+          ? "The tables do not exist. Run `npx prisma db push` locally with DIRECT_URL pointing at this database."
+          : `Query failed${code ? ` (${code})` : ""}.`,
+    });
+    return NextResponse.json({ ok: false, checks }, { status: 503 });
+  }
+
+  /*
+   * Counting rows touches no columns, so the check above passes even when the
+   * code expects a column the database does not have yet. Reading one whole
+   * row selects every column the code knows about -- exactly what every page
+   * does -- so it fails the same way the pages would, and can say why.
+   */
+  try {
+    await prisma.task.findFirst();
+    await prisma.milestone.findFirst();
+    checks.push({ name: "Schema up to date", ok: true, detail: "Every column the code uses exists." });
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    checks.push({
+      name: "Schema up to date",
+      ok: false,
+      detail:
+        code === "P2022"
+          ? "The code expects a column the database does not have. Every page will fail until the schema is updated: set DIRECT_URL in Vercel and redeploy (the build applies it), or run `npx prisma db push` locally against this database."
           : `Query failed${code ? ` (${code})` : ""}.`,
     });
     return NextResponse.json({ ok: false, checks }, { status: 503 });

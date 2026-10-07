@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { deriveProgress } from "@/lib/progress";
 import { PROJECT_STAGES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/domain";
 
 const updateTask = z
@@ -60,20 +61,29 @@ export async function PATCH(
     ...(plannedEnd !== undefined
       ? { plannedEnd: plannedEnd ? new Date(plannedEnd) : null }
       : {}),
-    // Status and progress are two views of the same fact, so keep them in step
-    // in both directions: moving a card to Done finishes it, and finishing it
-    // moves the card. Otherwise the board and the forecast disagree.
-    ...(rest.status === "DONE" ? { progress: 100 } : {}),
-    ...(rest.progress === 100 && rest.status === undefined ? { status: "DONE" as const } : {}),
   };
 
   try {
     const task = await prisma.$transaction(async (tx) => {
       const existing = await tx.task.findUnique({
         where: { id },
-        select: { actualStart: true },
+        select: {
+          actualStart: true,
+          status: true,
+          progress: true,
+          subtasks: { select: { done: true } },
+        },
       });
       if (!existing) throw new Error("NOT_FOUND");
+
+      // Progress follows status and the checklist; see deriveProgress. A
+      // progress value in the request is only honoured for a task with no
+      // checklist, since otherwise the checklist is the authority.
+      const progress = deriveProgress(
+        data.status ?? existing.status,
+        existing.subtasks,
+        data.progress ?? existing.progress,
+      );
 
       // Record when work really started and finished, so completed tasks can
       // be drawn where they happened rather than at today's date. actualStart
@@ -90,7 +100,10 @@ export async function PATCH(
       if (becomesDone) timestamps.actualEnd = new Date();
       else if (data.status !== undefined) timestamps.actualEnd = null;
 
-      return tx.task.update({ where: { id }, data: { ...data, ...timestamps } });
+      return tx.task.update({
+        where: { id },
+        data: { ...data, progress, ...timestamps },
+      });
     });
     return NextResponse.json(task);
   } catch (error) {

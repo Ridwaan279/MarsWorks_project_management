@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { refreshProgress } from "@/lib/checklist";
 
 const updateSubtask = z
   .object({
@@ -23,9 +24,10 @@ export async function PATCH(
   }
 
   try {
-    const subtask = await prisma.subtask.update({
-      where: { id },
-      data: parsed.data,
+    const subtask = await prisma.$transaction(async (tx) => {
+      const updated = await tx.subtask.update({ where: { id }, data: parsed.data });
+      await refreshProgress(tx, updated.taskId);
+      return updated;
     });
     return NextResponse.json(subtask);
   } catch {
@@ -39,7 +41,10 @@ export async function DELETE(
 ) {
   const { id } = await context.params;
   try {
-    await prisma.subtask.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      const removed = await tx.subtask.delete({ where: { id } });
+      await refreshProgress(tx, removed.taskId);
+    });
     return new NextResponse(null, { status: 204 });
   } catch {
     return NextResponse.json({ error: "Unknown checklist item" }, { status: 404 });

@@ -88,13 +88,13 @@ export function KanbanBoard({
    * router.refresh() only runs after a write has been accepted, so replacing
    * local state here cannot lose an optimistic change.
    */
-  useEffect(() => {
+  // Adopted during render rather than in an effect: React's documented way to
+  // reset state from a changed prop, without a wasted render in between.
+  const [seenTasks, setSeenTasks] = useState(initialTasks);
+  if (initialTasks !== seenTasks) {
+    setSeenTasks(initialTasks);
     setTasks(initialTasks);
-  }, [initialTasks]);
-
-  useEffect(() => {
-    setWorkstreamList(workstreams);
-  }, [workstreams]);
+  }
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(initialTaskId ?? null);
   // Empty means every team; see TeamFilter.
@@ -108,6 +108,11 @@ export function KanbanBoard({
   // Workstreams can be created from the new-task dialog, so this list has to
   // grow locally as well as arriving from the server.
   const [workstreamList, setWorkstreamList] = useState(workstreams);
+  const [seenWorkstreams, setSeenWorkstreams] = useState(workstreams);
+  if (workstreams !== seenWorkstreams) {
+    setSeenWorkstreams(workstreams);
+    setWorkstreamList(workstreams);
+  }
   const [error, setError] = useState<string | null>(null);
   /** Board state as it was when the current drag began, for rollback. */
   const rollbackRef = useRef<TaskView[] | null>(null);
@@ -622,7 +627,7 @@ export function KanbanBoard({
           ref={boardRef}
           data-board-scroll
           onWheel={handleBoardWheel}
-          className="flex min-w-0 flex-1 gap-3 overflow-x-auto overscroll-x-contain px-4 py-4 sm:px-6"
+          className="flex min-w-0 flex-1 gap-3 overflow-x-auto overscroll-x-contain px-4 py-4 sm:px-6 lg:gap-2 lg:px-4"
         >
           {BOARD_COLUMNS.map((column) => (
             <BoardColumn
@@ -773,7 +778,11 @@ function BoardColumn({
       className={clsx(
         // 86vw leaves a sliver of the next column visible, which is the only
         // cue on a phone that the board scrolls sideways at all.
-        "flex w-[86vw] shrink-0 flex-col rounded-xl border transition-colors sm:w-[290px]",
+        // Laptop widths: six fixed 290px columns need ~1830px, so on a
+        // 1280-1440px screen In review was sliced in half and Done was off
+        // the edge entirely. From lg up the columns share the width instead,
+        // which fits all six from 1280px; below 200px each they scroll.
+        "flex w-[86vw] shrink-0 flex-col rounded-xl border transition-colors sm:w-[290px] lg:w-auto lg:min-w-[200px] lg:max-w-[360px] lg:flex-1 lg:basis-0",
         isOver ? "border-accent/50 bg-elevated/60" : "border-line bg-panel/60",
       )}
     >

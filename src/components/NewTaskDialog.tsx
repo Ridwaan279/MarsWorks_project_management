@@ -15,6 +15,7 @@ import type {
   TeamView,
   WorkstreamView,
 } from "@/lib/project";
+import { projectDateString } from "@/lib/clock";
 
 interface Props {
   status: TaskStatus;
@@ -39,8 +40,12 @@ const FIELD =
   "w-full min-w-0 rounded-md border border-line bg-elevated px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 const LABEL = "block text-xs font-medium text-ink-2";
 
+/**
+ * Today's date in the team's timezone. toISOString() would give the UTC date,
+ * which between midnight and 1am British Summer Time is still yesterday.
+ */
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return projectDateString();
 }
 
 /**

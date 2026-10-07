@@ -17,6 +17,9 @@ export function ThemeToggle() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // The stored theme lives on <html>, outside React, and is unknowable on
+    // the server; reading it after hydration is the sync this rule allows for.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme(currentTheme());
     setReady(true);
     // Colour transitions are enabled only after the first paint, so the page

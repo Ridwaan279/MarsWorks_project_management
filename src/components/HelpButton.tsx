@@ -183,11 +183,16 @@ export function HelpButton() {
   const last = guide.steps.length - 1;
   const current = guide.steps[step];
 
+  // The portal needs document.body, which only exists after hydration.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
-  useEffect(() => {
+
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (pathname !== seenPath) {
+    setSeenPath(pathname);
     setOpen(false);
     setStep(0);
-  }, [pathname]);
+  }
 
   const close = useCallback(() => setOpen(false), []);
 

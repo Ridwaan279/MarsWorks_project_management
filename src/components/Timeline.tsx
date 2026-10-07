@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { TeamFilter } from "./TeamFilter";
+import { checklistProgress } from "@/lib/progress";
 import { format } from "date-fns";
 import {
   addDays,
@@ -577,7 +578,7 @@ export function Timeline({
                                   aria-hidden
                                   className="absolute inset-y-0 left-0"
                                   style={{
-                                    width: `${done ? 100 : task.progress}%`,
+                                    width: `${done ? 100 : (checklistProgress(task)?.percent ?? 0)}%`,
                                     backgroundColor: done
                                       ? `color-mix(in srgb, ${team.colour} 45%, var(--color-bg))`
                                       : team.colour,

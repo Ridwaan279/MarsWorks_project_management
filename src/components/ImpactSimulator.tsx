@@ -5,6 +5,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import type { MilestoneView, TaskView, TeamView } from "@/lib/project";
 import { Card, EmptyState, HealthPill, TeamDot, formatDays } from "./ui";
+import { checklistProgress } from "@/lib/progress";
 
 interface ImpactResponse {
   projectShiftDays: number;
@@ -150,7 +151,10 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
           <p className="text-xs text-ink-3">
             <TeamDot colour={teamById.get(selected.teamId)?.colour ?? "#64748b"} />{" "}
             <span className="ml-1">
-              {teamById.get(selected.teamId)?.name} &middot; {selected.progress}% done
+              {teamById.get(selected.teamId)?.name}
+              {checklistProgress(selected)
+                ? ` · ${checklistProgress(selected)!.done} of ${checklistProgress(selected)!.total} checklist items done`
+                : null}
             </span>
           </p>
         ) : null}

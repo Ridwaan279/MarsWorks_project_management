@@ -7,6 +7,7 @@ import type { MemberView, TaskView, TeamView } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
 import { Avatar, ProgressBar, TeamDot } from "./ui";
 import { useCoarsePointer } from "./media";
+import { checklistProgress } from "@/lib/progress";
 
 export interface TaskCardProps {
   task: TaskView;
@@ -64,6 +65,7 @@ export function TaskCardBody({
   onMove,
 }: Omit<TaskCardProps, "onOpen"> & { dragging?: boolean }) {
   const late = scheduled ? scheduled.slackDays < 0 : false;
+  const checklist = checklistProgress(task);
   const tight = scheduled ? scheduled.slackDays >= 0 && scheduled.slackDays <= 2 : false;
 
   return (
@@ -144,8 +146,24 @@ export function TaskCardBody({
         </div>
       ) : null}
 
-      {task.progress > 0 && task.status !== "DONE" ? (
-        <ProgressBar value={task.progress} colour={team.colour} />
+      {/* Progress is only drawn when a checklist produces it; see
+          checklistProgress. The count sits beside the bar rather than in the
+          footer, where it was easy to miss. */}
+      {checklist && task.status !== "DONE" ? (
+        <div
+          className="flex items-center gap-2"
+          title={`${checklist.done} of ${checklist.total} checklist items done`}
+        >
+          <div className="min-w-0 flex-1">
+            <ProgressBar value={checklist.percent} colour={team.colour} />
+          </div>
+          <span className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-ink-2">
+            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
+              <path d="M6.2 11.3 3 8.1l1-1 2.2 2.2L12 3.5l1 1-6.8 6.8Z" />
+            </svg>
+            {checklist.done}/{checklist.total}
+          </span>
+        </div>
       ) : null}
 
       <div className="flex items-center justify-between gap-2">
@@ -162,14 +180,6 @@ export function TaskCardBody({
                 <path d="M5 7V5a3 3 0 1 1 6 0v2h.5A1.5 1.5 0 0 1 13 8.5v4A1.5 1.5 0 0 1 11.5 14h-7A1.5 1.5 0 0 1 3 12.5v-4A1.5 1.5 0 0 1 4.5 7H5Zm1.5 0h3V5a1.5 1.5 0 0 0-3 0v2Z" />
               </svg>
               {task.blockedBy.length}
-            </span>
-          ) : null}
-          {task.subtasks.length > 0 ? (
-            <span
-              title={`${task.subtasks.filter((st) => st.done).length} of ${task.subtasks.length} checklist items done`}
-              className="tabular-nums"
-            >
-              {task.subtasks.filter((st) => st.done).length}/{task.subtasks.length}
             </span>
           ) : null}
           {task.links.length > 0 ? (

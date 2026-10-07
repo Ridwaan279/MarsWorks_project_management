@@ -34,7 +34,11 @@ export function NavLinks() {
 
   // A tap on a link navigates without unmounting this component, so the menu
   // has to be told to close.
-  useEffect(() => setOpen(false), [pathname]);
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (pathname !== seenPath) {
+    setSeenPath(pathname);
+    setOpen(false);
+  }
 
   useEffect(() => {
     if (!open) return;

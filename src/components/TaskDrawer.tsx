@@ -97,7 +97,11 @@ export function TaskDrawer({
   const [dependencyId, setDependencyId] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setDraft(task), [task]);
+  const [seenTask, setSeenTask] = useState(task);
+  if (task !== seenTask) {
+    setSeenTask(task);
+    setDraft(task);
+  }
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -119,7 +123,6 @@ export function TaskDrawer({
     draft.priority !== task.priority ||
     draft.assigneeId !== task.assigneeId ||
     draft.milestoneId !== task.milestoneId ||
-    draft.progress !== task.progress ||
     draft.workstreamId !== task.workstreamId ||
     draft.ownerLabel !== task.ownerLabel ||
     draft.notes !== task.notes ||
@@ -140,7 +143,6 @@ export function TaskDrawer({
           priority: draft.priority,
           assigneeId: draft.assigneeId,
           milestoneId: draft.milestoneId,
-          progress: draft.status === "DONE" ? 100 : draft.progress,
           workstreamId: draft.workstreamId,
           ownerLabel: draft.ownerLabel || null,
           notes: draft.notes || null,
@@ -156,7 +158,7 @@ export function TaskDrawer({
         );
         return;
       }
-      onSaved({ ...draft, progress: draft.status === "DONE" ? 100 : draft.progress });
+      onSaved(draft);
       onClose();
     } catch (cause) {
       console.error("Failed to save task", cause);
@@ -490,36 +492,73 @@ export function TaskDrawer({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className={LABEL} htmlFor="task-progress">
-              Progress &mdash; <span className="tabular-nums">{draft.progress}%</span>
-            </label>
+          {/* The checklist is where the work of a task is tracked, and the
+              only thing that moves its progress, so it sits in the body of
+              the panel rather than behind More details. */}
+          <section className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className={LABEL}>Checklist</h3>
+              {draft.subtasks.length > 0 ? (
+                <span className="text-xs tabular-nums text-ink-3">
+                  {doneSubtasks} of {draft.subtasks.length} done
+                </span>
+              ) : null}
+            </div>
+            {draft.subtasks.length > 0 ? (
+              <ProgressBar
+                value={Math.round((doneSubtasks / draft.subtasks.length) * 100)}
+                colour={team?.colour}
+              />
+            ) : null}
+          {draft.subtasks.length > 0 ? (
+            <ul className="space-y-0.5">
+              {draft.subtasks.map((st) => (
+                <li key={st.id} className="group/st flex items-start gap-2">
+                  <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded px-1 py-1 text-xs hover:bg-elevated">
+                    <input
+                      type="checkbox"
+                      checked={st.done}
+                      onChange={(e) => toggleSubtask(st.id, e.target.checked)}
+                      className="mt-px h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--color-success)]"
+                    />
+                    <span className={st.done ? "text-ink-3 line-through" : ""}>
+                      {st.title}
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeSubtask(st.id)}
+                    aria-label={`Remove "${st.title}"`}
+                    className="mt-0.5 shrink-0 rounded p-1 text-ink-3 transition-opacity [@media(hover:hover)]:opacity-0 group-hover/st:opacity-100 hover:text-danger focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
+                      <path d="M4.3 3.3 8 7l3.7-3.7 1 1L9 8l3.7 3.7-1 1L8 9l-3.7 3.7-1-1L7 8 3.3 4.3Z" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-ink-3">No checklist items yet.</p>
+          )}
+          <form onSubmit={addSubtask} className="flex gap-2">
             <input
-              id="task-progress"
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={draft.progress}
-              onChange={(e) => {
-                const progress = Number(e.target.value);
-                // Sliding to 100% is how most people mark something finished,
-                // so move it to Done rather than leaving the two disagreeing.
-                setDraft({
-                  ...draft,
-                  progress,
-                  status:
-                    progress === 100
-                      ? "DONE"
-                      : draft.status === "DONE"
-                        ? "IN_PROGRESS"
-                        : draft.status,
-                });
-              }}
-              className="w-full accent-[var(--color-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              value={subtaskTitle}
+              onChange={(e) => setSubtaskTitle(e.target.value)}
+              placeholder="Add a checklist item"
+              aria-label="New checklist item"
+              autoComplete="off"
+              className={`${FIELD} text-xs`}
             />
-            <ProgressBar value={draft.progress} colour={team?.colour} />
-          </div>
+            <button
+              type="submit"
+              disabled={!subtaskTitle.trim()}
+              className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              Add
+            </button>
+          </form>
+          </section>
 
           <section className="space-y-2">
             <h3 className={LABEL}>Links</h3>
@@ -750,64 +789,6 @@ export function TaskDrawer({
                 </div>
               ) : null}
             </Disclosure>
-
-            <Disclosure
-              title="Checklist"
-              badge={
-                draft.subtasks.length > 0
-                  ? `${doneSubtasks}/${draft.subtasks.length}`
-                  : undefined
-              }
-            >
-              {draft.subtasks.length > 0 ? (
-                <ul className="space-y-0.5">
-                  {draft.subtasks.map((st) => (
-                    <li key={st.id} className="group/st flex items-start gap-2">
-                      <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded px-1 py-1 text-xs hover:bg-elevated">
-                        <input
-                          type="checkbox"
-                          checked={st.done}
-                          onChange={(e) => toggleSubtask(st.id, e.target.checked)}
-                          className="mt-px h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--color-success)]"
-                        />
-                        <span className={st.done ? "text-ink-3 line-through" : ""}>
-                          {st.title}
-                        </span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => removeSubtask(st.id)}
-                        aria-label={`Remove "${st.title}"`}
-                        className="mt-0.5 shrink-0 rounded p-1 text-ink-3 opacity-0 transition-opacity group-hover/st:opacity-100 hover:text-danger focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                      >
-                        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
-                          <path d="M4.3 3.3 8 7l3.7-3.7 1 1L9 8l3.7 3.7-1 1L8 9l-3.7 3.7-1-1L7 8 3.3 4.3Z" />
-                        </svg>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-ink-3">No checklist items yet.</p>
-              )}
-              <form onSubmit={addSubtask} className="flex gap-2">
-                <input
-                  value={subtaskTitle}
-                  onChange={(e) => setSubtaskTitle(e.target.value)}
-                  placeholder="Add a checklist item"
-                  aria-label="New checklist item"
-                  autoComplete="off"
-                  className={`${FIELD} text-xs`}
-                />
-                <button
-                  type="submit"
-                  disabled={!subtaskTitle.trim()}
-                  className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                >
-                  Add
-                </button>
-              </form>
-            </Disclosure>
           </Disclosure>
 
           {scheduled ? (
@@ -931,7 +912,7 @@ function DependencyRow({
           type="button"
           onClick={onRemove}
           aria-label={`Remove dependency on ${dep.key}`}
-          className="-mr-1 shrink-0 rounded p-1 text-ink-3 opacity-0 transition-opacity group-hover/dep:opacity-100 hover:text-danger focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="-mr-1 shrink-0 rounded p-1 text-ink-3 transition-opacity [@media(hover:hover)]:opacity-0 group-hover/dep:opacity-100 hover:text-danger focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
             <path d="M4.3 3.3 8 7l3.7-3.7 1 1L9 8l3.7 3.7-1 1L8 9l-3.7 3.7-1-1L7 8 3.3 4.3Z" />

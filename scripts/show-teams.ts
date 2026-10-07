@@ -8,7 +8,6 @@
  *
  *   npm run db:teams
  */
-import path from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { loadLocalEnv } from "./load-env";
 import { PrismaClient } from "../src/generated/prisma";
