@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { pokeSheet } from "@/lib/sheets/poke";
+import { keyAllocator } from "@/lib/task-keys";
 import { PROJECT_STAGES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/domain";
 
 const httpUrl = z
@@ -60,14 +62,7 @@ export async function POST(request: Request) {
       const team = await tx.team.findUnique({ where: { id: data.teamId } });
       if (!team) throw new Error("UNKNOWN_TEAM");
 
-      const existing = await tx.task.findMany({
-        where: { teamId: team.id },
-        select: { key: true },
-      });
-      const highest = existing.reduce((max, t) => {
-        const n = Number.parseInt(t.key.split("-")[1] ?? "0", 10);
-        return Number.isFinite(n) && n > max ? n : max;
-      }, 0);
+      const nextKey = await keyAllocator(tx, team.key);
 
       // New cards land at the top of their column.
       const first = await tx.task.findFirst({
@@ -82,7 +77,7 @@ export async function POST(request: Request) {
 
       return tx.task.create({
         data: {
-          key: `${team.key}-${highest + 1}`,
+          key: nextKey(),
           title: data.title,
           description: data.description || null,
           notes: data.notes || null,
@@ -122,6 +117,7 @@ export async function POST(request: Request) {
       });
     });
 
+    pokeSheet("website");
     return NextResponse.json(task, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "UNKNOWN_TEAM") {

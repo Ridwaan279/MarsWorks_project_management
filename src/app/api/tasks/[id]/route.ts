@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { pokeSheet } from "@/lib/sheets/poke";
 import { deriveProgress } from "@/lib/progress";
 import { PROJECT_STAGES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/domain";
 
@@ -34,6 +35,16 @@ const updateTask = z
       new Date(v.plannedStart) <= new Date(v.plannedEnd),
     { message: "Start date must not be after the end date", path: ["plannedEnd"] },
   );
+
+const SHEET_FIELDS = [
+  "title",
+  "status",
+  "assigneeId",
+  "ownerLabel",
+  "notes",
+  "plannedStart",
+  "plannedEnd",
+] as const;
 
 export async function PATCH(
   request: Request,
@@ -105,6 +116,9 @@ export async function PATCH(
         data: { ...data, progress, ...timestamps },
       });
     });
+    // Only fields the Google Sheet holds are worth a sync; reordering a card
+    // within its column changes nothing the sheet can see.
+    if (SHEET_FIELDS.some((field) => field in parsed.data)) pokeSheet("website");
     return NextResponse.json(task);
   } catch (error) {
     console.error("Failed to update task", error);
@@ -118,7 +132,17 @@ export async function DELETE(
 ) {
   const { id } = await context.params;
   try {
-    await prisma.task.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      const removed = await tx.task.delete({ where: { id } });
+      // Remembered so the task's row is removed from the Google Sheet rather
+      // than read back in as a new task, and so its key is never reissued.
+      await tx.syncTombstone.upsert({
+        where: { ref: removed.key },
+        create: { ref: removed.key },
+        update: {},
+      });
+    });
+    pokeSheet("website");
     return new NextResponse(null, { status: 204 });
   } catch {
     return NextResponse.json({ error: "Could not delete task" }, { status: 404 });

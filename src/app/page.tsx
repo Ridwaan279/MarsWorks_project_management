@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { loadProjectView } from "@/lib/project";
 import { HEALTH_LABEL } from "@/lib/domain";
 import { HealthPill, ProgressBar, TeamDot, formatDays } from "@/components/ui";
+import { SheetSyncStatus } from "@/components/SheetSyncStatus";
 
 // Always reflect the current database state; a cached dashboard is worse than
 // no dashboard when the whole point is "is anyone behind right now".
@@ -31,9 +32,12 @@ export default async function OverviewPage() {
           <h1 className="text-3xl font-semibold tracking-tight text-pretty sm:text-4xl">
             Project overview
           </h1>
-          <p className="text-sm text-ink-3 tabular-nums">
-            {format(project.asOf, "d MMM yyyy")}
-          </p>
+          <div className="flex flex-col items-end gap-1">
+            <p className="text-sm text-ink-3 tabular-nums">
+              {format(project.asOf, "d MMM yyyy")}
+            </p>
+            <SheetSyncStatus />
+          </div>
         </div>
         <p data-tour="summary" className="max-w-2xl text-base leading-relaxed text-ink-2 text-pretty">
           {behindCount > 0

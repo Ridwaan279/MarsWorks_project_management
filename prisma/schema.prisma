@@ -82,6 +82,8 @@ model Milestone {
   name        String
   description String?
   targetDate  DateTime
+  /// As Task.sheetBase, for milestone rows in the sheet.
+  sheetBase   Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -159,6 +161,11 @@ model Task {
   /// Why this task was flagged, captured at the moment it was raised. Shown
   /// wherever the flag is, so "needs attention" says what kind of attention.
   flagReason String?
+
+  /// The synced fields' values as last known to match in both the app and the
+  /// Google Sheet. The sync compares each side against this to tell which one
+  /// changed since; see src/lib/sheets/merge.ts. Null until first synced.
+  sheetBase Json?
 
   /// Earliest the work can begin regardless of predecessors (part delivery,
   /// lab access). The scheduler treats this as a hard lower bound.
@@ -268,4 +275,27 @@ model ExternalLink {
 
   @@unique([system, externalId])
   @@index([taskId])
+}
+
+/// Something deleted on either side of the Google Sheets sync, by the ID the
+/// sheet knows it by (a task key such as "SW-4", or "M:<id>" for a milestone).
+/// Lets a stale sheet row carrying a deleted ID be removed rather than
+/// re-created, and stops a deleted task key ever being issued again -- a reused
+/// key would make an old row and a new task look like the same thing.
+model SyncTombstone {
+  ref       String   @id
+  deletedAt DateTime @default(now())
+}
+
+/// One Google Sheets sync pass, for the status line and for debugging.
+model SheetSyncRun {
+  id         String    @id @default(cuid())
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  ok         Boolean   @default(false)
+  /// What prompted it: "edit", "schedule", "website", "manual", "setup".
+  reason     String?
+  summary    Json?
+
+  @@index([startedAt])
 }

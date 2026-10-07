@@ -12,8 +12,9 @@
  *   DIRECT_URL may well point at the shared Supabase database, and a build on
  *   someone's laptop should never alter it. Preview builds share production's
  *   variables, so they are excluded for the same reason.
- * - Only when DIRECT_URL is set. Schema changes need Supabase's session
+ * - DIRECT_URL is required there. Schema changes need Supabase's session
  *   pooler; the transaction pooler the app runs on cannot hold the locks.
+ *   Without it the build stops instead of shipping unchecked.
  * - No --accept-data-loss. `db push` applies additive changes on its own and
  *   refuses anything destructive when nobody is there to confirm it, which
  *   fails the build -- the right outcome, since the old deployment keeps
@@ -27,13 +28,19 @@ if (process.env.VERCEL_ENV !== "production") {
 }
 
 if (!process.env.DIRECT_URL) {
-  console.warn(
-    "\n[schema] WARNING: DIRECT_URL is not set, so the database schema was NOT updated.\n" +
-      "[schema] If this deploy adds columns, every page will fail until you either set\n" +
-      "[schema] DIRECT_URL (Supabase session pooler, port 5432) in Vercel and redeploy,\n" +
-      "[schema] or run `npx prisma db push` locally against the production database.\n",
+  // Stop rather than warn. Shipping without knowing the schema matches would
+  // risk a site where every page fails; stopping keeps the previous deployment
+  // live until someone adds the variable.
+  console.error(
+    "\n[schema] DIRECT_URL is not set, so this deploy cannot check or update the\n" +
+      "[schema] database schema, and has been stopped. The previous deployment is\n" +
+      "[schema] still live.\n" +
+      "[schema] Fix: in Vercel, Settings > Environment Variables, add DIRECT_URL\n" +
+      "[schema] (Production) = Supabase's Session pooler connection string, port 5432\n" +
+      "[schema] (Project Settings > Database > Connection string > Session pooler).\n" +
+      "[schema] Then redeploy.\n",
   );
-  process.exit(0);
+  process.exit(1);
 }
 
 console.log("[schema] Applying schema changes to the production database...");

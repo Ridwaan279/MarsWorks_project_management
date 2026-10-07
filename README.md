@@ -249,5 +249,5 @@ database that was seeded before the sub-teams were corrected, either:
 - **Undated tasks are drawn at today** on the timeline, because there is
   nothing else to draw them at. They are flagged as undated on the board and
   counted in the coverage figure on the overview.
-- **No sync adapters yet.** The mapping table exists; the GitHub and Sheets
-  adapters do not.
+- **Google Sheets sync is two-way; GitHub is not built yet.** See
+  [docs/google-sheets-sync.md](docs/google-sheets-sync.md) for setup.
