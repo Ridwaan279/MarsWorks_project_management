@@ -176,8 +176,19 @@ function runSync_(reason, requestedAt) {
 
 // --------------------------------------------------------------------- reading
 
+/**
+ * True for an ordinary tab of cells. The "... Timeline" tabs are Google's
+ * timeline views, which Apps Script reports as OBJECT sheets: reading a cell
+ * from one throws "The action is not supported for the OBJECT sheet". Chart
+ * tabs and connected (data source) sheets are the same, so all are skipped.
+ */
+function isGrid_(sheet) {
+  return !sheet.getType || sheet.getType() === SpreadsheetApp.SheetType.GRID;
+}
+
 /** Column numbers (1-based) by field, from the tab's header row. */
 function headerMap_(sheet) {
+  if (!isGrid_(sheet)) return {};
   var width = sheet.getLastColumn();
   if (width < 1) return {};
   var header = sheet.getRange(1, 1, 1, width).getValues()[0];
@@ -197,6 +208,7 @@ function headerMap_(sheet) {
 /** Adds the Website ID column, with a do-not-edit warning, if it is missing. */
 function prepareTab_(sheet) {
   var cols = headerMap_(sheet);
+  if (!cols.title) return cols; // not a task tab: never add a column to it
   if (!cols.id) {
     var col = sheet.getLastColumn() + 1;
     sheet.getRange(1, col).setValue(MARSWORKS.ID_HEADER).setFontWeight("bold");

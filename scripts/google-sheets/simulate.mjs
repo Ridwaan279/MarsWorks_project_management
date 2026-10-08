@@ -81,6 +81,7 @@ class FakeSheet {
     this.validationTouched = false;
   }
   getName() { return this.name; }
+  getType() { return "GRID"; }
   get(r, c) { return (this.cells[r - 1] ?? [])[c - 1] ?? ""; }
   set(r, c, v) {
     while (this.cells.length < r) this.cells.push([]);
@@ -116,7 +117,26 @@ class FakeSheet {
   }
 }
 
-const tabs = JSON.parse(readFileSync(sheetPath, "utf8")).map((t) => new FakeSheet(t.name, t.rows));
+/**
+ * A Google Sheets timeline view. Apps Script reports it as an OBJECT sheet,
+ * and any attempt to read or write its cells throws -- which the xlsx export
+ * hides by turning it into an empty grid. Faked here so that is caught.
+ */
+class FakeObjectSheet {
+  constructor(name) { this.name = name; }
+  getName() { return this.name; }
+  getType() { return "OBJECT"; }
+  header() { return []; }
+}
+const unsupported = () => { throw new Error("Exception: The action is not supported for the OBJECT sheet."); };
+for (const method of ["getLastRow", "getLastColumn", "getMaxRows", "getRange", "deleteRow"]) {
+  FakeObjectSheet.prototype[method] = unsupported;
+}
+
+const isTimeline = (name) => /Timeline$|Timel$/.test(name);
+const tabs = JSON.parse(readFileSync(sheetPath, "utf8")).map((t) =>
+  isTimeline(t.name) ? new FakeObjectSheet(t.name) : new FakeSheet(t.name, t.rows),
+);
 const ss = {
   getSheets: () => tabs,
   getSheetByName: (n) => tabs.find((t) => t.name === n) ?? null,
@@ -154,7 +174,11 @@ function chainTrigger(handler) {
 }
 
 const sandbox = {
-  SpreadsheetApp: { getActive: () => ss, getUi: () => ui },
+  SpreadsheetApp: {
+    getActive: () => ss,
+    getUi: () => ui,
+    SheetType: { GRID: "GRID", OBJECT: "OBJECT", DATASOURCE: "DATASOURCE" },
+  },
   PropertiesService: {
     getScriptProperties: () => ({
       getProperty: (k) => (props.has(k) ? props.get(k) : null),
@@ -243,7 +267,7 @@ check("change trigger and 5-minute schedule installed",
   triggers.some((t) => t.handler === "scheduledSync" && t.kind === "every 5 min"));
 check("Website ID column added to every task tab, timeline tabs untouched",
   tabs.filter((t) => t.header().includes("Tasks")).every((t) => t.header().includes(ID)) &&
-  tabs.filter((t) => t.name.endsWith("Timeline") || t.name.endsWith("Timel")).every((t) => !t.header().includes(ID)));
+  tabs.filter((t) => isTimeline(t.name)).every((t) => t instanceof FakeObjectSheet));
 check("the sheet's Status dropdowns were left alone", tabs.every((t) => !t.validationTouched));
 const unlabelled = [LEAD, SW].flatMap((t) => t.dataRows().filter((r) => !String(cell(t, r, ID)).trim()).map((r) => `${t.name}:${r}`));
 check("every existing row now carries an ID", unlabelled.length === 0, unlabelled.join(", "));
