@@ -20,6 +20,7 @@ import type {
 } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { MemberOptions } from "./MemberOptions";
 import { Avatar, ProgressBar, StatusBadge, TeamDot, formatDays } from "./ui";
 
 interface DrawerProps {
@@ -508,11 +509,7 @@ export function TaskDrawer({
                 className={FIELD}
               >
                 <option value="">Unassigned</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
+                <MemberOptions members={members} teams={teams} first={draft.teamId} />
               </select>
             </div>
 

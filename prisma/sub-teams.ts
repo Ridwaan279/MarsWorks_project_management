@@ -1,8 +1,8 @@
 /**
- * The MarsWorks sub-teams. Read by the seed, and by
- * scripts/ensure-sub-teams.ts, which adds any of these a live database is
- * missing on each production deploy -- so adding a sub-team is a change to
- * this list, with no SQL to run by hand.
+ * The MarsWorks sub-teams. Read by the seed, and by scripts/ensure-roster.ts,
+ * which adds any of these a live database is missing on each production
+ * deploy -- so adding a sub-team is a change to this list, with no SQL to run
+ * by hand.
  *
  * `key` prefixes the sub-team's task keys (SW-4) and links it to its tab in
  * the Google Sheet (src/lib/sheets/schema.ts). It cannot be changed once tasks

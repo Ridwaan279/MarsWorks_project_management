@@ -53,9 +53,10 @@ have their own tabs in the master timeline. The master timeline also carries a
 "Leadership and Milestones" tab; its milestone rows become milestones, and its
 remaining recruitment and administration rows belong to Operations.
 
-Sub-teams are listed in `prisma/sub-teams.ts`. A production deploy adds any
-there that the database is missing, so adding one is a change to that list
-(and, to sync it, a line in `src/lib/sheets/schema.ts` naming its sheet tab).
+Sub-teams are listed in `prisma/sub-teams.ts`, and team members in
+`prisma/members.ts`. A production deploy adds any there that the database is
+missing, so adding a sub-team or a person is a change to that list (and, to
+sync a sub-team, a line in `src/lib/sheets/schema.ts` naming its sheet tab).
 
 Nobody has to change how they think. The board and the Gantt are two renderings
 of one table, so a Kanban team's cards still appear on everyone else's timeline.

@@ -36,6 +36,7 @@ import { TaskDrawer } from "./TaskDrawer";
 import { FlagDialog } from "./FlagDialog";
 import { MoveSheet } from "./MoveSheet";
 import { TeamFilter } from "./TeamFilter";
+import { MemberOptions } from "./MemberOptions";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { TeamDot } from "./ui";
 
@@ -561,11 +562,7 @@ export function KanbanBoard({
             >
               <option value="ALL">Anyone</option>
               <option value="UNASSIGNED">Unassigned</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
-                </option>
-              ))}
+              <MemberOptions members={members} teams={teams} />
             </select>
           </label>
         </div>

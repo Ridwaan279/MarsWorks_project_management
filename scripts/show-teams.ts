@@ -58,7 +58,7 @@ async function main() {
   const missing = SUB_TEAMS.filter((t) => !teams.some((have) => have.key === t.key));
   if (missing.length) {
     console.log(
-      `Missing ${missing.map((t) => t.name).join(", ")}. Run \`npm run db:ensure-teams\`\n` +
+      `Missing ${missing.map((t) => t.name).join(", ")}. Run \`npm run db:ensure-roster\`\n` +
         "to add them; production deploys add them automatically.",
     );
   }

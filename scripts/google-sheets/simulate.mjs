@@ -12,7 +12,7 @@
  * sheet.json is a list of { name, rows } with dates as { date: "YYYY-MM-DD" }.
  * The database URL is only read, to check the website's side; the scenarios
  * change data through the website, so use a disposable copy. It needs every
- * sub-team in prisma/sub-teams.ts: `npm run db:ensure-teams` adds any missing.
+ * sub-team in prisma/sub-teams.ts: `npm run db:ensure-roster` adds any missing.
  */
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";

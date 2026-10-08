@@ -11,6 +11,7 @@
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { loadLocalEnv } from "../scripts/load-env";
+import { MEMBERS } from "./members";
 import { SUB_TEAMS } from "./sub-teams";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
@@ -75,18 +76,7 @@ const data: SeedData = JSON.parse(
 
 const teams = SUB_TEAMS;
 
-/** People named in the existing planners. */
-const members = [
-  { name: "Daniel Parkus", team: "MECH", aliases: ["Daniel"] },
-  { name: "Matt", team: "MECH", aliases: [] },
-  { name: "Owen", team: "MECH", aliases: [] },
-  { name: "Jack", team: "MECH", aliases: [] },
-  { name: "Dexi Li", team: "ELEC", aliases: [] },
-  { name: "Kai Dolan", team: "ELEC", aliases: [] },
-  { name: "Thomas A Haley", team: "ELEC", aliases: ["Thomas", "Tom"] },
-  { name: "Harry", team: "ELEC", aliases: ["harry"] },
-  { name: "Ali", team: "ELEC", aliases: [] },
-];
+const members = MEMBERS;
 
 /**
  * Cross-team dependencies. Each is traceable to a source: either a task title
@@ -207,7 +197,7 @@ async function main() {
     const created = await prisma.member.create({
       data: { name: member.name, teamId: teamByKey.get(member.team)! },
     });
-    for (const alias of [member.name, ...member.aliases]) {
+    for (const alias of [member.name, ...(member.aliases ?? [])]) {
       memberLookup.set(alias.toLowerCase(), created.id);
     }
   }
