@@ -175,6 +175,23 @@ async function syncInTransaction(
   };
   const ops: SheetOp[] = [...plan.ops];
 
+  /*
+   * A tab linked to a sub-team the database does not have yet: the deploy
+   * that linked it adds the sub-team, so this only shows between the two, or
+   * if adding it failed. Said once per sync rather than skipped silently.
+   */
+  const missingTeams = new Set<string>();
+  function teamIdFor(key: string): string | undefined {
+    const id = teamIdByKey.get(key);
+    if (!id && !missingTeams.has(key)) {
+      missingTeams.add(key);
+      summary.warnings.push(
+        `"${TEAM_TAB[key] ?? key}" is linked to a sub-team the website does not have yet (${key}), so its rows were not synced. Redeploying the website adds it.`,
+      );
+    }
+    return id;
+  }
+
   /** Website columns for a set of changed sheet fields. */
   function taskData(changes: Partial<TaskFields>, current?: (typeof tasks)[number]) {
     const data: Prisma.TaskUncheckedUpdateInput = {};
@@ -190,7 +207,7 @@ async function syncInTransaction(
       data.ownerLabel = memberId ? null : changes.assignee || null;
     }
     if (changes.team !== undefined) {
-      const teamId = teamIdByKey.get(changes.team);
+      const teamId = teamIdFor(changes.team);
       if (teamId) data.teamId = teamId;
     }
     if (changes.status !== undefined) {
@@ -224,7 +241,7 @@ async function syncInTransaction(
   // team has ever had.
   const allocators = new Map<string, () => string>();
   for (const create of plan.taskCreates) {
-    const teamId = teamIdByKey.get(create.fields.team);
+    const teamId = teamIdFor(create.fields.team);
     if (!teamId) continue;
     let next = allocators.get(create.fields.team);
     if (!next) {

@@ -114,11 +114,11 @@ When a new version of `MarsWorksSync.gs` comes out:
 | Robotics Tasks              | Robotics                |
 | Sci Tasks                   | Science                 |
 | Software Tasks              | Software                |
+| Drone Tasks                 | Drone                   |
+| Mini Tasks                  | Mini-Rover              |
 
-**Drone Tasks** and **Mini Tasks** are not linked to a sub-team, so they are
-left alone (they are empty today). If they should be, say which sub-team each
-belongs to and the mapping is one line in `src/lib/sheets/schema.ts`. The
-"Timeline" tabs are Google's own views of the task tabs and are never touched.
+Any other tab is left alone. The "Timeline" tabs (including Drone Timeline and
+Mini Timeline) are Google's own views of the task tabs and are never touched.
 
 | Sheet column | Website                                                     |
 | ------------ | ----------------------------------------------------------- |
@@ -184,8 +184,8 @@ the right (if it is hidden: **Timeline settings** in the toolbar). Set:
 The data range matters most. A timeline only shows the rows inside its range,
 and a range drawn around the rows that existed when it was made leaves out
 every row added since, including the ones the sync writes. Mech, Elec,
-Robotics and Sci had empty tabs, so their timelines are the likeliest to be
-showing nothing. `A1:F1000` covers the whole tab.
+Robotics, Sci, Drone and Mini had empty tabs, so their timelines are the
+likeliest to be showing nothing. `A1:F1000` covers the whole tab.
 
 A task appears on the timeline only when its row has dates: a row with no
 **Start Date** is left off, and one whose **End Date** comes before its start

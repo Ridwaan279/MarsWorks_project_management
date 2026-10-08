@@ -46,13 +46,16 @@ fill in, and then renders it two ways.
 - **Board** — Electronics, Software, Robotics and Operations. Kanban flow, the
   way the Electronics dashboard and the Robotics Jira board already work.
 
-The six sub-teams are those named in
-`MarsWorks_Team_Structure_and_Responsibilities.docx`: Operations, Mechanical,
-Electronics, Robotics, Science and Software. The master timeline also carries a
+The sub-teams are the six named in
+`MarsWorks_Team_Structure_and_Responsibilities.docx` -- Operations, Mechanical,
+Electronics, Robotics, Science and Software -- plus Drone and Mini-Rover, which
+have their own tabs in the master timeline. The master timeline also carries a
 "Leadership and Milestones" tab; its milestone rows become milestones, and its
-remaining recruitment and administration rows belong to Operations. Its Drone
-and Mini-Rover tabs hold no tasks and no sub-team owns them, so they are not
-imported.
+remaining recruitment and administration rows belong to Operations.
+
+Sub-teams are listed in `prisma/sub-teams.ts`. A production deploy adds any
+there that the database is missing, so adding one is a change to that list
+(and, to sync it, a line in `src/lib/sheets/schema.ts` naming its sheet tab).
 
 Nobody has to change how they think. The board and the Gantt are two renderings
 of one table, so a Kanban team's cards still appear on everyone else's timeline.

@@ -11,7 +11,8 @@
  *
  * sheet.json is a list of { name, rows } with dates as { date: "YYYY-MM-DD" }.
  * The database URL is only read, to check the website's side; the scenarios
- * change data through the website, so use a disposable copy.
+ * change data through the website, so use a disposable copy. It needs every
+ * sub-team in prisma/sub-teams.ts: `npm run db:ensure-teams` adds any missing.
  */
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -456,7 +457,33 @@ check("is refused, and says so", !bad.ok && /secret/i.test(bad.error), bad.error
 const forged = gs.doPost({ postData: { contents: JSON.stringify({ secret: "guess" }) } });
 check("a forged web-app call does nothing", JSON.parse(forged.content).ok === false);
 
-console.log("\n14. Settled");
+console.log("\n14. The Drone and Mini tabs");
+const DRONE = tab("Drone Tasks");
+const MINI = tab("Mini Tasks");
+const droneRow = DRONE.getLastRow() + 1;
+setCell(DRONE, droneRow, "Tasks", "Test the flight controller");
+setCell(DRONE, droneRow, "Start Date", SW.get(2, SW.col("Start Date")));
+setCell(DRONE, droneRow, "Status", "Not Started");
+edit();
+const flight = taskBy(`title='Test the flight controller'`);
+check("a row in Drone Tasks becomes a Drone task", flight?.team === "DRONE" && flight?.key === "DRONE-1", flight?.key);
+check("and its row gets the new ID", cell(DRONE, droneRow, ID) === flight?.key);
+const miniTeam = sql(`select id from "Team" where key='MINI'`);
+const madeMini = api("POST", "/api/tasks", {
+  title: "Wire the mini-rover",
+  teamId: miniTeam,
+  status: "TODO",
+  plannedStart: "2026-10-12",
+  plannedEnd: "2026-10-16",
+});
+gs.doPost({ postData: { contents: JSON.stringify({ secret, reason: "website" }) } });
+const miniRow = MINI.rowWhere(ID, "MINI-1");
+check("a Mini-Rover task made on the website appears in Mini Tasks",
+  madeMini === 201 && miniRow > 0 && cell(MINI, miniRow, "Tasks") === "Wire the mini-rover", `HTTP ${madeMini}, row ${miniRow}`);
+check("neither tab is reported as unlinked",
+  !(lastSync().summary?.warnings ?? []).some((w) => /Drone|Mini/.test(w)), JSON.stringify(lastSync().summary?.warnings));
+
+console.log("\n15. Settled");
 check("a final sync has nothing left to do", settledQuietly(), JSON.stringify(lastSync().summary));
 
 console.log(failures ? `\n${failures} check(s) failed.` : "\nAll checks passed.");

@@ -1,5 +1,6 @@
 /**
- * Bring the production database's schema up to date before a deploy.
+ * Bring the production database's schema, and its list of sub-teams, up to
+ * date before a deploy.
  *
  * Every column added so far has needed someone to remember `npx prisma db
  * push` by hand, and forgetting it does not degrade gracefully: Prisma reads
@@ -54,3 +55,14 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 console.log("[schema] Database schema is up to date.");
+
+// Sub-teams are rows, so a new one in prisma/sub-teams.ts needs adding to the
+// database as well as the code. Only ever adds; see the script.
+const teams = spawnSync("npx", ["tsx", "scripts/ensure-sub-teams.ts"], { stdio: "inherit" });
+if (teams.status !== 0) {
+  console.error(
+    "\n[teams] Could not add the missing sub-teams, so this deploy was stopped. The\n" +
+      "[teams] previous deployment is still live. See the output above.\n",
+  );
+  process.exit(teams.status ?? 1);
+}

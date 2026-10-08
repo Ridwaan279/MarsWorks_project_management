@@ -23,11 +23,11 @@ export interface TaskCardProps {
 }
 
 /**
- * Dress a card in its sub-team's colour so the board reads as six streams at
- * a glance rather than one undifferentiated wall: a solid rail down the left
- * edge, an outline carrying the same hue, and a faint wash of it behind.
+ * Dress a card in its sub-team's colour so the board reads as one stream per
+ * team at a glance rather than one undifferentiated wall: a solid rail down the
+ * left edge, an outline carrying the same hue, and a faint wash of it behind.
  *
- * The outline is mixed with the neutral border rather than used neat. Six
+ * The outline is mixed with the neutral border rather than used neat. A dozen
  * saturated rectangles side by side fight each other and drown the schedule
  * warnings, which matter more than whose card it is; mixed, each team is
  * still told apart at a glance but red still means late.

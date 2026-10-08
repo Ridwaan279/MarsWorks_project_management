@@ -11,6 +11,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { loadLocalEnv } from "./load-env";
 import { PrismaClient } from "../src/generated/prisma";
+import { SUB_TEAMS } from "../prisma/sub-teams";
 
 loadLocalEnv();
 
@@ -53,11 +54,12 @@ async function main() {
       );
     }
   }
-  console.log(`\n${teams.length} sub-teams. Expected 6.`);
-  if (teams.length !== 6) {
+  console.log(`\n${teams.length} sub-teams. Expected ${SUB_TEAMS.length}.`);
+  const missing = SUB_TEAMS.filter((t) => !teams.some((have) => have.key === t.key));
+  if (missing.length) {
     console.log(
-      "Not 6 -- this database still holds the old seed. Either `git pull` and\n" +
-        "run `npm run db:seed` again, or run scripts/fix-subteams.sql against it.",
+      `Missing ${missing.map((t) => t.name).join(", ")}. Run \`npm run db:ensure-teams\`\n` +
+        "to add them; production deploys add them automatically.",
     );
   }
 }

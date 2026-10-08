@@ -11,13 +11,13 @@
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { loadLocalEnv } from "../scripts/load-env";
+import { SUB_TEAMS } from "./sub-teams";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   PrismaClient,
   type ProjectStage,
   type TaskPriority,
   type TaskStatus,
-  type TeamView,
 } from "../src/generated/prisma";
 
 loadLocalEnv();
@@ -73,29 +73,7 @@ const data: SeedData = JSON.parse(
   readFileSync(path.join(process.cwd(), "prisma", "seed-data.json"), "utf8"),
 );
 
-/**
- * The nine teams from the structure document. `defaultView` reflects how each
- * team already works: the ones running date-driven plans open on the timeline,
- * the ones running task flow open on the board. Both render the same rows.
- */
-const teams: {
-  key: string;
-  name: string;
-  colour: string;
-  defaultView: TeamView;
-  description: string;
-}[] = [
-  // Sub-team colours from the Mission Control palette document. They identify
-  // ownership, which is why they are distinct rather than a single family --
-  // the chrome around them stays neutral so the Gantt remains readable.
-  // Mechanical carries the MarsWorks orange.
-  { key: "OPS", name: "Operations", colour: "#8b9aaf", defaultView: "BOARD", description: "Sponsors, emails, communications, procurement, social media, health and safety, and project administration." },
-  { key: "MECH", name: "Mechanical", colour: "#f87624", defaultView: "TIMELINE", description: "Chassis, wheels, drivetrain, structure, and mechanical systems." },
-  { key: "ELEC", name: "Electronics", colour: "#35b9d6", defaultView: "BOARD", description: "Power, electronics, wiring, and communication between subsystems." },
-  { key: "ROBO", name: "Robotics", colour: "#8bcb3f", defaultView: "BOARD", description: "Robot arm and its mechanical, electrical and software integration." },
-  { key: "SCI", name: "Science", colour: "#d96baa", defaultView: "TIMELINE", description: "Science kit, experiments, and scientific requirements." },
-  { key: "SW", name: "Software", colour: "#9b72e8", defaultView: "BOARD", description: "Software management, manual control, and autonomous navigation." },
-];
+const teams = SUB_TEAMS;
 
 /** People named in the existing planners. */
 const members = [

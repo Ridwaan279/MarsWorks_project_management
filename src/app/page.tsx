@@ -114,7 +114,7 @@ export default async function OverviewPage() {
           </Link>
         </div>
 
-        <ul data-tour="teams" className="grid grid-flow-dense gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul data-tour="teams" className="grid grid-flow-dense gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {project.teams.map((team) => {
             const health = healthByTeam.get(team.id);
             if (!health) return null;

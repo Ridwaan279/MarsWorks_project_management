@@ -21,8 +21,8 @@ export function PageSkeleton() {
       </div>
       <div className="space-y-3">
         <div className="skeleton h-3 w-24" />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }, (_, i) => (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 8 }, (_, i) => (
             <div key={i} className="skeleton h-36" />
           ))}
         </div>
