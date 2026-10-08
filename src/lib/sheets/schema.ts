@@ -26,18 +26,30 @@ export const TEAM_TAB: Record<string, string> = Object.fromEntries(
   Object.entries(TAB_TEAM).map(([tab, team]) => [team, tab]),
 );
 
+/** Website status -> word in the sheet. */
+export type StatusVocabulary = Record<TaskStatus, string>;
+
 /**
- * Website status -> the word shown in the sheet.
- *
- * Only the sheet's own three task words are used. Adding Blocked and In
- * Review to its Status dropdown from a script would replace the dropdown's
- * coloured chips with a plain list, since Apps Script cannot set chip colours.
- *
- * Nothing is lost by it. The sync compares in the sheet's vocabulary, so a
- * task Blocked on the website reads as "In-Progress" on both sides and is
- * left Blocked; only a different word typed in the sheet counts as a change.
+ * Every website status with a word of its own. Used once the sheet's Status
+ * dropdowns offer all of them, which the sync script sets up.
  */
-export const SHEET_STATUS: Record<TaskStatus, string> = {
+export const FULL_STATUS_WORDS: StatusVocabulary = {
+  BACKLOG: "Backlog",
+  TODO: "Not Started",
+  IN_PROGRESS: "In-Progress",
+  BLOCKED: "Blocked",
+  IN_REVIEW: "In Review",
+  DONE: "Complete",
+};
+
+/**
+ * The sheet's original three task words. Used with a sheet whose dropdown has
+ * not been extended yet, so the website never writes a word the dropdown
+ * would reject. Nothing is lost meanwhile: comparisons happen in this
+ * vocabulary, so a task Blocked on the website reads as "In-Progress" on both
+ * sides and is left Blocked.
+ */
+export const BASIC_STATUS_WORDS: StatusVocabulary = {
   BACKLOG: "Not Started",
   TODO: "Not Started",
   IN_PROGRESS: "In-Progress",
@@ -46,12 +58,25 @@ export const SHEET_STATUS: Record<TaskStatus, string> = {
   DONE: "Complete",
 };
 
-/** A sheet word -> the status to set on the website when that word is typed. */
-export const STATUS_FROM_SHEET: Record<string, TaskStatus> = {
-  "Not Started": "TODO",
-  "In-Progress": "IN_PROGRESS",
-  Complete: "DONE",
-};
+/**
+ * The vocabulary to use with a sheet, from the status words its script says
+ * the dropdowns accept. Each status gets its own word if that word is on
+ * offer, else the basic one. An older script sends nothing, and gets basic.
+ *
+ * Switching is safe in either direction: words are compared in whichever
+ * vocabulary is current, so a row showing the old word for an unchanged task
+ * reads as "the website has the newer value", and is rewritten.
+ */
+export function statusVocabulary(options?: readonly string[]): StatusVocabulary {
+  const offered = new Set((options ?? []).map((o) => o.trim().toLowerCase()));
+  const result = { ...BASIC_STATUS_WORDS };
+  for (const status of Object.keys(FULL_STATUS_WORDS) as TaskStatus[]) {
+    if (offered.has(FULL_STATUS_WORDS[status].toLowerCase())) {
+      result[status] = FULL_STATUS_WORDS[status];
+    }
+  }
+  return result;
+}
 
 export const MILESTONE_STATUS = "Milestone";
 
@@ -62,7 +87,7 @@ export interface TaskFields {
   /** YYYY-MM-DD, or "" for no date. */
   start: string;
   end: string;
-  /** One of the SHEET_STATUS words. */
+  /** A status word from the vocabulary in use; see statusVocabulary. */
   status: string;
   notes: string;
   /** Sub-team key, decided by which tab the row is in. */

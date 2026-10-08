@@ -68,8 +68,44 @@ class FakeRange {
   }
   setNote(note) { this.sheet.notes.set(`${this.row}:${this.col}`, note); return this; }
   setFontWeight() { return this; }
-  setDataValidation() { this.sheet.validationTouched = true; return this; }
+  getColumn() { return this.col; }
+  // Validation is tracked per column, which is how the sheet applies it.
+  getDataValidation() { return this.sheet.validation.get(this.col) ?? null; }
+  setDataValidation(rule) { this.sheet.validation.set(this.col, rule); this.sheet.validationWrites++; return this; }
   protect() { const p = { setDescription: () => p, setWarningOnly: () => p }; this.sheet.protections++; return p; }
+}
+
+function listRule(values, helpText = "") {
+  return {
+    getCriteriaType: () => "VALUE_IN_LIST",
+    getCriteriaValues: () => [values, true],
+    getHelpText: () => helpText,
+    copy: () => validationBuilder(values, helpText),
+  };
+}
+function validationBuilder(values = [], helpText = "") {
+  const b = {
+    requireValueInList: (list) => { values = [...list]; return b; },
+    setAllowInvalid: () => b,
+    setHelpText: (t) => { helpText = t; return b; },
+    build: () => listRule(values, helpText),
+  };
+  return b;
+}
+function formatRuleBuilder() {
+  const rule = { text: "", background: "", font: "", ranges: [] };
+  const b = {
+    whenTextEqualTo: (t) => { rule.text = t; return b; },
+    setBackground: (c) => { rule.background = c; return b; },
+    setFontColor: (c) => { rule.font = c; return b; },
+    setRanges: (r) => { rule.ranges = r; return b; },
+    build: () => ({
+      ...rule,
+      getBooleanCondition: () => ({ getCriteriaType: () => "TEXT_EQUAL_TO", getCriteriaValues: () => [rule.text] }),
+      getRanges: () => rule.ranges,
+    }),
+  };
+  return b;
 }
 
 class FakeSheet {
@@ -78,8 +114,21 @@ class FakeSheet {
     this.cells = rows.map((r) => r.map((v) => (v && typeof v === "object" && v.date ? localMidnight(v.date, TZ) : v)));
     this.notes = new Map();
     this.protections = 0;
-    this.validationTouched = false;
+    this.validation = new Map();
+    this.validationWrites = 0;
+    this.formatRules = [];
+    // Start from the sheet as the team had it: a four-word Status dropdown.
+    const statusCol = (this.cells[0] ?? []).map(String).indexOf("Status") + 1;
+    if (statusCol > 0) {
+      const words = ["Not Started", "In-Progress", "Complete", "Milestone"];
+      // One team has added a word of its own, with help text, to check both survive.
+      this.validation.set(statusCol, name === "Sci Tasks"
+        ? listRule([...words, "On Hold"], "Pick a status")
+        : listRule(words));
+    }
   }
+  getConditionalFormatRules() { return [...this.formatRules]; }
+  setConditionalFormatRules(rules) { this.formatRules = [...rules]; }
   getName() { return this.name; }
   getType() { return "GRID"; }
   get(r, c) { return (this.cells[r - 1] ?? [])[c - 1] ?? ""; }
@@ -178,6 +227,10 @@ const sandbox = {
     getActive: () => ss,
     getUi: () => ui,
     SheetType: { GRID: "GRID", OBJECT: "OBJECT", DATASOURCE: "DATASOURCE" },
+    DataValidationCriteria: { VALUE_IN_LIST: "VALUE_IN_LIST" },
+    BooleanCriteria: { TEXT_EQUAL_TO: "TEXT_EQUAL_TO" },
+    newDataValidation: validationBuilder,
+    newConditionalFormatRule: formatRuleBuilder,
   },
   PropertiesService: {
     getScriptProperties: () => ({
@@ -268,7 +321,20 @@ check("change trigger and 5-minute schedule installed",
 check("Website ID column added to every task tab, timeline tabs untouched",
   tabs.filter((t) => t.header().includes("Tasks")).every((t) => t.header().includes(ID)) &&
   tabs.filter((t) => isTimeline(t.name)).every((t) => t instanceof FakeObjectSheet));
-check("the sheet's Status dropdowns were left alone", tabs.every((t) => !t.validationTouched));
+const ALL_STATUSES = ["Backlog", "Not Started", "In-Progress", "Blocked", "In Review", "Complete", "Milestone"];
+const taskTabs = tabs.filter((t) => t instanceof FakeSheet && t.header().includes("Tasks"));
+check("every Status dropdown now offers every website status",
+  taskTabs.every((t) => {
+    const offered = t.validation.get(t.col("Status"))?.getCriteriaValues()[0] ?? [];
+    return ALL_STATUSES.every((w) => offered.includes(w));
+  }));
+const sci = taskTabs.find((t) => t.name === "Sci Tasks");
+const sciRule = sci.validation.get(sci.col("Status"));
+check("a word the team added to the dropdown, and its help text, are kept",
+  sciRule.getCriteriaValues()[0].includes("On Hold") && sciRule.getHelpText() === "Pick a status");
+check("each status colours its cell, once per tab",
+  taskTabs.every((t) => t.formatRules.length === ALL_STATUSES.length &&
+    t.formatRules.every((r) => r.ranges[0].getColumn() === t.col("Status") && r.background)));
 const unlabelled = [LEAD, SW].flatMap((t) => t.dataRows().filter((r) => !String(cell(t, r, ID)).trim()).map((r) => `${t.name}:${r}`));
 check("every existing row now carries an ID", unlabelled.length === 0, unlabelled.join(", "));
 check("existing tasks were linked, not duplicated",
@@ -300,15 +366,21 @@ api("PATCH", `/api/tasks/${sw3.id}`, { title: "Repo setup (renamed on the websit
 gs.doPost({ postData: { contents: JSON.stringify({ secret, reason: "website" }) } });
 check("a title changed on the board appears in the sheet", cell(SW, SW.rowWhere(ID, "SW-3"), "Tasks") === "Repo setup (renamed on the website)");
 
-console.log("\n4. Statuses the sheet has no word for");
+console.log("\n4. Statuses beyond the sheet's original three");
 const sw4 = taskBy(`key='SW-4'`);
 api("PATCH", `/api/tasks/${sw4.id}`, { status: "IN_PROGRESS" });
 gs.runSync_("website", 0);
 api("PATCH", `/api/tasks/${sw4.id}`, { status: "BLOCKED" });
 gs.runSync_("website", 0);
-check("Blocked shows as In-Progress in the sheet", cell(SW, SW.rowWhere(ID, "SW-4"), "Status") === "In-Progress");
+check("Blocked shows as Blocked in the sheet", cell(SW, SW.rowWhere(ID, "SW-4"), "Status") === "Blocked");
 gs.runSync_("schedule", 0);
 check("and stays Blocked on the website after syncing back", taskBy(`key='SW-4'`).status === "BLOCKED");
+setCell(SW, SW.rowWhere(ID, "SW-4"), "Status", "In Review");
+edit();
+check("In Review typed in the sheet sets In review on the website", taskBy(`key='SW-4'`).status === "IN_REVIEW");
+const writesBefore = SW.validationWrites;
+gs.runSync_("schedule", 0);
+check("a sync that finds the dropdowns in place leaves them alone", SW.validationWrites === writesBefore);
 
 console.log("\n5. The same field edited on both sides");
 const sw5 = taskBy(`key='SW-5'`);

@@ -11,6 +11,9 @@ const cell = z.union([z.string(), z.number(), z.boolean(), z.null()]).transform(
 
 const payload = z.object({
   reason: z.string().max(40).optional(),
+  // The status words the sheet's dropdowns accept. Sent by the current script
+  // only; an older one omits it and gets the sheet's original three words.
+  statusOptions: z.array(z.string().max(40)).max(20).optional(),
   tabs: z
     .array(
       z.object({
@@ -62,7 +65,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { ops, summary } = await runSheetSync(parsed.data.tabs, parsed.data.reason ?? "sheet");
+    const { ops, summary } = await runSheetSync(
+      parsed.data.tabs,
+      parsed.data.reason ?? "sheet",
+      parsed.data.statusOptions,
+    );
     return NextResponse.json({ ok: true, ops, summary });
   } catch (error) {
     console.error("Google Sheets sync failed", error);

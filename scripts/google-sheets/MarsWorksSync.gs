@@ -30,9 +30,30 @@ var MARSWORKS = {
     status: "Status",
     notes: "Notes",
   },
+  // Every status the website has, in the order work moves through them, then
+  // the sheet's own Milestone. A script cannot colour dropdown chips, so each
+  // status colours its cell instead, through conditional formatting -- which
+  // the "... Timeline" views also use for card colours when Card colour is set
+  // to Status. The four the sheet already had keep the colours the team chose
+  // for them; the new three are light enough for the timeline's black text.
+  STATUSES: [
+    { word: "Backlog", background: "#e8eaed", text: "#3c4043" },
+    { word: "Not Started", background: "#ffcfc9", text: "#b10202" },
+    { word: "In-Progress", background: "#ffe5a0", text: "#473821" },
+    { word: "Blocked", background: "#f28b82", text: "#5f0d07" },
+    { word: "In Review", background: "#e6cff2", text: "#5a3286" },
+    { word: "Complete", background: "#d4edbc", text: "#11734b" },
+    { word: "Milestone", background: "#bfe1f6", text: "#0a53a8" },
+  ],
   SCHEDULE_MINUTES: 5,
   MAX_PASSES: 3,
 };
+
+function statusWords_() {
+  return MARSWORKS.STATUSES.map(function (s) {
+    return s.word;
+  });
+}
 
 // ---------------------------------------------------------------- menu & setup
 
@@ -48,9 +69,9 @@ function onOpen() {
 
 /**
  * One-time setup: asks for the website address and the sync secret, checks
- * they work, adds the Website ID column, installs the triggers, and runs the
- * first sync. The sheet's own columns, dropdowns and colours are left as they
- * are.
+ * they work, adds the Website ID column, gives every Status dropdown all the
+ * website's statuses (colour-coded), installs the triggers, and runs the
+ * first sync.
  */
 function setup() {
   var ui = SpreadsheetApp.getUi();
@@ -156,7 +177,12 @@ function runSync_(reason, requestedAt) {
     var total = null;
     for (var pass = 0; pass < MARSWORKS.MAX_PASSES; pass++) {
       var snapshot = readSheet_();
-      var response = callApp_("post", { reason: pass === 0 ? reason : "settle", tabs: snapshot.tabs });
+      var response = callApp_("post", {
+        reason: pass === 0 ? reason : "settle",
+        tabs: snapshot.tabs,
+        // Tells the website which status words the dropdowns now accept.
+        statusOptions: statusWords_(),
+      });
       if (!response.ok) throw new Error(response.error);
       var applied = applyOps_(response.body.ops || [], snapshot.timeZone);
       total = addSummaries_(total, response.body.summary);
@@ -205,7 +231,13 @@ function headerMap_(sheet) {
   return cols;
 }
 
-/** Adds the Website ID column, with a do-not-edit warning, if it is missing. */
+/**
+ * Gets a task tab ready to sync: adds the Website ID column (with a
+ * do-not-edit warning) if it is missing, and makes sure the Status dropdown
+ * offers every status. Cheap when nothing needs doing, so it runs every sync,
+ * which is what lets a newly pasted script take effect without re-running
+ * setup.
+ */
 function prepareTab_(sheet) {
   var cols = headerMap_(sheet);
   if (!cols.title) return cols; // not a task tab: never add a column to it
@@ -217,7 +249,60 @@ function prepareTab_(sheet) {
     protection.setWarningOnly(true);
     cols = headerMap_(sheet);
   }
+  if (cols.status) ensureStatusOptions_(sheet, cols.status);
   return cols;
+}
+
+/**
+ * The Status column's dropdown and colours. Words the team added to the list
+ * themselves are kept. Both are only rewritten when something is missing, so
+ * a sync that finds them in place changes nothing.
+ */
+function ensureStatusOptions_(sheet, col) {
+  var words = statusWords_();
+  var range = sheet.getRange(2, col, Math.max(sheet.getMaxRows() - 1, 1), 1);
+
+  var current = sheet.getRange(2, col).getDataValidation();
+  var isList = current && current.getCriteriaType() === SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST;
+  var offered = isList ? (current.getCriteriaValues()[0] || []).map(String) : [];
+  var missing = words.some(function (w) {
+    return offered.indexOf(w) === -1;
+  });
+  if (missing) {
+    var list = words.concat(
+      offered.filter(function (w) {
+        return words.indexOf(w) === -1;
+      })
+    );
+    // Start from the team's own rule where there is one, so its other
+    // settings (help text, reject or warn) carry over.
+    var builder = isList ? current.copy() : SpreadsheetApp.newDataValidation().setAllowInvalid(false);
+    range.setDataValidation(builder.requireValueInList(list, true).build());
+  }
+
+  var rules = sheet.getConditionalFormatRules();
+  function isOurs(rule) {
+    var condition = rule.getBooleanCondition();
+    if (!condition || condition.getCriteriaType() !== SpreadsheetApp.BooleanCriteria.TEXT_EQUAL_TO) return false;
+    if (words.indexOf(String(condition.getCriteriaValues()[0])) === -1) return false;
+    return rule.getRanges().some(function (r) {
+      return r.getColumn() === col;
+    });
+  }
+  if (rules.filter(isOurs).length !== MARSWORKS.STATUSES.length) {
+    var kept = rules.filter(function (rule) {
+      return !isOurs(rule);
+    });
+    var colours = MARSWORKS.STATUSES.map(function (s) {
+      return SpreadsheetApp.newConditionalFormatRule()
+        .whenTextEqualTo(s.word)
+        .setBackground(s.background)
+        .setFontColor(s.text)
+        .setRanges([range])
+        .build();
+    });
+    sheet.setConditionalFormatRules(kept.concat(colours));
+  }
 }
 
 function readSheet_() {
@@ -227,7 +312,7 @@ function readSheet_() {
   ss.getSheets().forEach(function (sheet) {
     var cols = headerMap_(sheet);
     if (!cols.title) return; // a timeline view or some other tab
-    if (!cols.id) cols = prepareTab_(sheet);
+    cols = prepareTab_(sheet);
     var last = sheet.getLastRow();
     var rows = [];
     if (last >= 2) {

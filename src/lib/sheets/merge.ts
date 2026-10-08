@@ -29,7 +29,7 @@ import {
   MILESTONE_ID_PREFIX,
   MILESTONE_STATUS,
   MILESTONE_TAB,
-  SHEET_STATUS,
+  BASIC_STATUS_WORDS,
   TAB_TEAM,
   TASK_FIELDS,
   TEAM_TAB,
@@ -40,6 +40,7 @@ import {
   type SheetOp,
   type SheetRow,
   type SheetTab,
+  type StatusVocabulary,
   type TaskFields,
 } from "./schema";
 import { normaliseStatus } from "../domain";
@@ -63,6 +64,8 @@ export interface PlanInput {
   milestones: AppMilestone[];
   /** Website IDs of things deleted on either side. */
   tombstones: ReadonlySet<string>;
+  /** Status words the sheet uses; basic unless its script says otherwise. */
+  vocabulary?: StatusVocabulary;
 }
 
 /** Where a row without an ID lives, so its new ID can be written back to it. */
@@ -121,12 +124,18 @@ export function readDate(raw: string): string | undefined {
   return undefined;
 }
 
-/** The sheet's word for a status, or undefined for one this app does not know. */
-export function readStatus(raw: string): string | undefined {
+/**
+ * A status cell in the vocabulary being compared, or undefined for a word the
+ * website does not know. Typing any spelling ("in progress", "Done") counts.
+ */
+export function readStatus(
+  raw: string,
+  vocabulary: StatusVocabulary = BASIC_STATUS_WORDS,
+): string | undefined {
   const text = raw.trim();
-  if (text === "") return SHEET_STATUS.TODO;
+  if (text === "") return vocabulary.TODO;
   const status = normaliseStatus(text);
-  return status ? SHEET_STATUS[status] : undefined;
+  return status ? vocabulary[status] : undefined;
 }
 
 function isMilestoneRow(row: SheetRow): boolean {
@@ -137,7 +146,13 @@ function isMilestoneRow(row: SheetRow): boolean {
 }
 
 /** A task row's fields as far as they can be read; unreadable ones are absent. */
-function readTaskRow(row: SheetRow, team: string, where: string, warnings: string[]) {
+function readTaskRow(
+  row: SheetRow,
+  team: string,
+  where: string,
+  warnings: string[],
+  vocabulary: StatusVocabulary,
+) {
   const fields: Partial<TaskFields> = {
     assignee: row.assignee.trim(),
     notes: row.notes.trim(),
@@ -159,7 +174,7 @@ function readTaskRow(row: SheetRow, team: string, where: string, warnings: strin
     warnings.push(`${where} "${row.title.trim()}" ends before it starts.`);
   }
 
-  const status = readStatus(row.status);
+  const status = readStatus(row.status, vocabulary);
   if (status === undefined) {
     warnings.push(`${where}: "${row.status}" is not a status the website knows.`);
   } else if (row.status.trim().toLowerCase() !== MILESTONE_STATUS.toLowerCase()) {
@@ -279,6 +294,7 @@ export function planSync(input: PlanInput): Plan {
     warnings: [],
   };
 
+  const vocabulary = input.vocabulary ?? BASIC_STATUS_WORDS;
   const taskByKey = new Map(input.tasks.map((t) => [t.key, t]));
   const milestoneById = new Map(input.milestones.map((m) => [m.id, m]));
   const claimedTasks = new Set<string>();
@@ -323,7 +339,7 @@ export function planSync(input: PlanInput): Plan {
               `${where}: a task's row was marked as a milestone; the website keeps it as a task.`,
             );
           }
-          linkTask(plan, task, readTaskRow(row, team, where, plan.warnings));
+          linkTask(plan, task, readTaskRow(row, team, where, plan.warnings, vocabulary));
           continue;
         }
       }
@@ -364,7 +380,7 @@ export function planSync(input: PlanInput): Plan {
       continue;
     }
 
-    const fields = readTaskRow(row, team, where, plan.warnings);
+    const fields = readTaskRow(row, team, where, plan.warnings, vocabulary);
     const wanted = normalTitle(row.title);
     const candidates = input.tasks.filter(
       (t) =>
@@ -386,7 +402,7 @@ export function planSync(input: PlanInput): Plan {
       assignee: fields.assignee ?? "",
       start: fields.start ?? "",
       end: fields.end ?? "",
-      status: fields.status ?? SHEET_STATUS.TODO,
+      status: fields.status ?? vocabulary.TODO,
       notes: fields.notes ?? "",
       team,
     };

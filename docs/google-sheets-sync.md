@@ -46,7 +46,8 @@ Setup takes about ten minutes and is done once.
 
 1. **Back up the sheet first**: File > Make a copy. The first sync writes the
    website's tasks into tabs that are currently empty (Mech and Elec), around
-   80 rows in all, and adds a column to each task tab.
+   80 rows in all, adds a column to each task tab, and adds the website's
+   statuses to each Status dropdown.
 
 2. In the sheet, open **Extensions > Apps Script**.
 
@@ -90,9 +91,18 @@ five-minute check. With it, the website tells the sheet straight away.
 call without the secret. If the university's Google Workspace does not allow
 "Anyone", skip this part: sync still works on the five-minute check.
 
-If you later paste a new version of the script, use **Deploy > Manage
-deployments > edit (pencil) > Version: New version** so the web app picks it
-up. The triggers pick up changes automatically.
+## Updating the script
+
+When a new version of `MarsWorksSync.gs` comes out:
+
+1. In the sheet, **Extensions > Apps Script**. Select everything in `Code.gs`,
+   delete it, paste in the new version, and click the save icon.
+2. In the sheet, **MarsWorks > Sync now** (or wait up to five minutes). The
+   triggers run the saved code automatically; there is no need to set up
+   again.
+3. Only if you did Part 3: **Deploy > Manage deployments**, click the pencil,
+   set **Version: New version**, then **Deploy**. The web app URL stays the
+   same, so nothing changes in Vercel.
 
 ## How the two sides line up
 
@@ -124,21 +134,67 @@ Everything else -- description, checklist, links, dependencies, flags,
 priority -- lives only on the website. Extra columns you add to the sheet are
 never touched.
 
-**Statuses.** The sheet keeps its own three words, so its coloured dropdowns
-are untouched:
+**Statuses.** Every tab's Status dropdown offers every status the website
+has, so a status means the same thing in both places:
 
-| Website                    | Sheet       |
-| -------------------------- | ----------- |
-| Backlog, To do             | Not Started |
-| In progress, Blocked, In review | In-Progress |
-| Done                       | Complete    |
+| Website     | Sheet       | Cell colour |
+| ----------- | ----------- | ----------- |
+| Backlog     | Backlog     | grey        |
+| To do       | Not Started | red         |
+| In progress | In-Progress | yellow      |
+| Blocked     | Blocked     | deep red    |
+| In review   | In Review   | purple      |
+| Done        | Complete    | green       |
+| --          | Milestone   | blue        |
 
-A task Blocked or In review on the website shows as In-Progress in the sheet
-and **stays** Blocked or In review: only typing a *different* word in the sheet
-counts as a change.
+The sync adds the missing words to each dropdown itself and keeps any word a
+team added of its own. Not Started, In-Progress, Complete and Milestone keep the
+colours the sheet already used; the three new ones are light enough to read on
+a timeline card.
+
+Google does not let a script colour dropdown **chips**, so the sync colours the
+whole **cell** instead (conditional formatting on the Status column). Extending
+the dropdown can turn the chips themselves grey. To tidy that, per tab:
+**Data > Data validation**, click the Status rule, then either click the circle
+beside each option and pick its colour, or open **Advanced options** and set
+**Display style** to **Plain text** so the coloured cell shows on its own. The
+sync will not undo either.
 
 **Milestones** are the rows whose Status is "Milestone", as now. The website
 uses the End Date (or the Start Date if End is empty).
+
+## The timeline tabs
+
+Each "... Timeline" tab is a Google timeline view of its task tab. Google does
+not let scripts create or change these, so the sync cannot fix them; this is a
+one-off check per tab (about a minute each).
+
+Open the timeline tab, click the timeline, and open its **Settings** panel on
+the right (if it is hidden: **Timeline settings** in the toolbar). Set:
+
+| Setting      | Value                                                             |
+| ------------ | ----------------------------------------------------------------- |
+| Data range   | `'Software Tasks'!A1:F1000` -- the tab's name, and **1000** rows   |
+| Card title   | Tasks                                                             |
+| Start date   | Start Date                                                        |
+| End date     | End Date                                                          |
+| Card details | Assignee (optional)                                               |
+| Card colour  | Status                                                            |
+
+The data range matters most. A timeline only shows the rows inside its range,
+and a range drawn around the rows that existed when it was made leaves out
+every row added since, including the ones the sync writes. Mech, Elec,
+Robotics and Sci had empty tabs, so their timelines are the likeliest to be
+showing nothing. `A1:F1000` covers the whole tab.
+
+A task appears on the timeline only when its row has dates: a row with no
+**Start Date** is left off, and one whose **End Date** comes before its start
+may not show properly. Give a task dates (in the sheet or on the website) to
+put it on the timeline. The sync notes rows whose dates are the wrong way
+round: MarsWorks > Show last sync.
+
+Tabs without a timeline yet: **Insert > Timeline**, choose the tab's range
+(`A1:F1000`), and set the same fields.
 
 ## What happens when
 

@@ -8,7 +8,7 @@ import {
   type AppMilestone,
   type AppTask,
 } from "./merge";
-import type { SheetRow, SheetTab, TaskFields } from "./schema";
+import { FULL_STATUS_WORDS, statusVocabulary, type SheetRow, type SheetTab, type TaskFields } from "./schema";
 
 const SW = "Software Tasks";
 
@@ -245,3 +245,44 @@ describe("planning a sync", () => {
     expect(p.warnings.join(" ")).toMatch(/not linked to a sub-team/);
   });
 });
+
+describe("status words", () => {
+  const ALL = ["Backlog", "Not Started", "In-Progress", "Blocked", "In Review", "Complete", "Milestone"];
+
+  it("uses every status's own word only when the sheet's dropdown offers it", () => {
+    expect(statusVocabulary(ALL)).toEqual(FULL_STATUS_WORDS);
+    expect(statusVocabulary(undefined).BLOCKED).toBe("In-Progress");
+    expect(statusVocabulary(["Blocked"]).IN_REVIEW).toBe("In-Progress");
+  });
+
+  it("rewrites a row still showing the old word once the full set is available", () => {
+    // Synced before the upgrade: Blocked on the website, In-Progress in the
+    // sheet and in the base. After it, the website's word is newer.
+    const before = fields({ status: "In-Progress" });
+    const t = task("SW-3", { status: "Blocked" }, before);
+    const p = planSync({
+      tabs: [{ name: SW, rows: [sheetOf(task("SW-3", { status: "In-Progress" }))] }],
+      tasks: [t],
+      milestones: [],
+      tombstones: new Set(),
+      vocabulary: statusVocabulary(ALL),
+    });
+    expect(p.taskUpdates[0].changes).toEqual({});
+    expect(p.ops).toEqual([
+      expect.objectContaining({ id: "SW-3", values: expect.objectContaining({ status: "Blocked" }) }),
+    ]);
+  });
+
+  it("takes In Review typed in the sheet as In Review", () => {
+    const t = task("SW-3", { status: "In-Progress" }, fields({ status: "In-Progress" }));
+    const p = planSync({
+      tabs: [{ name: SW, rows: [{ ...sheetOf(t), status: "In Review" }] }],
+      tasks: [t],
+      milestones: [],
+      tombstones: new Set(),
+      vocabulary: statusVocabulary(ALL),
+    });
+    expect(p.taskUpdates[0].changes).toEqual({ status: "In Review" });
+  });
+});
+

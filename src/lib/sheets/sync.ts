@@ -8,13 +8,13 @@
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "../db";
 import { deriveProgress } from "../progress";
+import { normaliseStatus } from "../domain";
 import { keyAllocator } from "../task-keys";
 import { planSync, type AppMilestone, type AppTask } from "./merge";
 import {
   MILESTONE_ID_PREFIX,
-  SHEET_STATUS,
-  STATUS_FROM_SHEET,
   TEAM_TAB,
+  statusVocabulary,
   milestoneTitle,
   type MilestoneFields,
   type SheetOp,
@@ -44,6 +44,7 @@ const SYNC_LOCK = 0x5ee75;
 export async function runSheetSync(
   tabs: SheetTab[],
   reason: string,
+  statusOptions?: readonly string[],
 ): Promise<{ ops: SheetOp[]; summary: SyncSummary }> {
   const run = await prisma.sheetSyncRun.create({ data: { reason } });
   try {
@@ -52,7 +53,7 @@ export async function runSheetSync(
         // Serialise syncs. An edit and a scheduled run arriving together would
         // otherwise both see a new row without an ID and both create it.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${SYNC_LOCK})`;
-        return syncInTransaction(tx, tabs);
+        return syncInTransaction(tx, tabs, statusVocabulary(statusOptions));
       },
       { timeout: 50_000, maxWait: 20_000 },
     );
@@ -90,7 +91,11 @@ async function pruneRuns() {
   }
 }
 
-async function syncInTransaction(tx: Prisma.TransactionClient, tabs: SheetTab[]) {
+async function syncInTransaction(
+  tx: Prisma.TransactionClient,
+  tabs: SheetTab[],
+  vocabulary: ReturnType<typeof statusVocabulary>,
+) {
   const [teams, members, tasks, milestones, tombstones] = await Promise.all([
     tx.team.findMany({ select: { id: true, key: true } }),
     tx.member.findMany({ select: { id: true, name: true } }),
@@ -135,7 +140,7 @@ async function syncInTransaction(tx: Prisma.TransactionClient, tabs: SheetTab[])
         assignee: t.ownerLabel ?? t.assignee?.name ?? "",
         start: isoDay(t.plannedStart),
         end: isoDay(t.plannedEnd),
-        status: SHEET_STATUS[t.status],
+        status: vocabulary[t.status],
         notes: t.notes ?? "",
         team: t.team.key,
       },
@@ -153,6 +158,7 @@ async function syncInTransaction(tx: Prisma.TransactionClient, tabs: SheetTab[])
     tasks: appTasks,
     milestones: appMilestones,
     tombstones: new Set(tombstones.map((t) => t.ref)),
+    vocabulary,
   });
 
   const summary: SyncSummary = {
@@ -188,7 +194,7 @@ async function syncInTransaction(tx: Prisma.TransactionClient, tabs: SheetTab[])
       if (teamId) data.teamId = teamId;
     }
     if (changes.status !== undefined) {
-      const status = STATUS_FROM_SHEET[changes.status] ?? "TODO";
+      const status = normaliseStatus(changes.status) ?? "TODO";
       data.status = status;
       // The same side effects a move on the board has; see the task PATCH.
       if ((status === "IN_PROGRESS" || status === "DONE") && !current?.actualStart) {
@@ -225,7 +231,7 @@ async function syncInTransaction(tx: Prisma.TransactionClient, tabs: SheetTab[])
       next = await keyAllocator(tx, create.fields.team);
       allocators.set(create.fields.team, next);
     }
-    const status = STATUS_FROM_SHEET[create.fields.status] ?? "TODO";
+    const status = normaliseStatus(create.fields.status) ?? "TODO";
     const first = await tx.task.findFirst({
       where: { status },
       orderBy: { boardOrder: "asc" },
