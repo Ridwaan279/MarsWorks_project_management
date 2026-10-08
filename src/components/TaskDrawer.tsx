@@ -19,6 +19,7 @@ import type {
   WorkstreamView,
 } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { Avatar, ProgressBar, StatusBadge, TeamDot, formatDays } from "./ui";
 
 interface DrawerProps {
@@ -32,6 +33,8 @@ interface DrawerProps {
   scheduled: ScheduledTask | undefined;
   onClose: () => void;
   onSaved: (task: TaskView) => void;
+  /** The task is gone from the database; the drawer is about to close. */
+  onDeleted: (task: TaskView) => void;
 }
 
 const FIELD =
@@ -87,6 +90,7 @@ export function TaskDrawer({
   scheduled,
   onClose,
   onSaved,
+  onDeleted,
 }: DrawerProps) {
   const [draft, setDraft] = useState(task);
   const [saving, setSaving] = useState(false);
@@ -95,7 +99,11 @@ export function TaskDrawer({
   const [linkUrl, setLinkUrl] = useState("");
   const [subtaskTitle, setSubtaskTitle] = useState("");
   const [dependencyId, setDependencyId] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
 
   const [seenTask, setSeenTask] = useState(task);
   if (task !== seenTask) {
@@ -166,6 +174,37 @@ export function TaskDrawer({
     } finally {
       setSaving(false);
     }
+  }
+
+  /*
+   * The server records the task's key as it deletes it, which is what tells
+   * the Google Sheets sync to remove the task's row rather than read the row
+   * back in as a new task -- and keeps the key from ever being reissued.
+   */
+  async function deleteTask() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const response = await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+      // 404: already deleted, from the sheet or another tab. Same end state.
+      if (!response.ok && response.status !== 404) {
+        setDeleteError("Could not delete the task. Check your connection and try again.");
+        return;
+      }
+      setConfirmingDelete(false);
+      onDeleted(task);
+    } catch (cause) {
+      console.error("Failed to delete task", cause);
+      setDeleteError("Could not delete the task. Check your connection and try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function cancelDelete() {
+    setConfirmingDelete(false);
+    setDeleteError(null);
+    deleteButtonRef.current?.focus();
   }
 
   async function addLink(event: React.FormEvent) {
@@ -357,16 +396,38 @@ export function TaskDrawer({
             </span>
             <StatusBadge status={draft.status} label={STATUS_LABEL[draft.status]} />
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded p-1 text-ink-3 transition-colors hover:bg-elevated hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
-              <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
-            </svg>
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              ref={deleteButtonRef}
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-ink-3 transition-colors hover:bg-danger/10 hover:text-danger focus:outline-none focus-visible:text-danger focus-visible:ring-2 focus-visible:ring-danger"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4 4.5l.6 8.6a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9l.6-8.6M6.75 7v4.5M9.25 7v4.5" />
+              </svg>
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded p-1 text-ink-3 transition-colors hover:bg-elevated hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
+                <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
+              </svg>
+            </button>
+          </div>
         </header>
 
         <div className="selectable overscroll-none-safe flex-1 space-y-5 overflow-y-auto px-5 py-5">
@@ -883,6 +944,40 @@ export function TaskDrawer({
           </div>
         </footer>
       </div>
+
+      {confirmingDelete ? (
+        <ConfirmDialog
+          title="Delete this task?"
+          subtitle={
+            <>
+              <span className="font-mono" translate="no">
+                {task.key}
+              </span>{" "}
+              &middot; {task.title}
+            </>
+          }
+          confirmLabel="Delete Task"
+          busyLabel="Deleting…"
+          busy={deleting}
+          error={deleteError}
+          onCancel={cancelDelete}
+          onConfirm={deleteTask}
+        >
+          <p>
+            It is removed from the board and the timeline for everyone, along
+            with its checklist, links and dependencies. Its row in the Google
+            Sheet is removed too.
+          </p>
+          {task.blocks.length > 0 ? (
+            <p>
+              {task.blocks.length === 1
+                ? "1 task is waiting on this one; it will no longer wait."
+                : `${task.blocks.length} tasks are waiting on this one; they will no longer wait.`}
+            </p>
+          ) : null}
+          <p className="font-medium text-ink">This cannot be undone.</p>
+        </ConfirmDialog>
+      ) : null}
     </div>
   );
 }

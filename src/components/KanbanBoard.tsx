@@ -114,6 +114,13 @@ export function KanbanBoard({
     setWorkstreamList(workstreams);
   }
   const [error, setError] = useState<string | null>(null);
+  /** A short confirmation, e.g. after a delete; clears itself. */
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   /** Board state as it was when the current drag began, for rollback. */
   const rollbackRef = useRef<TaskView[] | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
@@ -388,6 +395,30 @@ export function KanbanBoard({
     [router],
   );
 
+  // Its dependencies went with it in the database, so other cards stop
+  // showing it as something they wait on (or that waits on them) right away.
+  const handleTaskDeleted = useCallback(
+    (deleted: TaskView) => {
+      setOpenTaskId(null);
+      setTasks((current) =>
+        current
+          .filter((t) => t.id !== deleted.id)
+          .map((t) =>
+            t.blockedBy.some((d) => d.id === deleted.id) || t.blocks.some((d) => d.id === deleted.id)
+              ? {
+                  ...t,
+                  blockedBy: t.blockedBy.filter((d) => d.id !== deleted.id),
+                  blocks: t.blocks.filter((d) => d.id !== deleted.id),
+                }
+              : t,
+          ),
+      );
+      setNotice(`Deleted ${deleted.key} · ${deleted.title}`);
+      router.refresh();
+    },
+    [router],
+  );
+
   /*
    * On a phone one column fills the screen, and the board starts at Backlog --
    * which under the default Current filter is usually empty. That is a screen
@@ -611,6 +642,18 @@ export function KanbanBoard({
         </p>
       ) : null}
 
+      {/* Always present, so screen readers announce the text when it arrives. */}
+      <p
+        role="status"
+        className={
+          notice
+            ? "border-b border-line bg-elevated px-4 py-2 text-xs text-ink-2 sm:px-6"
+            : "sr-only"
+        }
+      >
+        {notice}
+      </p>
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -678,6 +721,7 @@ export function KanbanBoard({
           scheduled={scheduled[openTask.id]}
           onClose={() => setOpenTaskId(null)}
           onSaved={handleTaskSaved}
+          onDeleted={handleTaskDeleted}
         />
       ) : null}
 

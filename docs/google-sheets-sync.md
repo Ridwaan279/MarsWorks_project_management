@@ -208,7 +208,10 @@ Tabs without a timeline yet: **Insert > Timeline**, choose the tab's range
   deleted range, a sort over a filter), so the rows are **put back** and the
   sync says why. To remove many tasks deliberately, delete them on the website,
   or a few rows at a time.
-- **You delete a task on the website** -> its row is removed from the sheet.
+- **You delete a task on the website** (open it on the board, then **Delete**
+  at the top of the panel, and confirm) -> its row is removed from the sheet:
+  within seconds with the web app (Part 3), otherwise at the next five-minute
+  check. Its key is never reused.
 - **The same field is edited in both places** before a sync -> the website's
   version is kept, and the row gets a note saying so. Different fields edited
   in each place both survive.

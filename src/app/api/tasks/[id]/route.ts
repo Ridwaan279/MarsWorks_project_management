@@ -144,7 +144,13 @@ export async function DELETE(
     });
     pokeSheet("website");
     return new NextResponse(null, { status: 204 });
-  } catch {
-    return NextResponse.json({ error: "Could not delete task" }, { status: 404 });
+  } catch (error) {
+    // P2025: no such task -- already deleted, e.g. from the sheet. The
+    // drawer treats that as done, so it must not be confused with a failure.
+    if ((error as { code?: string } | null)?.code === "P2025") {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+    console.error("Failed to delete task", error);
+    return NextResponse.json({ error: "Could not delete task" }, { status: 500 });
   }
 }

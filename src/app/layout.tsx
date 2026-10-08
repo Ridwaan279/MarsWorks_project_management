@@ -104,7 +104,11 @@ export default function RootLayout({
           </div>
         </header>
 
-        <main id="content" className="relative z-0">
+        {/* No z-index here: one would make <main> its own stacking layer, and
+            every drawer and dialog opened from a page would sit under the
+            header (z-40) whatever its own z-index, hiding the drawer's top
+            row -- its Close and Delete buttons -- behind the header. */}
+        <main id="content" className="relative">
           {children}
         </main>
       </body>
