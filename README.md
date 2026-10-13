@@ -48,8 +48,8 @@ fill in, and then renders it two ways.
 
 The sub-teams are the six named in
 `MarsWorks_Team_Structure_and_Responsibilities.docx` -- Operations, Mechanical,
-Electronics, Robotics, Science and Software -- plus Drone and Mini-Rover, which
-have their own tabs in the master timeline. The master timeline also carries a
+Electronics, Robotics, Science and Software -- plus Drone, which has its own
+tab in the master timeline. The master timeline also carries a
 "Leadership and Milestones" tab; its milestone rows become milestones, and its
 remaining recruitment and administration rows belong to Operations.
 

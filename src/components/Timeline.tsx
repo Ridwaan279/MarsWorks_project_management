@@ -52,10 +52,16 @@ const RANGES = {
 } as const;
 type RangeKey = keyof typeof RANGES;
 
-const ROW_HEIGHT = 30;
-const GROUP_HEIGHT = 24;
-const TEAM_HEIGHT = 32;
-const HEADER_HEIGHT = 44;
+const ROW_HEIGHT = 32;
+const GROUP_HEIGHT = 26;
+const TEAM_HEIGHT = 36;
+/** The header's three bands: months, week starts, milestones. */
+const MONTH_ROW = 20;
+const WEEK_ROW = 18;
+const MILESTONE_ROW = 20;
+const HEADER_HEIGHT = MONTH_ROW + WEEK_ROW + MILESTONE_ROW;
+/** Longest a bar's label may run before it truncates. */
+const LABEL_MAX = 260;
 /**
  * Width of the frozen task-name column.
  *
@@ -121,6 +127,20 @@ export function Timeline({
     setZoom("compact");
   }, [narrow]);
 
+  /*
+   * The width the chart has to fill. Without it a short range left the grid
+   * stopping part-way across a wide screen, with bare page to its right.
+   */
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const observer = new ResizeObserver(([entry]) => setViewportWidth(entry.contentRect.width));
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
+
   const today = startOfDay(new Date(asOf));
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
 
@@ -175,11 +195,13 @@ export function Timeline({
     let chartStart = addDays(startOfDay(earliest), -3);
     const floor = startOfDay(SEASON_START);
     if (chartStart < floor) chartStart = floor;
+    // At least enough days to reach the right-hand edge of the screen.
+    const toFill = Math.ceil(Math.max(0, viewportWidth - RAIL) / dayWidth);
     return {
       start: chartStart,
-      totalDays: Math.max(daysBetween(chartStart, startOfDay(latest)) + 7, 14),
+      totalDays: Math.max(daysBetween(chartStart, startOfDay(latest)) + 7, 14, toFill),
     };
-  }, [visible, scheduled, milestones, today, range]);
+  }, [visible, scheduled, milestones, today, range, viewportWidth, RAIL, dayWidth]);
 
   const chartWidth = totalDays * dayWidth;
 
@@ -192,6 +214,29 @@ export function Timeline({
     }
     return marks;
   }, [start, totalDays]);
+
+  /** Each month the chart touches, as a band: where it starts and how wide. */
+  const monthBands = useMemo(() => {
+    const bands: { offset: number; days: number; date: Date }[] = [];
+    for (let i = 0; i < totalDays; i += 1) {
+      const date = addDays(start, i);
+      if (i === 0 || date.getDate() === 1) bands.push({ offset: i, days: 0, date });
+    }
+    bands.forEach((band, i) => {
+      band.days = (bands[i + 1]?.offset ?? totalDays) - band.offset;
+    });
+    return bands;
+  }, [start, totalDays]);
+
+  /** Saturdays, each shaded with its Sunday. Too fine to help when compact. */
+  const weekends = useMemo(() => {
+    if (zoom === "compact") return [];
+    const offsets: number[] = [];
+    for (let i = 0; i < totalDays; i += 1) {
+      if (addDays(start, i).getDay() === 6) offsets.push(i);
+    }
+    return offsets;
+  }, [start, totalDays, zoom]);
 
   /** Team -> workstream -> tasks, keeping the shape uniform for teams with no
    *  workstreams so rows line up between the rail and the chart. */
@@ -241,7 +286,18 @@ export function Timeline({
           });
         }
 
-        return { team, groups, count: teamTasks.length };
+        // The team's whole span, drawn faintly on its header row.
+        let spanStart = Infinity;
+        let spanEnd = -Infinity;
+        for (const task of teamTasks) {
+          const sched = scheduled[task.id];
+          if (!sched) continue;
+          spanStart = Math.min(spanStart, new Date(sched.earliestStart as unknown as string).getTime());
+          spanEnd = Math.max(spanEnd, new Date(sched.earliestFinish as unknown as string).getTime());
+        }
+        const span = Number.isFinite(spanStart) ? { from: new Date(spanStart), to: new Date(spanEnd) } : null;
+
+        return { team, groups, count: teamTasks.length, span };
       })
       .filter((g) => g.count > 0);
   }, [teams, visible, workstreams, scheduled]);
@@ -294,7 +350,7 @@ export function Timeline({
   }, [range, zoom]);
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
+    <div ref={rootRef} className="flex h-[calc(100dvh-3.5rem)] flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
         <div data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
           <label htmlFor="timeline-team-filter">Sub-team</label>
@@ -360,7 +416,10 @@ export function Timeline({
 
         <div className="ml-auto flex items-center gap-4 text-xs text-ink-3">
           <span className="flex items-center gap-1.5">
-            <span className="h-2 w-4 rounded-sm bg-accent" aria-hidden /> critical path
+            <span className="h-2.5 w-4 rounded-[3px] ring-1 ring-accent ring-inset" aria-hidden /> critical path
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-4 rounded-[3px] ring-1 ring-danger ring-inset" aria-hidden /> behind plan
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-3.5 w-0.5 bg-today" aria-hidden /> today
@@ -412,15 +471,47 @@ export function Timeline({
                 Sub-team / task
               </div>
               <div className="relative shrink-0" style={{ width: chartWidth }}>
-                {weekMarks.map((mark) => (
+                {/* Months. Each name sticks just past the frozen column while
+                    its month is on screen, so the reader always knows which
+                    month they are looking at. */}
+                {monthBands.map((band) => (
+                  // overflow: clip, not hidden -- hidden would make each band
+                  // its own scroll box and stop the name sticking.
+                  <div
+                    key={band.offset}
+                    className="absolute top-0 overflow-clip border-l border-line"
+                    style={{ left: band.offset * dayWidth, width: band.days * dayWidth, height: MONTH_ROW }}
+                  >
+                    <span
+                      className="sticky inline-block px-2 text-[11px] leading-5 font-semibold whitespace-nowrap text-ink-2"
+                      style={{ left: RAIL }}
+                    >
+                      {format(band.date, band.offset === 0 || band.date.getMonth() === 0 ? "MMMM yyyy" : "MMMM")}
+                    </span>
+                  </div>
+                ))}
+                {weekMarks
+                  // Skip the date the Today chip would sit on top of.
+                  .filter((mark) => {
+                    const labelWidth = zoom === "wide" ? 36 : 14;
+                    const centre = mark.offset * dayWidth + 6 + labelWidth / 2;
+                    return Math.abs(centre - todayOffset) >= labelWidth / 2 + 22;
+                  })
+                  .map((mark) => (
                   <span
                     key={mark.offset}
-                    style={{ left: mark.offset * dayWidth }}
-                    className="absolute top-1 pl-1.5 text-[10px] whitespace-nowrap text-ink-3 tabular-nums"
+                    style={{ left: mark.offset * dayWidth, top: MONTH_ROW, height: WEEK_ROW }}
+                    className="absolute pl-1.5 text-[10px] leading-[18px] whitespace-nowrap text-ink-3 tabular-nums"
                   >
-                    {format(mark.date, zoom === "compact" ? "d/M" : "d MMM")}
+                    {format(mark.date, zoom === "wide" ? "EEE d" : "d")}
                   </span>
                 ))}
+                <span
+                  style={{ left: todayOffset, top: MONTH_ROW + 2 }}
+                  className="absolute z-10 -translate-x-1/2 rounded-full bg-today px-1.5 text-[9px] leading-[14px] font-semibold text-canvas"
+                >
+                  Today
+                </span>
                 {/* The chip is tinted from the milestone hue so that it and
                     the rule below it plainly belong to the same marker. */}
                 {milestonesInView.map(({ milestone, offset, room }) => (
@@ -428,14 +519,16 @@ export function Timeline({
                     key={milestone.id}
                     title={`${milestone.name} — ${format(new Date(milestone.targetDate), "d MMM yyyy")}`}
                     style={{
-                      left: offset * dayWidth + 2,
+                      left: offset * dayWidth - 5,
+                      top: MONTH_ROW + WEEK_ROW + 2,
                       maxWidth: Math.max(room, 18),
                       backgroundColor:
-                        "color-mix(in srgb, var(--color-milestone) 18%, var(--color-bg))",
+                        "color-mix(in srgb, var(--color-milestone) 16%, var(--color-bg))",
                     }}
-                    className="absolute bottom-1 truncate rounded px-1 text-[9px] text-milestone"
+                    className="absolute flex items-center gap-1 truncate rounded px-1 text-[9px] leading-4 text-milestone"
                   >
-                    {milestone.name}
+                    <span aria-hidden className="h-1.5 w-1.5 shrink-0 rotate-45 bg-milestone" />
+                    <span className="truncate">{milestone.name}</span>
                   </span>
                 ))}
               </div>
@@ -449,10 +542,24 @@ export function Timeline({
                 className="pointer-events-none absolute inset-y-0 z-0"
                 style={{ left: RAIL, width: chartWidth }}
               >
+                {weekends.map((offset) => (
+                  <span
+                    key={`we-${offset}`}
+                    style={{ left: offset * dayWidth, width: 2 * dayWidth }}
+                    className="absolute inset-y-0 bg-ink/[0.025]"
+                  />
+                ))}
                 {weekMarks.map((mark) => (
                   <span
                     key={mark.offset}
                     style={{ left: mark.offset * dayWidth }}
+                    className="absolute inset-y-0 w-px bg-line/45"
+                  />
+                ))}
+                {monthBands.slice(1).map((band) => (
+                  <span
+                    key={`m-${band.offset}`}
+                    style={{ left: band.offset * dayWidth }}
                     className="absolute inset-y-0 w-px bg-line"
                   />
                 ))}
@@ -476,16 +583,36 @@ export function Timeline({
                 />
               </div>
 
-              {grouped.map(({ team, groups, count }) => (
+              {grouped.map(({ team, groups, count, span }) => (
                 <div key={team.id} className="relative z-10">
-                  <Row height={TEAM_HEIGHT} chartWidth={chartWidth} railWidth={RAIL} tone="team">
-                    <span className="flex w-full items-center gap-2">
-                      <TeamDot colour={team.colour} />
-                      <span className="truncate text-xs font-semibold">{team.name}</span>
-                      <span className="ml-auto text-[10px] text-ink-3 tabular-nums">
-                        {count}
+                  <Row
+                    height={TEAM_HEIGHT}
+                    chartWidth={chartWidth}
+                    railWidth={RAIL}
+                    tone="team"
+                    accent={team.colour}
+                    rail={
+                      <span className="flex h-full w-full items-center gap-2 px-3">
+                        <TeamDot colour={team.colour} />
+                        <span className="truncate text-xs font-semibold text-ink">{team.name}</span>
+                        <span className="ml-auto rounded-full bg-canvas/60 px-1.5 text-[10px] leading-4 text-ink-3 tabular-nums">
+                          {count}
+                        </span>
                       </span>
-                    </span>
+                    }
+                  >
+                    {span ? (
+                      <span
+                        aria-hidden
+                        title={`${team.name}: ${format(span.from, "d MMM")} – ${format(span.to, "d MMM")}`}
+                        className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full"
+                        style={{
+                          left: daysBetween(start, span.from) * dayWidth,
+                          width: Math.max(daysBetween(span.from, span.to), 1) * dayWidth,
+                          backgroundColor: `color-mix(in srgb, ${team.colour} 55%, transparent)`,
+                        }}
+                      />
+                    ) : null}
                   </Row>
 
                   {groups.map((group) => (
@@ -521,6 +648,14 @@ export function Timeline({
                           : 0;
                         const width = Math.max(barEnd - barStart, 0.5) * dayWidth;
                         const done = task.status === "DONE";
+                        const barLeft = barStart * dayWidth;
+                        const barRight = barLeft + width;
+                        const lateBy = sched && !done && sched.slackDays < 0 ? -sched.slackDays : 0;
+                        const progress = done ? 100 : (checklistProgress(task)?.percent ?? 0);
+                        // The label goes after the bar, unless the bar ends too
+                        // near the edge to fit it there and there is room before.
+                        const roomAfter = chartWidth - barRight - 12;
+                        const labelAfter = roomAfter >= 120 || barLeft - 12 < roomAfter;
                         return (
                           <Row
                             key={task.id}
@@ -554,49 +689,74 @@ export function Timeline({
                             }
                           >
                             {sched ? (
-                              <Link
-                                href={`/impact?task=${task.id}`}
-                                title={`${task.key}: ${task.title}\n${format(new Date(sched.earliestStart as unknown as string), "d MMM")} – ${format(new Date(sched.earliestFinish as unknown as string), "d MMM")}\n${formatDays(-sched.slackDays)}`}
-                                style={{ left: barStart * dayWidth, width }}
-                                className={clsx(
-                                  "absolute top-1/2 flex h-4 -translate-y-1/2 items-center overflow-hidden rounded-sm ring-1 transition-[height,box-shadow] hover:h-5 hover:ring-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-                                  done
-                                    ? "opacity-80 ring-transparent"
-                                    : sched.isCritical
-                                      ? "ring-accent"
-                                      : sched.slackDays < 0
-                                        ? "ring-danger"
-                                        : "ring-transparent",
-                                )}
-                              >
-                                <span
-                                  aria-hidden
-                                  className="absolute inset-0 opacity-35"
-                                  style={{ backgroundColor: team.colour }}
-                                />
-                                <span
-                                  aria-hidden
-                                  className="absolute inset-y-0 left-0"
+                              <>
+                                <Link
+                                  href={`/impact?task=${task.id}`}
+                                  title={`${task.key}: ${task.title}\n${format(new Date(sched.earliestStart as unknown as string), "d MMM")} – ${format(new Date(sched.earliestFinish as unknown as string), "d MMM")}\n${formatDays(-sched.slackDays)}`}
                                   style={{
-                                    width: `${done ? 100 : (checklistProgress(task)?.percent ?? 0)}%`,
-                                    backgroundColor: done
-                                      ? `color-mix(in srgb, ${team.colour} 45%, var(--color-bg))`
-                                      : team.colour,
+                                    left: barLeft,
+                                    width,
+                                    backgroundColor: `color-mix(in srgb, ${team.colour} ${done ? 20 : 42}%, var(--color-bg))`,
+                                    // A hairline of the team colour gives each bar a
+                                    // crisp edge on either theme without the weight
+                                    // of a solid fill.
+                                    boxShadow: done
+                                      ? undefined
+                                      : `inset 0 0 0 1px color-mix(in srgb, ${team.colour} 75%, var(--color-bg))`,
                                   }}
-                                />
-                                {done ? (
-                                  <span
-                                    aria-hidden
-                                    className="absolute inset-x-1 top-1/2 h-px -translate-y-1/2"
-                                    style={{
-                                      backgroundColor: `color-mix(in srgb, ${team.colour} 85%, var(--color-text))`,
-                                    }}
-                                  />
-                                ) : null}
-                                <span className="sr-only">
-                                  {task.key} {task.title}, {STATUS_LABEL[task.status]}
+                                  className={clsx(
+                                    "absolute top-1/2 flex h-[18px] -translate-y-1/2 items-center overflow-hidden rounded-[4px] ring-offset-1 ring-offset-canvas transition-[height,box-shadow] hover:h-[22px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                                    !done && (sched.isCritical ? "ring-1 ring-accent" : lateBy > 0 ? "ring-1 ring-danger" : ""),
+                                  )}
+                                >
+                                  {/* Checklist progress fills the bar in the full colour. */}
+                                  {progress > 0 && !done ? (
+                                    <span
+                                      aria-hidden
+                                      className="absolute inset-y-0 left-0"
+                                      style={{ width: `${progress}%`, backgroundColor: team.colour }}
+                                    />
+                                  ) : null}
+                                  {done && width >= 14 ? (
+                                    <svg
+                                      viewBox="0 0 12 12"
+                                      aria-hidden
+                                      className="relative ml-1 h-2.5 w-2.5 shrink-0"
+                                      fill="none"
+                                      stroke={`color-mix(in srgb, ${team.colour} 70%, var(--color-text))`}
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M2.5 6.5 5 9l4.5-6" />
+                                    </svg>
+                                  ) : null}
+                                  <span className="sr-only">
+                                    {task.key} {task.title}, {STATUS_LABEL[task.status]}
+                                  </span>
+                                </Link>
+                                {/* The name beside its bar, so a bar months from the
+                                    task list can still be read where it is. In text
+                                    colours, never the team colour; the bar carries
+                                    whose it is. */}
+                                <span
+                                  aria-hidden
+                                  className={clsx(
+                                    "pointer-events-none absolute top-1/2 -translate-y-1/2 truncate text-[11px] whitespace-nowrap",
+                                    done ? "text-ink-3 line-through" : "text-ink-2",
+                                  )}
+                                  style={
+                                    labelAfter
+                                      ? { left: barRight + 6, maxWidth: Math.min(LABEL_MAX, Math.max(roomAfter, 0)) }
+                                      : { right: chartWidth - barLeft + 6, maxWidth: Math.min(LABEL_MAX, barLeft - 12) }
+                                  }
+                                >
+                                  {task.title}
+                                  {lateBy > 0 ? (
+                                    <span className="text-danger">{` · ${formatDays(lateBy)}`}</span>
+                                  ) : null}
                                 </span>
-                              </Link>
+                              </>
                             ) : null}
                           </Row>
                         );
@@ -639,22 +799,40 @@ function Row({
   const background = tone === "team" ? "bg-elevated" : "bg-canvas";
   const tint =
     tone === "group" && accent
-      ? { backgroundColor: `color-mix(in srgb, ${accent} 10%, var(--color-bg))` }
+      ? { backgroundColor: `color-mix(in srgb, ${accent} 7%, var(--color-bg))` }
       : undefined;
   return (
-    <div className={clsx("flex", tone === "team" && "border-t border-line")} style={{ height }}>
+    <div
+      className={clsx(
+        "group/row flex",
+        tone === "team" && "border-t border-line",
+        tone === "task" && "border-b border-line/40",
+      )}
+      style={{ height }}
+    >
       <div
         className={clsx(
           "sticky left-0 z-20 flex shrink-0 items-center border-r border-line",
           rail ? "" : "px-3",
           background,
+          tone === "task" && "group-hover/row:bg-elevated",
         )}
-        style={{ width: railWidth, ...tint }}
+        style={{
+          width: railWidth,
+          ...tint,
+          // The team's colour down the left edge of its header row.
+          ...(tone === "team" && accent ? { boxShadow: `inset 3px 0 0 ${accent}` } : {}),
+        }}
       >
         {rail ?? children}
       </div>
       <div
-        className={clsx("relative shrink-0", tone === "team" && "bg-elevated/60")}
+        className={clsx(
+          "relative shrink-0",
+          tone === "team" && "bg-elevated/60",
+          // Labels stay inside their row rather than widening the chart.
+          tone === "task" && "overflow-hidden transition-colors group-hover/row:bg-elevated/50",
+        )}
         style={{ width: chartWidth, ...tint }}
       >
         {rail ? children : null}

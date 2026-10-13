@@ -245,25 +245,23 @@ describe("planning a sync", () => {
     expect(p.warnings.join(" ")).toMatch(/not linked to a sub-team/);
   });
 
-  it("links the Drone and Mini tabs to the Drone and Mini-Rover sub-teams, both ways", () => {
+  it("links the Drone tab to the Drone sub-team, both ways", () => {
     const p = plan(
-      [
-        { name: "Drone Tasks", rows: [row(2, { title: "Fly" })] },
-        { name: "Mini Tasks", rows: [row(2, { title: "Wire" })] },
-      ],
-      [task("DRONE-1", { title: "Frame", team: "DRONE" }), task("MINI-1", { title: "Chassis", team: "MINI" })],
+      [{ name: "Drone Tasks", rows: [row(2, { title: "Fly" })] }],
+      [task("DRONE-1", { title: "Frame", team: "DRONE" })],
     );
-    expect(p.taskCreates.map((c) => [c.fields.title, c.fields.team])).toEqual([
-      ["Fly", "DRONE"],
-      ["Wire", "MINI"],
-    ]);
+    expect(p.taskCreates.map((c) => [c.fields.title, c.fields.team])).toEqual([["Fly", "DRONE"]]);
     expect(p.ops).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ op: "upsert", id: "DRONE-1", tab: "Drone Tasks" }),
-        expect.objectContaining({ op: "upsert", id: "MINI-1", tab: "Mini Tasks" }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ op: "upsert", id: "DRONE-1", tab: "Drone Tasks" })]),
     );
     expect(p.warnings).toEqual([]);
+  });
+
+  it("leaves the Mini tab alone now Mini-Rover is no longer a sub-team", () => {
+    const p = plan([{ name: "Mini Tasks", rows: [row(2, { title: "Wire" })] }], []);
+    expect(p.taskCreates).toEqual([]);
+    expect(p.ops).toEqual([]);
+    expect(p.warnings.join(" ")).toMatch(/Mini Tasks.*not linked to a sub-team/);
   });
 });
 

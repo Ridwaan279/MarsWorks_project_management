@@ -17,7 +17,6 @@ export const TAB_TEAM: Record<string, string> = {
   "Sci Tasks": "SCI",
   "Software Tasks": "SW",
   "Drone Tasks": "DRONE",
-  "Mini Tasks": "MINI",
 };
 
 /** Where milestones created on the website are written. */

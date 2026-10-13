@@ -12,10 +12,10 @@
  *
  * Colours identify ownership, which is why they are distinct rather than a
  * single family -- the chrome around them stays neutral so the Gantt remains
- * readable. Mechanical carries the MarsWorks orange. Drone and Mini-Rover,
- * added later, were picked to sit as far as the wheel allows from the six
- * before them (OKLab distance, checked under simulated colour blindness too)
- * and from the danger and warning colours.
+ * readable. Mechanical carries the MarsWorks orange. Drone, added later, was
+ * picked to sit as far as the wheel allows from the six before it (OKLab
+ * distance, checked under simulated colour blindness too) and from the danger
+ * and warning colours.
  */
 import type { TeamView } from "../src/generated/prisma";
 
@@ -35,5 +35,14 @@ export const SUB_TEAMS: SubTeamDefinition[] = [
   { key: "SCI", name: "Science", colour: "#d96baa", defaultView: "TIMELINE", description: "Science kit, experiments, and scientific requirements." },
   { key: "SW", name: "Software", colour: "#9b72e8", defaultView: "BOARD", description: "Software management, manual control, and autonomous navigation." },
   { key: "DRONE", name: "Drone", colour: "#1da56c", defaultView: "BOARD", description: "The drone project." },
-  { key: "MINI", name: "Mini-Rover", colour: "#985d8d", defaultView: "BOARD", description: "The mini-rover project." },
+];
+
+/**
+ * Sub-teams that have been dropped. The roster step deletes each from a live
+ * database -- but only while it holds no tasks, because deleting a sub-team
+ * deletes its tasks with it. One that still has tasks is left in place and
+ * named in the deploy log, for someone to move or delete the tasks first.
+ */
+export const RETIRED_SUB_TEAMS: string[] = [
+  "MINI", // Mini-Rover, October 2026.
 ];

@@ -468,20 +468,17 @@ edit();
 const flight = taskBy(`title='Test the flight controller'`);
 check("a row in Drone Tasks becomes a Drone task", flight?.team === "DRONE" && flight?.key === "DRONE-1", flight?.key);
 check("and its row gets the new ID", cell(DRONE, droneRow, ID) === flight?.key);
-const miniTeam = sql(`select id from "Team" where key='MINI'`);
-const madeMini = api("POST", "/api/tasks", {
-  title: "Wire the mini-rover",
-  teamId: miniTeam,
-  status: "TODO",
-  plannedStart: "2026-10-12",
-  plannedEnd: "2026-10-16",
-});
-gs.doPost({ postData: { contents: JSON.stringify({ secret, reason: "website" }) } });
-const miniRow = MINI.rowWhere(ID, "MINI-1");
-check("a Mini-Rover task made on the website appears in Mini Tasks",
-  madeMini === 201 && miniRow > 0 && cell(MINI, miniRow, "Tasks") === "Wire the mini-rover", `HTTP ${madeMini}, row ${miniRow}`);
-check("neither tab is reported as unlinked",
-  !(lastSync().summary?.warnings ?? []).some((w) => /Drone|Mini/.test(w)), JSON.stringify(lastSync().summary?.warnings));
+// Mini-Rover is no longer a sub-team: its tab is left as it is.
+const miniRow = MINI.getLastRow() + 1;
+setCell(MINI, miniRow, "Tasks", "Wire the mini-rover");
+edit();
+check("a row in Mini Tasks is left alone",
+  !taskBy(`title='Wire the mini-rover'`) && !String(cell(MINI, miniRow, ID) ?? "").trim());
+check("and the sync says the tab is not linked",
+  (lastSync().summary?.warnings ?? []).some((w) => /Mini Tasks.*not linked/.test(w)), JSON.stringify(lastSync().summary?.warnings));
+// Clear it again so the final check sees a settled sheet.
+MINI.cells.splice(miniRow - 1, 1);
+edit();
 
 console.log("\n15. Settled");
 check("a final sync has nothing left to do", settledQuietly(), JSON.stringify(lastSync().summary));

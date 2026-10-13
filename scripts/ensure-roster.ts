@@ -7,18 +7,18 @@
  * appears on the site with the deploy that adds them. Run it by hand against
  * another database with `npm run db:ensure-roster`.
  *
- * It only ever adds, with one exception: a member still known by a short name
- * from the old planners ("Matt"), in the same sub-team, is given their full
- * name ("Matt Shepherd") instead of being added a second time, so the tasks
- * already assigned to them stay theirs. Otherwise a sub-team or member that
- * already exists is left exactly as it is -- names, colours, order and teams
- * may have been changed on purpose -- and nothing is ever removed, since tasks
- * would go with it.
+ * It adds, with two exceptions. A member still known by a short name from the
+ * old planners ("Matt"), in the same sub-team, is given their full name ("Matt
+ * Shepherd") instead of being added a second time, so the tasks already
+ * assigned to them stay theirs. And a sub-team listed as retired is deleted,
+ * but only while it has no tasks, since they would be deleted with it.
+ * Otherwise a sub-team or member that already exists is left exactly as it is
+ * -- names, colours, order and teams may have been changed on purpose.
  */
 import { PrismaPg } from "@prisma/adapter-pg";
 import { loadLocalEnv } from "./load-env";
 import { PrismaClient } from "../src/generated/prisma";
-import { SUB_TEAMS } from "../prisma/sub-teams";
+import { RETIRED_SUB_TEAMS, SUB_TEAMS } from "../prisma/sub-teams";
 import { MEMBERS } from "../prisma/members";
 
 loadLocalEnv();
@@ -52,6 +52,23 @@ async function main() {
       let position = Math.max(-1, ...teams.map((t) => t.position)) + 1;
       await tx.team.createMany({ data: newTeams.map((t) => ({ ...t, position: position++ })) });
     }
+    // Retired sub-teams go only while empty; see RETIRED_SUB_TEAMS.
+    const retired: string[] = [];
+    const stillInUse: string[] = [];
+    for (const key of RETIRED_SUB_TEAMS) {
+      const team = await tx.team.findUnique({
+        where: { key },
+        select: { id: true, name: true, _count: { select: { tasks: true } } },
+      });
+      if (!team) continue;
+      if (team._count.tasks > 0) {
+        stillInUse.push(`${team.name} (${team._count.tasks} task(s))`);
+        continue;
+      }
+      await tx.team.delete({ where: { id: team.id } });
+      retired.push(team.name);
+    }
+
     const teamIdByKey = new Map(
       (await tx.team.findMany({ select: { id: true, key: true } })).map((t) => [t.key, t.id]),
     );
@@ -79,7 +96,7 @@ async function main() {
     }
     if (added.length) await tx.member.createMany({ data: added });
 
-    return { newTeams, renamed, added };
+    return { newTeams, retired, stillInUse, renamed, added };
   });
 
   console.log(
@@ -87,6 +104,15 @@ async function main() {
       ? `[roster] Added sub-teams: ${report.newTeams.map((t) => `${t.name} (${t.key})`).join(", ")}.`
       : `[roster] All ${SUB_TEAMS.length} sub-teams are present.`,
   );
+  if (report.retired.length) {
+    console.log(`[roster] Removed retired sub-team(s): ${report.retired.join(", ")}.`);
+  }
+  if (report.stillInUse.length) {
+    console.warn(
+      `[roster] Not removed, because tasks still belong to them: ${report.stillInUse.join(", ")}.\n` +
+        "[roster] Move those tasks to another sub-team or delete them; the next deploy removes it.",
+    );
+  }
   if (report.renamed.length) {
     console.log(`[roster] Gave ${report.renamed.length} member(s) their full name: ${report.renamed.join(", ")}.`);
   }
