@@ -59,15 +59,28 @@ model Workstream {
 
 /// A person on the project. Identity is anchored on their GitHub login so the
 /// same human maps cleanly across the app, GitHub Projects and the sheets.
+/// What someone may do on the site. From the team list (prisma/members.ts);
+/// anyone who signs in without being on it is a TEAM_MEMBER.
+enum MemberRole {
+  PROJECT_LEAD
+  TEAM_LEAD
+  TECHNICAL_ADVISOR
+  TEAM_MEMBER
+}
+
 model Member {
-  id          String   @id @default(cuid())
-  name        String
-  email       String?  @unique
-  githubLogin String?  @unique
-  avatarUrl   String?
-  teamId      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String     @id @default(cuid())
+  name         String
+  /// Their @sheffield.ac.uk address, which is how signing in finds them.
+  /// Never in the code: the repository is public.
+  email        String?    @unique
+  role         MemberRole @default(TEAM_MEMBER)
+  lastSignInAt DateTime?
+  githubLogin  String?    @unique
+  avatarUrl    String?
+  teamId       String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   team          Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
   assignedTasks Task[] @relation("TaskAssignee")

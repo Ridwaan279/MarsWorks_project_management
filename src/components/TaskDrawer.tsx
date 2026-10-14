@@ -35,8 +35,11 @@ interface DrawerProps {
   scheduled: ScheduledTask | undefined;
   onClose: () => void;
   onSaved: (task: TaskView) => void;
-  /** The task is gone from the database; the drawer is about to close. */
-  onDeleted: (task: TaskView) => void;
+  /**
+   * The task is gone from the database; the drawer is about to close. Left
+   * out for people who may not delete tasks, which hides the Delete button.
+   */
+  onDeleted?: (task: TaskView) => void;
 }
 
 const FIELD =
@@ -192,11 +195,16 @@ export function TaskDrawer({
       const response = await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
       // 404: already deleted, from the sheet or another tab. Same end state.
       if (!response.ok && response.status !== 404) {
-        setDeleteError("Could not delete the task. Check your connection and try again.");
+        const body = await response.json().catch(() => null);
+        setDeleteError(
+          response.status === 403 && body?.error
+            ? body.error
+            : "Could not delete the task. Check your connection and try again.",
+        );
         return;
       }
       setConfirmingDelete(false);
-      onDeleted(task);
+      onDeleted?.(task);
     } catch (cause) {
       console.error("Failed to delete task", cause);
       setDeleteError("Could not delete the task. Check your connection and try again.");
@@ -401,26 +409,28 @@ export function TaskDrawer({
             <StatusBadge status={draft.status} label={STATUS_LABEL[draft.status]} />
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button
-              ref={deleteButtonRef}
-              type="button"
-              onClick={() => setConfirmingDelete(true)}
-              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-ink-3 transition-colors hover:bg-danger/10 hover:text-danger focus:outline-none focus-visible:text-danger focus-visible:ring-2 focus-visible:ring-danger"
-            >
-              <svg
-                viewBox="0 0 16 16"
-                className="h-3.5 w-3.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
+            {onDeleted ? (
+              <button
+                ref={deleteButtonRef}
+                type="button"
+                onClick={() => setConfirmingDelete(true)}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-ink-3 transition-colors hover:bg-danger/10 hover:text-danger focus:outline-none focus-visible:text-danger focus-visible:ring-2 focus-visible:ring-danger"
               >
-                <path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4 4.5l.6 8.6a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9l.6-8.6M6.75 7v4.5M9.25 7v4.5" />
-              </svg>
-              Delete
-            </button>
+                <svg
+                  viewBox="0 0 16 16"
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4 4.5l.6 8.6a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9l.6-8.6M6.75 7v4.5M9.25 7v4.5" />
+                </svg>
+                Delete
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onClose}

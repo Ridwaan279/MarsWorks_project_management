@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { pokeSheet } from "@/lib/sheets/poke";
+import { currentViewer, mayDeleteTasks } from "@/lib/auth/session";
 import { deriveProgress } from "@/lib/progress";
 import { PROJECT_STAGES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/domain";
 
@@ -134,6 +135,14 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  // Checked here, not just by hiding the button: the board only shows what
+  // the server would allow.
+  if (!mayDeleteTasks(await currentViewer())) {
+    return NextResponse.json(
+      { error: "Only project leads, team leads and technical advisors can delete tasks." },
+      { status: 403 },
+    );
+  }
   const { id } = await context.params;
   try {
     await prisma.$transaction(async (tx) => {

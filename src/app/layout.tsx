@@ -6,6 +6,9 @@ import "./globals.css";
 import { NavLinks } from "@/components/NavLinks";
 import { HelpButton } from "@/components/HelpButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { UserMenu } from "@/components/UserMenu";
+import { currentViewer } from "@/lib/auth/session";
+import { ROLE_LABEL } from "@/lib/auth/roles";
 
 /*
  * Applies the stored theme before the first paint. Anything later -- an
@@ -49,9 +52,13 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const viewer = await currentViewer();
+  // The way around the site is for people who are in it. On the sign-in
+  // page, before anyone has signed in, the header is just the name.
+  const inside = viewer.mode === "off" || viewer.member !== null;
   return (
     <html
       lang="en"
@@ -96,12 +103,25 @@ export default function RootLayout({
                 </span>
               </span>
             </Link>
-            <NavLinks />
+            {inside ? <NavLinks /> : null}
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <ThemeToggle />
-              <HelpButton />
+              {inside ? <HelpButton /> : null}
+              {viewer.member ? (
+                <UserMenu
+                  name={viewer.member.name}
+                  role={ROLE_LABEL[viewer.member.role]}
+                  email={viewer.member.email}
+                />
+              ) : null}
             </div>
           </div>
+          {viewer.mode === "off" ? (
+            <p className="border-t border-warning/30 bg-warning/10 px-4 py-1.5 text-xs text-warning sm:px-6">
+              Sign-in isn&apos;t switched on yet, so anyone with this link can see and change the
+              site. Setting it up takes about ten minutes: docs/sign-in.md.
+            </p>
+          ) : null}
         </header>
 
         {/* No z-index here: one would make <main> its own stacking layer, and

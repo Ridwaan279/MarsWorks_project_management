@@ -235,9 +235,9 @@ database that was seeded before the sub-teams were corrected, either:
 
 ## Known limitations
 
-- **No authentication yet.** Anyone with the URL can edit. GitHub OAuth is the
-  intended fix — everyone on the team already has an account, and it doubles as
-  the credential for the GitHub Projects sync.
+- **Sign-in is University of Sheffield Google accounts only**, and needs
+  switching on once: see [docs/sign-in.md](docs/sign-in.md). Until it is, the
+  site is open to anyone with the link and says so.
 - **Completed tasks have no history.** The schema records estimates and
   progress but not actual start and finish dates, so a done task is drawn at
   today rather than where it really happened. Adding `startedAt`/`completedAt`

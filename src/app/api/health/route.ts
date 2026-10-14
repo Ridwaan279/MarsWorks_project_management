@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authSetup } from "@/lib/auth/config";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -154,5 +155,19 @@ export async function GET() {
     return NextResponse.json({ ok: false, checks }, { status: 503 });
   }
 
-  return NextResponse.json({ ok: true, checks });
+  // The site works without sign-in; it just is not private. Reported, not
+  // treated as an outage.
+  const auth = authSetup();
+  checks.push({
+    name: "Sign-in switched on",
+    ok: auth.mode === "on",
+    detail:
+      auth.mode === "on"
+        ? "Only @sheffield.ac.uk accounts can get in."
+        : auth.mode === "off"
+          ? "Not yet: anyone with the link can use the site. See docs/sign-in.md."
+          : `Partly set up, so nobody can get in. Missing: ${auth.missing.join(", ")}.`,
+  });
+
+  return NextResponse.json({ ok: checks.every((c) => c.ok), checks });
 }

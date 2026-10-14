@@ -52,6 +52,8 @@ interface BoardProps {
    *  the two clocks classify a task's window differently. */
   asOf: string;
   initialTaskId?: string;
+  /** Leads and technical advisors only; the server checks it again. */
+  canDelete: boolean;
 }
 
 const ORDER_GAP = 1000;
@@ -77,6 +79,7 @@ export function KanbanBoard({
   scheduled,
   asOf,
   initialTaskId,
+  canDelete,
 }: BoardProps) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
@@ -723,7 +726,7 @@ export function KanbanBoard({
           scheduled={scheduled[openTask.id]}
           onClose={() => setOpenTaskId(null)}
           onSaved={handleTaskSaved}
-          onDeleted={handleTaskDeleted}
+          onDeleted={canDelete ? handleTaskDeleted : undefined}
         />
       ) : null}
 

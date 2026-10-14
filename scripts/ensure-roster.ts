@@ -12,8 +12,10 @@
  * Shepherd") instead of being added a second time, so the tasks already
  * assigned to them stay theirs. And a sub-team listed as retired is deleted,
  * but only while it has no tasks, since they would be deleted with it.
- * Otherwise a sub-team or member that already exists is left exactly as it is
- * -- names, colours, order and teams may have been changed on purpose.
+ * Otherwise a sub-team or member that already exists is left as it is --
+ * names, colours, order and teams may have been changed on purpose -- except
+ * for roles, which always follow the team list, since they decide who may
+ * delete tasks.
  *
  * It also keeps tasks' owners in the shape the site now uses: any number of
  * people, plus text for groups. A task's old single assignee joins its list
@@ -28,6 +30,14 @@ import { PrismaClient } from "../src/generated/prisma";
 import { RETIRED_SUB_TEAMS, SUB_TEAMS } from "../prisma/sub-teams";
 import { MEMBERS } from "../prisma/members";
 import { normaliseName, readOwners } from "../src/lib/owners";
+import type { MemberRole } from "../src/generated/prisma";
+
+const ROLE_LABEL: Record<MemberRole, string> = {
+  PROJECT_LEAD: "Project Lead",
+  TEAM_LEAD: "Team Lead",
+  TECHNICAL_ADVISOR: "Technical Advisor",
+  TEAM_MEMBER: "Team Member",
+};
 
 loadLocalEnv();
 
@@ -81,25 +91,37 @@ async function main() {
       (await tx.team.findMany({ select: { id: true, key: true } })).map((t) => [t.key, t.id]),
     );
 
-    const existing = await tx.member.findMany({ select: { id: true, name: true, teamId: true } });
+    const existing = await tx.member.findMany({
+      select: { id: true, name: true, teamId: true, role: true },
+    });
     const byName = new Map(existing.map((m) => [sameName(m.name), m]));
     const renamed: string[] = [];
-    const added: { name: string; teamId: string | null }[] = [];
+    const added: { name: string; teamId: string | null; role: MemberRole }[] = [];
+    const roleChanges: string[] = [];
 
     for (const person of MEMBERS) {
-      if (byName.has(sameName(person.name))) continue;
+      const role = person.role ?? "TEAM_MEMBER";
+      const current = byName.get(sameName(person.name));
+      if (current) {
+        // Roles follow the team list: promoting someone is a change there.
+        if (current.id && current.role !== role) {
+          await tx.member.update({ where: { id: current.id }, data: { role } });
+          roleChanges.push(`${person.name}: ${ROLE_LABEL[role]}`);
+        }
+        continue;
+      }
       const teamId = teamIdByKey.get(person.team) ?? null;
       const earlier = (person.aliases ?? [])
         .map((alias) => byName.get(sameName(alias)))
         .find((m) => m && m.teamId === teamId);
       if (earlier) {
-        await tx.member.update({ where: { id: earlier.id }, data: { name: person.name } });
+        await tx.member.update({ where: { id: earlier.id }, data: { name: person.name, role } });
         byName.delete(sameName(earlier.name));
-        byName.set(sameName(person.name), { ...earlier, name: person.name });
+        byName.set(sameName(person.name), { ...earlier, name: person.name, role });
         renamed.push(`${earlier.name} -> ${person.name}`);
       } else {
-        added.push({ name: person.name, teamId });
-        byName.set(sameName(person.name), { id: "", name: person.name, teamId });
+        added.push({ name: person.name, teamId, role });
+        byName.set(sameName(person.name), { id: "", name: person.name, teamId, role });
       }
     }
     if (added.length) await tx.member.createMany({ data: added });
@@ -152,7 +174,7 @@ async function main() {
       if (ownerLabel !== task.ownerLabel) ownersRead += 1;
     }
 
-    return { newTeams, retired, stillInUse, renamed, added, assigneesMoved, ownersRead };
+    return { newTeams, retired, stillInUse, renamed, added, roleChanges, assigneesMoved, ownersRead };
   }, { timeout: 60_000, maxWait: 15_000 });
 
   console.log(
@@ -177,6 +199,9 @@ async function main() {
       ? `[roster] Added ${report.added.length} member(s): ${report.added.map((m) => m.name).join(", ")}.`
       : `[roster] All ${MEMBERS.length} members are present.`,
   );
+  if (report.roleChanges.length) {
+    console.log(`[roster] Roles from the team list: ${report.roleChanges.join(", ")}.`);
+  }
   if (report.assigneesMoved || report.ownersRead) {
     console.log(
       `[roster] Owners: moved ${report.assigneesMoved} task(s) to the assignee list; ` +

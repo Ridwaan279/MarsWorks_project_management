@@ -193,7 +193,7 @@ async function main() {
   const memberLookup = new Map<string, string>();
   for (const member of members) {
     const created = await prisma.member.create({
-      data: { name: member.name, teamId: teamByKey.get(member.team)! },
+      data: { name: member.name, teamId: teamByKey.get(member.team)!, role: member.role ?? "TEAM_MEMBER" },
     });
     for (const alias of [member.name, ...(member.aliases ?? [])]) {
       memberLookup.set(alias.toLowerCase(), created.id);
