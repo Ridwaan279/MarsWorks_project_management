@@ -16,6 +16,8 @@ import type {
   WorkstreamView,
 } from "@/lib/project";
 import { projectDateString } from "@/lib/clock";
+import { AssigneePicker } from "./AssigneePicker";
+import { AutoGrowTextarea } from "./AutoGrowTextarea";
 
 interface Props {
   status: TaskStatus;
@@ -67,7 +69,7 @@ export function NewTaskDialog({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [teamId, setTeamId] = useState(defaultTeamId ?? teams[0]?.id ?? "");
-  const [assigneeId, setAssigneeId] = useState("");
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [ownerLabel, setOwnerLabel] = useState("");
   const [milestoneId, setMilestoneId] = useState("");
   const [workstreamId, setWorkstreamId] = useState("");
@@ -100,9 +102,6 @@ export function NewTaskDialog({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Only offer assignees from the chosen sub-team; cross-team assignment is a
-  // deliberate act, not something to do by mis-clicking a long list.
-  const eligible = members.filter((m) => m.teamId === teamId);
   const teamWorkstreams = workstreams.filter((w) => w.teamId === teamId);
 
   function addLink(event: React.FormEvent) {
@@ -169,7 +168,7 @@ export function NewTaskDialog({
           teamId,
           status: taskStatus,
           priority,
-          assigneeId: assigneeId || null,
+          assigneeIds,
           milestoneId: milestoneId || null,
           workstreamId: workstreamId || null,
           plannedStart: plannedStart || null,
@@ -248,13 +247,13 @@ export function NewTaskDialog({
           <label className={LABEL} htmlFor="new-description">
             Description
           </label>
-          <textarea
+          <AutoGrowTextarea
             id="new-description"
             rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="What counts as done?"
-            className={`${FIELD} resize-y`}
+            className={`${FIELD} leading-relaxed`}
           />
         </div>
 
@@ -306,8 +305,9 @@ export function NewTaskDialog({
                 id="new-team"
                 value={teamId}
                 onChange={(e) => {
+                  // People already picked stay picked; anyone not in the new
+                  // sub-team shows as such and can be taken off.
                   setTeamId(e.target.value);
-                  setAssigneeId("");
                   setWorkstreamId("");
                 }}
                 className={FIELD}
@@ -322,25 +322,16 @@ export function NewTaskDialog({
           </div>
         </section>
 
+        <AssigneePicker
+          id="new-assignees"
+          members={members}
+          teams={teams}
+          teamId={teamId}
+          value={assigneeIds}
+          onChange={setAssigneeIds}
+        />
+
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <label className={LABEL} htmlFor="new-assignee">
-              Assignee
-            </label>
-            <select
-              id="new-assignee"
-              value={assigneeId}
-              onChange={(e) => setAssigneeId(e.target.value)}
-              className={FIELD}
-            >
-              <option value="">Unassigned</option>
-              {eligible.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
-                </option>
-              ))}
-            </select>
-          </div>
 
           <div className="space-y-1.5">
             <label className={LABEL} htmlFor="new-status">
@@ -464,14 +455,14 @@ export function NewTaskDialog({
 
           <div className="space-y-1.5 sm:col-span-2">
             <label className={LABEL} htmlFor="new-owner">
-              Owner (as written)
+              Other owners
             </label>
             <input
               id="new-owner"
               value={ownerLabel}
               onChange={(e) => setOwnerLabel(e.target.value)}
               autoComplete="off"
-              placeholder="For work owned by more than one person, e.g. Owen &amp; Jack"
+              placeholder="A group rather than named people, e.g. Executive Team"
               className={FIELD}
             />
           </div>
@@ -618,12 +609,12 @@ export function NewTaskDialog({
           <label className={LABEL} htmlFor="new-notes">
             Notes
           </label>
-          <textarea
+          <AutoGrowTextarea
             id="new-notes"
             rows={2}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className={`${FIELD} resize-y`}
+            className={FIELD}
           />
         </div>
 

@@ -19,9 +19,10 @@ import type {
   WorkstreamView,
 } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
+import { AssigneePicker } from "./AssigneePicker";
+import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { MemberOptions } from "./MemberOptions";
-import { Avatar, ProgressBar, StatusBadge, TeamDot, formatDays } from "./ui";
+import { AvatarStack, ProgressBar, StatusBadge, TeamDot, formatDays } from "./ui";
 
 interface DrawerProps {
   task: TaskView;
@@ -123,14 +124,16 @@ export function TaskDrawer({
 
   const team = teams.find((t) => t.id === draft.teamId);
   const teamWorkstreams = workstreams.filter((w) => w.teamId === draft.teamId);
-  const assignee = members.find((m) => m.id === draft.assigneeId);
+  const assigned = draft.assigneeIds
+    .map((assigneeId) => members.find((m) => m.id === assigneeId))
+    .filter((m): m is MemberView => Boolean(m));
 
   const dirty =
     draft.title !== task.title ||
     draft.description !== task.description ||
     draft.status !== task.status ||
     draft.priority !== task.priority ||
-    draft.assigneeId !== task.assigneeId ||
+    !sameMembers(draft.assigneeIds, task.assigneeIds) ||
     draft.milestoneId !== task.milestoneId ||
     draft.workstreamId !== task.workstreamId ||
     draft.ownerLabel !== task.ownerLabel ||
@@ -150,7 +153,7 @@ export function TaskDrawer({
           description: draft.description,
           status: draft.status,
           priority: draft.priority,
-          assigneeId: draft.assigneeId,
+          assigneeIds: draft.assigneeIds,
           milestoneId: draft.milestoneId,
           workstreamId: draft.workstreamId,
           ownerLabel: draft.ownerLabel || null,
@@ -465,18 +468,18 @@ export function TaskDrawer({
             <label className={LABEL} htmlFor="task-description">
               Description
             </label>
-            <textarea
+            <AutoGrowTextarea
               id="task-description"
               rows={3}
               value={draft.description ?? ""}
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               placeholder="What needs doing, and what counts as finished?"
-              className={`${FIELD} resize-y leading-relaxed`}
+              className={`${FIELD} leading-relaxed`}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="col-span-2 space-y-1.5">
               <label className={LABEL} htmlFor="task-status">
                 Status
               </label>
@@ -496,21 +499,15 @@ export function TaskDrawer({
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <label className={LABEL} htmlFor="task-assignee">
-                Assignee
-              </label>
-              <select
-                id="task-assignee"
-                value={draft.assigneeId ?? ""}
-                onChange={(e) =>
-                  setDraft({ ...draft, assigneeId: e.target.value || null })
-                }
-                className={FIELD}
-              >
-                <option value="">Unassigned</option>
-                <MemberOptions members={members} teams={teams} first={draft.teamId} />
-              </select>
+            <div className="col-span-2">
+              <AssigneePicker
+                id="task-assignees"
+                members={members}
+                teams={teams}
+                teamId={draft.teamId}
+                value={draft.assigneeIds}
+                onChange={(assigneeIds) => setDraft({ ...draft, assigneeIds })}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -756,14 +753,14 @@ export function TaskDrawer({
 
               <div className="space-y-1.5">
                 <label className={LABEL} htmlFor="task-owner-label">
-                  Owner (as written)
+                  Other owners
                 </label>
                 <input
                   id="task-owner-label"
                   value={draft.ownerLabel ?? ""}
                   onChange={(e) => setDraft({ ...draft, ownerLabel: e.target.value })}
                   autoComplete="off"
-                  placeholder="e.g. Owen &amp; Jack"
+                  placeholder="A group, e.g. Executive Team"
                   className={FIELD}
                 />
               </div>
@@ -773,12 +770,12 @@ export function TaskDrawer({
               <label className={LABEL} htmlFor="task-notes">
                 Notes
               </label>
-              <textarea
+              <AutoGrowTextarea
                 id="task-notes"
                 rows={2}
                 value={draft.notes ?? ""}
                 onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-                className={`${FIELD} resize-y`}
+                className={FIELD}
               />
             </div>
             <Disclosure
@@ -913,10 +910,14 @@ export function TaskDrawer({
           <p aria-live="polite" className="min-w-0 flex-1 text-xs">
             {error ? (
               <span className="text-danger">{error}</span>
-            ) : assignee ? (
+            ) : assigned.length > 0 ? (
               <span className="flex items-center gap-2 text-ink-3">
-                <Avatar name={assignee.name} />
-                <span className="truncate">{assignee.name}</span>
+                <AvatarStack names={assigned.map((m) => m.name)} />
+                <span className="truncate">
+                  {assigned.length === 1
+                    ? assigned[0].name
+                    : `${assigned[0].name} + ${assigned.length - 1} more`}
+                </span>
               </span>
             ) : (
               <span className="text-ink-3">Nobody assigned</span>
@@ -1013,4 +1014,9 @@ function DependencyRow({
       ) : null}
     </li>
   );
+}
+
+/** The same people, in any order. */
+function sameMembers(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id) => b.includes(id));
 }

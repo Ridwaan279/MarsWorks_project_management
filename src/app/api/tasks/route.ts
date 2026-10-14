@@ -20,7 +20,7 @@ const createTask = z
     teamId: z.string().min(1),
     status: z.enum(TASK_STATUSES).default("BACKLOG"),
     priority: z.enum(TASK_PRIORITIES).default("MEDIUM"),
-    assigneeId: z.string().nullable().optional(),
+    assigneeIds: z.array(z.string().min(1)).max(40).optional(),
     milestoneId: z.string().nullable().optional(),
     workstreamId: z.string().nullable().optional(),
     stage: z.enum(PROJECT_STAGES).nullable().optional(),
@@ -86,7 +86,9 @@ export async function POST(request: Request) {
           status: done ? "DONE" : data.status,
           priority: data.priority,
           stage: data.stage ?? null,
-          assigneeId: data.assigneeId || null,
+          assignees: data.assigneeIds?.length
+            ? { connect: data.assigneeIds.map((id) => ({ id })) }
+            : undefined,
           milestoneId: data.milestoneId || null,
           workstreamId: data.workstreamId || null,
           estimateDays: data.estimateDays,

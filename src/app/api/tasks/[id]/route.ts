@@ -11,7 +11,8 @@ const updateTask = z
     description: z.string().max(10_000).nullable(),
     status: z.enum(TASK_STATUSES),
     priority: z.enum(TASK_PRIORITIES),
-    assigneeId: z.string().nullable(),
+    /** Replaces the whole list; [] unassigns everyone. */
+    assigneeIds: z.array(z.string().min(1)).max(40),
     milestoneId: z.string().nullable(),
     estimateDays: z.number().int().min(0).max(365),
     progress: z.number().int().min(0).max(100),
@@ -39,7 +40,7 @@ const updateTask = z
 const SHEET_FIELDS = [
   "title",
   "status",
-  "assigneeId",
+  "assigneeIds",
   "ownerLabel",
   "notes",
   "plannedStart",
@@ -60,9 +61,12 @@ export async function PATCH(
     );
   }
 
-  const { earliestStart, plannedStart, plannedEnd, ...rest } = parsed.data;
+  const { earliestStart, plannedStart, plannedEnd, assigneeIds, ...rest } = parsed.data;
   const data = {
     ...rest,
+    ...(assigneeIds !== undefined
+      ? { assignees: { set: assigneeIds.map((assignee) => ({ id: assignee })) } }
+      : {}),
     ...(earliestStart !== undefined
       ? { earliestStart: earliestStart ? new Date(earliestStart) : null }
       : {}),

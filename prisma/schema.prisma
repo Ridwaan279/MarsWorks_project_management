@@ -71,6 +71,7 @@ model Member {
 
   team          Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
   assignedTasks Task[] @relation("TaskAssignee")
+  tasks         Task[] @relation("TaskAssignees")
 
   @@index([teamId])
 }
@@ -130,15 +131,18 @@ model Task {
   priority    TaskPriority @default(MEDIUM)
 
   teamId       String
+  /// Superseded by `assignees`. Kept so the deploy that introduced them could
+  /// move each task's one assignee across (scripts/ensure-roster.ts), which
+  /// empties it; nothing reads it now.
   assigneeId   String?
   milestoneId  String?
   workstreamId String?
 
   stage ProjectStage?
 
-  /// Free-text owner as the source planner wrote it ("Owen & Jack", "Team",
-  /// "Sub-Team Leads"). Real planners do not have one person per row, and
-  /// dropping that on import would lose information the team relies on.
+  /// Owners who are not people on the site: a group ("Executive Team",
+  /// "Sub-Team Leads"), or a name nobody has an account under. People go in
+  /// `assignees`; this holds whatever else the planner wrote.
   ownerLabel String?
 
   /// What the team committed to. Every existing planner is built on hand-set
@@ -157,7 +161,7 @@ model Task {
   /// Raised by hand to mean "someone look at this". Deliberately separate from
   /// priority: priority is how important the work is, a flag is a request for
   /// attention now, and a task can be low priority and still need eyes on it.
-  flagged Boolean @default(false)
+  flagged    Boolean @default(false)
   /// Why this task was flagged, captured at the moment it was raised. Shown
   /// wherever the flag is, so "needs attention" says what kind of attention.
   flagReason String?
@@ -182,8 +186,10 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  team      Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  assignee  Member?    @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  team       Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignee   Member?     @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  /// Everyone the task is assigned to; any number, from any sub-team.
+  assignees  Member[]    @relation("TaskAssignees")
   milestone  Milestone?  @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   workstream Workstream? @relation(fields: [workstreamId], references: [id], onDelete: SetNull)
 

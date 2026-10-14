@@ -11,6 +11,7 @@
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { loadLocalEnv } from "../scripts/load-env";
+import { readOwners } from "../src/lib/owners";
 import { MEMBERS } from "./members";
 import { SUB_TEAMS } from "./sub-teams";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -118,15 +119,12 @@ function deriveStatus(task: ImportedTask): TaskStatus {
   return task.plannedStart ? "TODO" : "BACKLOG";
 }
 
-function resolveAssignee(
-  ownerLabel: string | null | undefined,
-  lookup: Map<string, string>,
-): string | null {
-  if (!ownerLabel) return null;
-  // Only a single unambiguous name becomes a real assignee. "Team",
-  // "Owen & Jack" and "Sub-Team Leads" stay as free text rather than being
-  // silently attributed to one person.
-  return lookup.get(ownerLabel.trim().toLowerCase()) ?? null;
+/**
+ * The planner's owner text as people plus whatever else it says: "Owen &
+ * Jack" is both of them, while "Team" and "Sub-Team Leads" stay as text.
+ */
+function plannerOwners(ownerLabel: string | null | undefined, lookup: Map<string, string>) {
+  return readOwners(ownerLabel ?? "", lookup, { scan: true });
 }
 
 function findTask(
@@ -262,11 +260,13 @@ async function main() {
         stage: (task.stage as ProjectStage | null) ?? null,
         progress: task.progress ?? 0,
         boardOrder: order,
-        ownerLabel: task.ownerLabel ?? null,
+        ownerLabel: plannerOwners(task.ownerLabel, memberLookup).rest || null,
         plannedStart: task.plannedStart ? new Date(task.plannedStart) : null,
         plannedEnd: task.plannedEnd ? new Date(task.plannedEnd) : null,
         teamId: teamByKey.get(task.team)!,
-        assigneeId: resolveAssignee(task.ownerLabel, memberLookup),
+        assignees: {
+          connect: plannerOwners(task.ownerLabel, memberLookup).memberIds.map((id) => ({ id })),
+        },
         workstreamId: task.workstream
           ? workstreamIds.get(workstreamKey(task.team, task.workstream)) ?? null
           : null,

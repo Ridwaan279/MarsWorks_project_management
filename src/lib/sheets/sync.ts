@@ -9,6 +9,7 @@ import type { Prisma } from "@/generated/prisma";
 import { prisma } from "../db";
 import { deriveProgress } from "../progress";
 import { normaliseStatus } from "../domain";
+import { normaliseName, readOwners, writeOwners } from "../owners";
 import { keyAllocator } from "../task-keys";
 import { planSync, type AppMilestone, type AppTask } from "./merge";
 import {
@@ -113,7 +114,7 @@ async function syncInTransaction(
         actualStart: true,
         sheetBase: true,
         team: { select: { key: true } },
-        assignee: { select: { name: true } },
+        assignees: { select: { id: true, name: true } },
         subtasks: { select: { done: true } },
       },
     }),
@@ -124,8 +125,28 @@ async function syncInTransaction(
   ]);
 
   const teamIdByKey = new Map(teams.map((t) => [t.key, t.id]));
-  const memberByName = new Map(members.map((m) => [m.name.trim().toLowerCase(), m.id]));
+  const memberByName = new Map(members.map((m) => [normaliseName(m.name), m.id]));
   const taskById = new Map(tasks.map((t) => [t.id, t]));
+
+  /**
+   * The sheet's one Assignee cell for a task: its people by name, then any
+   * group text (src/lib/owners.ts). If the cell already says the same thing
+   * in other words -- "kai dolan & Dexi Li" -- it is left as typed; it is only
+   * rewritten when who is assigned actually changes.
+   */
+  function ownersCell(t: (typeof tasks)[number]): string {
+    const written = writeOwners(
+      t.assignees.map((a) => a.name),
+      t.ownerLabel,
+    );
+    const asTyped = (t.sheetBase as Partial<TaskFields> | null)?.assignee;
+    if (asTyped === undefined || asTyped === written) return written;
+    const read = readOwners(asTyped, memberByName);
+    const samePeople =
+      read.memberIds.length === t.assignees.length &&
+      t.assignees.every((a) => read.memberIds.includes(a.id));
+    return samePeople && (read.rest || null) === (t.ownerLabel || null) ? asTyped : written;
+  }
 
   const appTasks: AppTask[] = tasks
     .filter((t) => TEAM_TAB[t.team.key])
@@ -134,10 +155,7 @@ async function syncInTransaction(
       key: t.key,
       fields: {
         title: t.title,
-        // The sheet's Assignee is free text. A label written as the planner
-        // had it ("Executive Team") is the truer reading; a member's name is
-        // the fallback when that is all there is.
-        assignee: t.ownerLabel ?? t.assignee?.name ?? "",
+        assignee: ownersCell(t),
         start: isoDay(t.plannedStart),
         end: isoDay(t.plannedEnd),
         status: vocabulary[t.status],
@@ -200,11 +218,11 @@ async function syncInTransaction(
     if (changes.start !== undefined) data.plannedStart = toDate(changes.start);
     if (changes.end !== undefined) data.plannedEnd = toDate(changes.end);
     if (changes.assignee !== undefined) {
-      // An exact member name links the person; anything else is kept as
-      // written, and replaces whoever was linked before.
-      const memberId = memberByName.get(changes.assignee.trim().toLowerCase());
-      data.assigneeId = memberId ?? null;
-      data.ownerLabel = memberId ? null : changes.assignee || null;
+      // Each full name links that person; anything else is kept as written.
+      // Replaces whoever was assigned before.
+      const owners = readOwners(changes.assignee, memberByName);
+      data.assignees = { set: owners.memberIds.map((id) => ({ id })) };
+      data.ownerLabel = owners.rest || null;
     }
     if (changes.team !== undefined) {
       const teamId = teamIdFor(changes.team);
@@ -255,7 +273,7 @@ async function syncInTransaction(
       select: { boardOrder: true },
     });
     const key = next();
-    const memberId = memberByName.get(create.fields.assignee.trim().toLowerCase());
+    const owners = readOwners(create.fields.assignee, memberByName);
     await tx.task.create({
       data: {
         key,
@@ -263,8 +281,8 @@ async function syncInTransaction(
         teamId,
         status,
         notes: create.fields.notes || null,
-        ownerLabel: memberId ? null : create.fields.assignee || null,
-        assigneeId: memberId ?? null,
+        ownerLabel: owners.rest || null,
+        assignees: { connect: owners.memberIds.map((id) => ({ id })) },
         plannedStart: toDate(create.fields.start),
         plannedEnd: toDate(create.fields.end),
         progress: deriveProgress(status, [], 0),

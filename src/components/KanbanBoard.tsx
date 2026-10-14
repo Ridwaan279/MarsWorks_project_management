@@ -162,6 +162,13 @@ export function KanbanBoard({
 
   const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
+  const membersOf = useCallback(
+    (task: TaskView) =>
+      task.assigneeIds
+        .map((id) => memberById.get(id))
+        .filter((m): m is MemberView => Boolean(m)),
+    [memberById],
+  );
 
   // One "today" for the whole render, taken from the server so hydration
   // matches, and so a task cannot be judged current by one comparison and not
@@ -173,8 +180,8 @@ export function KanbanBoard({
       (teamFilter.length === 0 || teamFilter.includes(task.teamId)) &&
       (assigneeFilter === "ALL" ||
         (assigneeFilter === "UNASSIGNED"
-          ? task.assigneeId === null
-          : task.assigneeId === assigneeFilter)),
+          ? task.assigneeIds.length === 0
+          : task.assigneeIds.includes(assigneeFilter))),
     [teamFilter, assigneeFilter],
   );
 
@@ -697,9 +704,7 @@ export function KanbanBoard({
             <TaskCardBody
               task={activeTask}
               team={teamById.get(activeTask.teamId)!}
-              assignee={
-                activeTask.assigneeId ? memberById.get(activeTask.assigneeId) ?? null : null
-              }
+              assignees={membersOf(activeTask)}
               scheduled={scheduled[activeTask.id]}
               dragging
             />
@@ -863,7 +868,9 @@ function BoardColumn({
                 tourAnchor={status === "IN_PROGRESS" && index === 0}
                 task={task}
                 team={teamById.get(task.teamId)!}
-                assignee={task.assigneeId ? memberById.get(task.assigneeId) ?? null : null}
+                assignees={task.assigneeIds
+                  .map((id) => memberById.get(id))
+                  .filter((m): m is MemberView => Boolean(m))}
                 scheduled={scheduled[task.id]}
                 onOpen={onOpen}
                 onToggleFlag={onToggleFlag}

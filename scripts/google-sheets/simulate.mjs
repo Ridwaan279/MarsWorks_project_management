@@ -480,7 +480,27 @@ check("and the sync says the tab is not linked",
 MINI.cells.splice(miniRow - 1, 1);
 edit();
 
-console.log("\n15. Settled");
+console.log("\n15. Several assignees");
+const owned = taskBy(`key='SW-4'`);
+const memberId = (name) => sql(`select id from "Member" where name='${name}'`);
+const assignedTo = (taskId) =>
+  sql(`select coalesce(string_agg(m.name, ', ' order by m.name), '') from "_TaskAssignees" ta join "Member" m on m.id = ta."A" where ta."B" = '${taskId}'`);
+api("PATCH", `/api/tasks/${owned.id}`, { assigneeIds: [memberId("Nheeru Tumber"), memberId("Keaton Docherty")] });
+gs.doPost({ postData: { contents: JSON.stringify({ secret, reason: "website" }) } });
+check("two people assigned on the website show in the sheet, by name",
+  cell(SW, SW.rowWhere(ID, "SW-4"), "Assignee") === "Keaton Docherty, Nheeru Tumber",
+  cell(SW, SW.rowWhere(ID, "SW-4"), "Assignee"));
+setCell(SW, SW.rowWhere(ID, "SW-4"), "Assignee", "kai dolan & Dexi Li, Executive Team");
+edit();
+check("names typed in the sheet assign those people on the website",
+  assignedTo(owned.id) === "Dexi Li, Kai Dolan", assignedTo(owned.id));
+check("and the rest is kept as text",
+  sql(`select "ownerLabel" from "Task" where id='${owned.id}'`) === "Executive Team");
+check("and the cell keeps what was typed, since it means the same",
+  cell(SW, SW.rowWhere(ID, "SW-4"), "Assignee") === "kai dolan & Dexi Li, Executive Team",
+  cell(SW, SW.rowWhere(ID, "SW-4"), "Assignee"));
+
+console.log("\n16. Settled");
 check("a final sync has nothing left to do", settledQuietly(), JSON.stringify(lastSync().summary));
 
 console.log(failures ? `\n${failures} check(s) failed.` : "\nAll checks passed.");

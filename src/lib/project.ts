@@ -76,7 +76,8 @@ export interface TaskView {
   flagReason: string | null;
   boardOrder: number;
   teamId: string;
-  assigneeId: string | null;
+  /** Everyone assigned, alphabetically by name. */
+  assigneeIds: string[];
   milestoneId: string | null;
   workstreamId: string | null;
   links: { id: string; label: string; url: string }[];
@@ -118,6 +119,7 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
       include: {
         links: { orderBy: { createdAt: "asc" } },
         subtasks: { orderBy: { position: "asc" } },
+        assignees: { select: { id: true }, orderBy: { name: "asc" } },
       },
     }),
     prisma.taskDependency.findMany(),
@@ -195,7 +197,7 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
       flagReason: t.flagReason,
       boardOrder: t.boardOrder,
       teamId: t.teamId,
-      assigneeId: t.assigneeId,
+      assigneeIds: t.assignees.map((a) => a.id),
       milestoneId: t.milestoneId,
       workstreamId: t.workstreamId,
       links: t.links.map((l) => ({ id: l.id, label: l.label, url: l.url })),

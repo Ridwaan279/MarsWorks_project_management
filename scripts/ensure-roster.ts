@@ -14,12 +14,20 @@
  * but only while it has no tasks, since they would be deleted with it.
  * Otherwise a sub-team or member that already exists is left exactly as it is
  * -- names, colours, order and teams may have been changed on purpose.
+ *
+ * It also keeps tasks' owners in the shape the site now uses: any number of
+ * people, plus text for groups. A task's old single assignee joins its list
+ * of assignees (and the old column is emptied, so this happens once), and
+ * owner text that names people -- "Owen & Jack", or a short name like
+ * "Daniel" left over from the planners -- becomes those people, keeping only
+ * the rest as text. Short names count only within the task's own sub-team.
  */
 import { PrismaPg } from "@prisma/adapter-pg";
 import { loadLocalEnv } from "./load-env";
 import { PrismaClient } from "../src/generated/prisma";
 import { RETIRED_SUB_TEAMS, SUB_TEAMS } from "../prisma/sub-teams";
 import { MEMBERS } from "../prisma/members";
+import { normaliseName, readOwners } from "../src/lib/owners";
 
 loadLocalEnv();
 
@@ -37,7 +45,7 @@ const prisma = new PrismaClient({
 const ROSTER_LOCK = 0x705e7;
 
 /** "  Kai  Dolan " and "kai dolan" are the same person. */
-const sameName = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
+const sameName = normaliseName;
 
 async function main() {
   const report = await prisma.$transaction(async (tx) => {
@@ -96,8 +104,56 @@ async function main() {
     }
     if (added.length) await tx.member.createMany({ data: added });
 
-    return { newTeams, retired, stillInUse, renamed, added };
-  });
+    // Owners: one assignee becomes a list, and people named in owner text
+    // become assignees. See the note at the top.
+    const people = await tx.member.findMany({ select: { id: true, name: true, teamId: true } });
+    const fullNames = new Map(people.map((m) => [sameName(m.name), m.id]));
+    const shortNamesByTeam = new Map<string, Map<string, string>>();
+    for (const person of MEMBERS) {
+      const member = people.find((m) => sameName(m.name) === sameName(person.name));
+      if (!member?.teamId || !person.aliases?.length) continue;
+      const names = shortNamesByTeam.get(member.teamId) ?? new Map<string, string>();
+      for (const alias of person.aliases) names.set(sameName(alias), member.id);
+      shortNamesByTeam.set(member.teamId, names);
+    }
+    const legacy = await tx.task.findMany({
+      where: { OR: [{ assigneeId: { not: null } }, { ownerLabel: { not: null } }] },
+      select: {
+        id: true,
+        teamId: true,
+        assigneeId: true,
+        ownerLabel: true,
+        assignees: { select: { id: true } },
+      },
+    });
+    let assigneesMoved = 0;
+    let ownersRead = 0;
+    for (const task of legacy) {
+      const ids = new Set(task.assignees.map((a) => a.id));
+      if (task.assigneeId) ids.add(task.assigneeId);
+      let ownerLabel = task.ownerLabel;
+      if (ownerLabel) {
+        // Full names win over short ones.
+        const lookup = new Map([...(shortNamesByTeam.get(task.teamId) ?? []), ...fullNames]);
+        const read = readOwners(ownerLabel, lookup, { scan: true });
+        if (read.memberIds.length > 0) {
+          for (const id of read.memberIds) ids.add(id);
+          ownerLabel = read.rest || null;
+        }
+      }
+      if (task.assigneeId === null && ownerLabel === task.ownerLabel && ids.size === task.assignees.length) {
+        continue;
+      }
+      await tx.task.update({
+        where: { id: task.id },
+        data: { assigneeId: null, ownerLabel, assignees: { set: [...ids].map((id) => ({ id })) } },
+      });
+      if (task.assigneeId) assigneesMoved += 1;
+      if (ownerLabel !== task.ownerLabel) ownersRead += 1;
+    }
+
+    return { newTeams, retired, stillInUse, renamed, added, assigneesMoved, ownersRead };
+  }, { timeout: 60_000, maxWait: 15_000 });
 
   console.log(
     report.newTeams.length
@@ -121,6 +177,12 @@ async function main() {
       ? `[roster] Added ${report.added.length} member(s): ${report.added.map((m) => m.name).join(", ")}.`
       : `[roster] All ${MEMBERS.length} members are present.`,
   );
+  if (report.assigneesMoved || report.ownersRead) {
+    console.log(
+      `[roster] Owners: moved ${report.assigneesMoved} task(s) to the assignee list; ` +
+        `turned the people named in ${report.ownersRead} task(s)' owner text into assignees.`,
+    );
+  }
 }
 
 main()

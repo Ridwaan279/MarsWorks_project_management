@@ -122,7 +122,7 @@ are Google's own views of the task tabs and are never touched.
 | Sheet column | Website                                                     |
 | ------------ | ----------------------------------------------------------- |
 | Tasks        | Title                                                       |
-| Assignee     | The person, if it exactly matches a member's name; otherwise kept as written (e.g. "Executive Team") |
+| Assignee     | Everyone assigned, by full name, then any group: "Dexi Li, Kai Dolan, Executive Team". Full names typed here, separated by commas (or "&", "and", "/"), assign those people; anything else is kept as written. |
 | Start Date   | Planned start                                               |
 | End Date     | Planned end                                                 |
 | Status       | Status (see below)                                          |

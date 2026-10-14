@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { loadProjectView } from "@/lib/project";
 import { HEALTH_LABEL, STATUS_LABEL } from "@/lib/domain";
 import {
-  Avatar,
+  AvatarStack,
   EmptyState,
   HealthPill,
   ProgressBar,
@@ -163,7 +163,7 @@ export default async function TeamsPage() {
           <ul className="grid gap-2 sm:grid-cols-2">
             {flagged.map((task) => {
               const team = teamById.get(task.teamId)!;
-              const assignee = task.assigneeId ? memberById.get(task.assigneeId) : null;
+              const assigned = task.assigneeIds.map((id) => memberById.get(id)?.name ?? "?");
               return (
                 <li key={task.id}>
                   <Link
@@ -188,7 +188,7 @@ export default async function TeamsPage() {
                     </span>
                     <span className="flex shrink-0 items-center gap-2 self-start">
                       <StatusBadge status={task.status} label={STATUS_LABEL[task.status]} />
-                      {assignee ? <Avatar name={assignee.name} /> : null}
+                      <AvatarStack names={assigned} />
                     </span>
                   </Link>
                 </li>
@@ -211,7 +211,7 @@ export default async function TeamsPage() {
             <ul className="space-y-2">
               {blocked.map((task) => {
                 const team = teamById.get(task.teamId)!;
-                const assignee = task.assigneeId ? memberById.get(task.assigneeId) : null;
+                const assigned = task.assigneeIds.map((id) => memberById.get(id)?.name ?? "?");
                 return (
                   <li key={task.id}>
                     <Link
@@ -228,7 +228,7 @@ export default async function TeamsPage() {
                             : ""}
                         </span>
                       </span>
-                      {assignee ? <Avatar name={assignee.name} /> : null}
+                      <AvatarStack names={assigned} />
                     </Link>
                   </li>
                 );

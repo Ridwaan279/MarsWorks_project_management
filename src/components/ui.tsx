@@ -113,6 +113,36 @@ export function Avatar({
   );
 }
 
+/**
+ * Several people as overlapping avatars, the rest counted: "+2". Each avatar
+ * names its person on hover; the group names everyone.
+ */
+export function AvatarStack({
+  names,
+  max = 3,
+  className,
+}: {
+  names: string[];
+  max?: number;
+  className?: string;
+}) {
+  if (names.length === 0) return null;
+  const shown = names.length > max ? names.slice(0, max - 1) : names;
+  const more = names.length - shown.length;
+  return (
+    <span title={names.join(", ")} className={clsx("flex shrink-0 items-center -space-x-1.5", className)}>
+      {shown.map((name, i) => (
+        <Avatar key={`${name}-${i}`} name={name} className="ring-2 ring-panel" />
+      ))}
+      {more > 0 ? (
+        <span className="inline-grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-elevated px-1 text-[9px] font-medium text-ink-3 ring-2 ring-panel">
+          +{more}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function ProgressBar({
   value,
   colour,

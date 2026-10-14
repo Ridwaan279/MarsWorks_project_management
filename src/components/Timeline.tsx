@@ -22,7 +22,7 @@ import type {
   WorkstreamView,
 } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
-import { Avatar, TeamDot, formatDays } from "./ui";
+import { AvatarStack, TeamDot, formatDays } from "./ui";
 
 interface TimelineProps {
   tasks: TaskView[];
@@ -679,12 +679,11 @@ export function Timeline({
                                 >
                                   {task.title}
                                 </span>
-                                {task.assigneeId ? (
-                                  <Avatar
-                                    name={memberById.get(task.assigneeId)?.name ?? "?"}
-                                    className="mr-2"
-                                  />
-                                ) : null}
+                                <AvatarStack
+                                  names={task.assigneeIds.map((id) => memberById.get(id)?.name ?? "?")}
+                                  max={2}
+                                  className="mr-2"
+                                />
                               </Link>
                             }
                           >

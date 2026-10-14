@@ -5,14 +5,14 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { MemberView, TaskView, TeamView } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
-import { Avatar, ProgressBar, TeamDot } from "./ui";
+import { AvatarStack, ProgressBar, TeamDot } from "./ui";
 import { useCoarsePointer } from "./media";
 import { checklistProgress } from "@/lib/progress";
 
 export interface TaskCardProps {
   task: TaskView;
   team: TeamView;
-  assignee: MemberView | null;
+  assignees: MemberView[];
   scheduled: ScheduledTask | undefined;
   onOpen: (taskId: string) => void;
   onToggleFlag?: (taskId: string, flagged: boolean) => void;
@@ -58,7 +58,7 @@ function cardStyle(
 export function TaskCardBody({
   task,
   team,
-  assignee,
+  assignees,
   scheduled,
   dragging,
   onToggleFlag,
@@ -197,8 +197,12 @@ export function TaskCardBody({
             </span>
           ) : null}
         </div>
-        {assignee ? (
-          <Avatar name={assignee.name} />
+        {assignees.length > 0 ? (
+          <AvatarStack names={assignees.map((m) => m.name)} />
+        ) : task.ownerLabel ? (
+          // A group rather than people ("Executive Team"): say who, not
+          // "Unassigned".
+          <span className="max-w-[9rem] truncate text-[11px] text-ink-3">{task.ownerLabel}</span>
         ) : (
           <span className="text-[11px] text-ink-3">Unassigned</span>
         )}
