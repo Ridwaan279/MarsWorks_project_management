@@ -5,6 +5,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { TeamFilter } from "./TeamFilter";
 import { checklistProgress } from "@/lib/progress";
+import { academicBands, academicWeeks, type PeriodKind } from "@/lib/academic";
 import { format } from "date-fns";
 import {
   addDays,
@@ -55,11 +56,37 @@ type RangeKey = keyof typeof RANGES;
 const ROW_HEIGHT = 32;
 const GROUP_HEIGHT = 26;
 const TEAM_HEIGHT = 36;
-/** The header's three bands: months, week starts, milestones. */
-const MONTH_ROW = 20;
-const WEEK_ROW = 18;
+/** The header's three bands: university periods, weeks, milestones. */
+const TERM_ROW = 20;
+const WEEK_ROW = 30;
 const MILESTONE_ROW = 20;
-const HEADER_HEIGHT = MONTH_ROW + WEEK_ROW + MILESTONE_ROW;
+const HEADER_HEIGHT = TERM_ROW + WEEK_ROW + MILESTONE_ROW;
+/** Roughly how wide a character of a bar's 11px label is, to tell if it fits. */
+const CHAR_WIDTH = 6;
+
+/**
+ * Each kind of week's colour. As in the team's own rover timeline, holidays
+ * and exams stand out from teaching weeks at a glance; teaching weeks are
+ * left plain and only alternate faintly, like spreadsheet columns.
+ */
+const PERIOD_COLOUR: Record<PeriodKind, string | null> = {
+  welcome: "var(--color-information)",
+  teaching: null,
+  holiday: "var(--color-success)",
+  exams: "var(--color-warning)",
+  season: "var(--color-accent)",
+};
+/**
+ * Blocked work is striped grey, echoing the dark "can't happen" blocks in the
+ * team's sheet. Stripes rather than a flat grey, which a grey-ish sub-team
+ * colour (Operations) could be mistaken for.
+ */
+const BLOCKED_FILL =
+  "repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text-muted) 45%, var(--color-bg)) 0 5px, color-mix(in srgb, var(--color-text-muted) 22%, var(--color-bg)) 5px 10px)";
+const periodTint = (kind: PeriodKind | null, strength: number) => {
+  const colour = kind ? PERIOD_COLOUR[kind] : null;
+  return colour ? `color-mix(in srgb, ${colour} ${strength}%, transparent)` : undefined;
+};
 /** Longest a bar's label may run before it truncates. */
 const LABEL_MAX = 260;
 /**
@@ -69,7 +96,7 @@ const LABEL_MAX = 260;
  * timeline. The narrow value trades full task names (they truncate) for a
  * chart wide enough to read, which is the reason to open this page at all.
  */
-const RAIL_WIDE = 240;
+const RAIL_WIDE = 320;
 const RAIL_NARROW = 124;
 
 /**
@@ -205,38 +232,14 @@ export function Timeline({
 
   const chartWidth = totalDays * dayWidth;
 
-  /** Week gridlines, labelled on the Monday. */
-  const weekMarks = useMemo(() => {
-    const marks: { offset: number; date: Date }[] = [];
-    for (let i = 0; i < totalDays; i += 1) {
-      const date = addDays(start, i);
-      if (date.getDay() === 1) marks.push({ offset: i, date });
-    }
-    return marks;
-  }, [start, totalDays]);
-
-  /** Each month the chart touches, as a band: where it starts and how wide. */
-  const monthBands = useMemo(() => {
-    const bands: { offset: number; days: number; date: Date }[] = [];
-    for (let i = 0; i < totalDays; i += 1) {
-      const date = addDays(start, i);
-      if (i === 0 || date.getDate() === 1) bands.push({ offset: i, days: 0, date });
-    }
-    bands.forEach((band, i) => {
-      band.days = (bands[i + 1]?.offset ?? totalDays) - band.offset;
-    });
-    return bands;
-  }, [start, totalDays]);
-
-  /** Saturdays, each shaded with its Sunday. Too fine to help when compact. */
-  const weekends = useMemo(() => {
-    if (zoom === "compact") return [];
-    const offsets: number[] = [];
-    for (let i = 0; i < totalDays; i += 1) {
-      if (addDays(start, i).getDay() === 6) offsets.push(i);
-    }
-    return offsets;
-  }, [start, totalDays, zoom]);
+  /** The university's weeks and periods across the chart; see lib/academic. */
+  const weeks = useMemo(() => academicWeeks(start, totalDays), [start, totalDays]);
+  const bands = useMemo(() => academicBands(start, totalDays), [start, totalDays]);
+  /** Where a week's column starts and how wide it is, clipped to the chart. */
+  const weekBox = (offset: number) => {
+    const from = Math.max(offset, 0);
+    return { left: from * dayWidth, width: (Math.min(offset + 7, totalDays) - from) * dayWidth };
+  };
 
   /** Team -> workstream -> tasks, keeping the shape uniform for teams with no
    *  workstreams so rows line up between the rail and the chart. */
@@ -414,12 +417,29 @@ export function Timeline({
           {visible.length} shown
         </span>
 
-        <div className="ml-auto flex items-center gap-4 text-xs text-ink-3">
+        <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-3">
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-4 rounded-[3px] ring-1 ring-accent ring-inset" aria-hidden /> critical path
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-4 rounded-[3px] ring-1 ring-danger ring-inset" aria-hidden /> behind plan
+            <span
+              aria-hidden
+              className="h-2.5 w-4 rounded-[3px]"
+              style={{ backgroundColor: "color-mix(in srgb, var(--color-danger) 30%, var(--color-bg))" }}
+            />{" "}
+            running late
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className="h-2.5 w-4 rounded-[3px] border border-dashed border-ink-3" /> planned dates
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className="h-2.5 w-4 rounded-[3px]" style={{ backgroundImage: BLOCKED_FILL }} /> blocked
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className="h-2.5 w-4 rounded-[3px]" style={{ backgroundColor: periodTint("holiday", 35) }} /> holidays
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className="h-2.5 w-4 rounded-[3px]" style={{ backgroundColor: periodTint("exams", 35) }} /> exams
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-3.5 w-0.5 bg-today" aria-hidden /> today
@@ -465,49 +485,65 @@ export function Timeline({
               style={{ height: HEADER_HEIGHT }}
             >
               <div
-                className="sticky left-0 z-10 flex shrink-0 items-center border-r border-line bg-canvas px-3 text-xs font-semibold text-ink-2"
+                className="sticky left-0 z-10 flex shrink-0 items-end justify-between gap-2 border-r border-line bg-canvas px-3 pb-2 text-xs font-semibold text-ink-2"
                 style={{ width: RAIL }}
               >
-                Sub-team / task
+                <span>Sub-team / task</span>
+                {narrow ? null : <span className="w-24 text-right">Who</span>}
               </div>
               <div className="relative shrink-0" style={{ width: chartWidth }}>
-                {/* Months. Each name sticks just past the frozen column while
-                    its month is on screen, so the reader always knows which
-                    month they are looking at. */}
-                {monthBands.map((band) => (
-                  // overflow: clip, not hidden -- hidden would make each band
-                  // its own scroll box and stop the name sticking.
+                {/* University periods. Each name sticks just past the frozen
+                    column while its period is on screen. overflow: clip, not
+                    hidden -- hidden would make each band its own scroll box
+                    and stop the name sticking. */}
+                {bands.map((band) => (
                   <div
-                    key={band.offset}
+                    key={`band-${band.offset}`}
                     className="absolute top-0 overflow-clip border-l border-line"
-                    style={{ left: band.offset * dayWidth, width: band.days * dayWidth, height: MONTH_ROW }}
+                    style={{
+                      left: band.offset * dayWidth,
+                      width: band.days * dayWidth,
+                      height: TERM_ROW,
+                      backgroundColor: periodTint(band.kind, 26),
+                    }}
                   >
                     <span
-                      className="sticky inline-block px-2 text-[11px] leading-5 font-semibold whitespace-nowrap text-ink-2"
+                      className="sticky inline-block px-2 text-[11px] leading-5 font-semibold whitespace-nowrap text-ink"
                       style={{ left: RAIL }}
                     >
-                      {format(band.date, band.offset === 0 || band.date.getMonth() === 0 ? "MMMM yyyy" : "MMMM")}
+                      {band.name}
                     </span>
                   </div>
                 ))}
-                {weekMarks
-                  // Skip the date the Today chip would sit on top of.
-                  .filter((mark) => {
-                    const labelWidth = zoom === "wide" ? 36 : 14;
-                    const centre = mark.offset * dayWidth + 6 + labelWidth / 2;
-                    return Math.abs(centre - todayOffset) >= labelWidth / 2 + 22;
-                  })
-                  .map((mark) => (
-                  <span
-                    key={mark.offset}
-                    style={{ left: mark.offset * dayWidth, top: MONTH_ROW, height: WEEK_ROW }}
-                    className="absolute pl-1.5 text-[10px] leading-[18px] whitespace-nowrap text-ink-3 tabular-nums"
+                {/* One cell per week, named as the team counts them: "Wk 3",
+                    "Hol 2", "Exam 1", with the Monday's date beneath. */}
+                {weeks.map((week, i) => (
+                  <div
+                    key={`week-${week.offset}`}
+                    title={`${week.long || "Week"} — week of ${format(week.monday, "d MMM yyyy")}`}
+                    className={clsx(
+                      "absolute overflow-hidden border-t border-l border-line/70",
+                      zoom === "compact" ? "px-1" : "px-1.5",
+                    )}
+                    style={{
+                      ...weekBox(week.offset),
+                      top: TERM_ROW,
+                      height: WEEK_ROW,
+                      backgroundColor:
+                        periodTint(week.kind, 16) ??
+                        (i % 2 ? "color-mix(in srgb, var(--color-text) 3%, transparent)" : undefined),
+                    }}
                   >
-                    {format(mark.date, zoom === "wide" ? "EEE d" : "d")}
-                  </span>
+                    <span className="block truncate pt-0.5 text-[10px] leading-[13px] font-semibold text-ink-2">
+                      {(zoom === "compact" ? week.short : week.label) || "\u00a0"}
+                    </span>
+                    <span className="block truncate text-[9px] leading-3 text-ink-3 tabular-nums">
+                      {format(week.monday, zoom === "compact" ? "d/M" : "d MMM")}
+                    </span>
+                  </div>
                 ))}
                 <span
-                  style={{ left: todayOffset, top: MONTH_ROW + 2 }}
+                  style={{ left: todayOffset, top: TERM_ROW + WEEK_ROW + 3 }}
                   className="absolute z-10 -translate-x-1/2 rounded-full bg-today px-1.5 text-[9px] leading-[14px] font-semibold text-canvas"
                 >
                   Today
@@ -520,7 +556,7 @@ export function Timeline({
                     title={`${milestone.name} — ${format(new Date(milestone.targetDate), "d MMM yyyy")}`}
                     style={{
                       left: offset * dayWidth - 5,
-                      top: MONTH_ROW + WEEK_ROW + 2,
+                      top: TERM_ROW + WEEK_ROW + 2,
                       maxWidth: Math.max(room, 18),
                       backgroundColor:
                         "color-mix(in srgb, var(--color-milestone) 16%, var(--color-bg))",
@@ -542,27 +578,38 @@ export function Timeline({
                 className="pointer-events-none absolute inset-y-0 z-0"
                 style={{ left: RAIL, width: chartWidth }}
               >
-                {weekends.map((offset) => (
-                  <span
-                    key={`we-${offset}`}
-                    style={{ left: offset * dayWidth, width: 2 * dayWidth }}
-                    className="absolute inset-y-0 bg-ink/[0.025]"
-                  />
-                ))}
-                {weekMarks.map((mark) => (
-                  <span
-                    key={mark.offset}
-                    style={{ left: mark.offset * dayWidth }}
-                    className="absolute inset-y-0 w-px bg-line/45"
-                  />
-                ))}
-                {monthBands.slice(1).map((band) => (
-                  <span
-                    key={`m-${band.offset}`}
-                    style={{ left: band.offset * dayWidth }}
-                    className="absolute inset-y-0 w-px bg-line"
-                  />
-                ))}
+                {/* Holidays and exams tint their weeks all the way down, and
+                    teaching weeks alternate faintly, like the team's sheet. */}
+                {weeks.map((week, i) => {
+                  const tint =
+                    periodTint(week.kind, 8) ??
+                    (i % 2 ? "color-mix(in srgb, var(--color-text) 2.5%, transparent)" : undefined);
+                  return tint ? (
+                    <span
+                      key={`wk-${week.offset}`}
+                      className="absolute inset-y-0"
+                      style={{ ...weekBox(week.offset), backgroundColor: tint }}
+                    />
+                  ) : null;
+                })}
+                {weeks
+                  .filter((week) => week.offset > 0)
+                  .map((week) => (
+                    <span
+                      key={`wl-${week.offset}`}
+                      style={{ left: week.offset * dayWidth }}
+                      className="absolute inset-y-0 w-px bg-line/60"
+                    />
+                  ))}
+                {bands
+                  .filter((band) => band.offset > 0)
+                  .map((band) => (
+                    <span
+                      key={`bl-${band.offset}`}
+                      style={{ left: band.offset * dayWidth }}
+                      className="absolute inset-y-0 w-px bg-line-strong"
+                    />
+                  ))}
                 {milestonesInView.map(({ milestone, offset }) => (
                   <span
                     key={milestone.id}
@@ -648,14 +695,44 @@ export function Timeline({
                           : 0;
                         const width = Math.max(barEnd - barStart, 0.5) * dayWidth;
                         const done = task.status === "DONE";
+                        const blocked = task.status === "BLOCKED";
                         const barLeft = barStart * dayWidth;
                         const barRight = barLeft + width;
-                        const lateBy = sched && !done && sched.slackDays < 0 ? -sched.slackDays : 0;
+                        // Running over, as the team's sheet puts it: forecast to
+                        // finish after its own planned end, or late enough to
+                        // hold up what depends on it. Whichever is the larger.
+                        const lateBy =
+                          sched && !done
+                            ? Math.max(sched.planVarianceDays ?? 0, -sched.slackDays, 0)
+                            : 0;
                         const progress = done ? 100 : (checklistProgress(task)?.percent ?? 0);
-                        // The label goes after the bar, unless the bar ends too
-                        // near the edge to fit it there and there is room before.
+                        const who = task.assigneeIds.map((id) => memberById.get(id)?.name ?? "?");
+                        const plan =
+                          task.plannedStart && task.plannedEnd
+                            ? {
+                                left: daysBetween(start, new Date(task.plannedStart)) * dayWidth,
+                                width:
+                                  Math.max(daysBetween(new Date(task.plannedStart), new Date(task.plannedEnd)), 0.5) *
+                                  dayWidth,
+                              }
+                            : null;
+                        const whoText = who.length > 0 ? who.join(", ") : (task.ownerLabel ?? "");
+                        const text = `${blocked ? "Blocked · " : ""}${task.title}${lateBy > 0 ? ` · ${formatDays(lateBy)}` : ""}`;
+                        // Written inside the bar, as the team's sheet does, when it
+                        // fits; otherwise beside it -- after the bar, unless that
+                        // runs off the edge and there is more room before.
+                        const inside = width >= text.length * CHAR_WIDTH + (done ? 30 : 16);
                         const roomAfter = chartWidth - barRight - 12;
                         const labelAfter = roomAfter >= 120 || barLeft - 12 < roomAfter;
+                        // Late work runs red and blocked work grey, as in the
+                        // sheet; otherwise a pastel of the team's colour.
+                        const fill = done
+                          ? `color-mix(in srgb, ${team.colour} 14%, var(--color-bg))`
+                          : blocked
+                            ? undefined
+                            : lateBy > 0
+                              ? "color-mix(in srgb, var(--color-danger) 28%, var(--color-bg))"
+                              : `color-mix(in srgb, ${team.colour} 32%, var(--color-bg))`;
                         return (
                           <Row
                             key={task.id}
@@ -663,6 +740,7 @@ export function Timeline({
                             chartWidth={chartWidth}
                             railWidth={RAIL}
                             tone="task"
+                            accent={team.colour}
                             rail={
                               <Link
                                 href={`/board?task=${task.id}`}
@@ -679,40 +757,59 @@ export function Timeline({
                                 >
                                   {task.title}
                                 </span>
-                                <AvatarStack
-                                  names={task.assigneeIds.map((id) => memberById.get(id)?.name ?? "?")}
-                                  max={2}
-                                  className="mr-2"
-                                />
+                                {narrow ? (
+                                  <AvatarStack names={who} max={2} className="mr-2" />
+                                ) : (
+                                  <span
+                                    title={whoText || undefined}
+                                    className="mr-3 w-24 shrink-0 truncate text-right text-[11px] text-ink-3"
+                                  >
+                                    {whoText}
+                                  </span>
+                                )}
                               </Link>
                             }
                           >
                             {sched ? (
                               <>
+                                {/* The plan, as a dashed outline behind the bar: where
+                                    the team meant to do this, against where it is now
+                                    forecast. Shown only where the two differ. */}
+                                {plan && (plan.left !== barLeft || plan.width !== width) ? (
+                                  <span
+                                    aria-hidden
+                                    className="absolute top-1/2 h-[22px] -translate-y-1/2 rounded-[4px] border border-dashed"
+                                    style={{
+                                      left: plan.left,
+                                      width: plan.width,
+                                      borderColor: `color-mix(in srgb, ${team.colour} 70%, var(--color-bg))`,
+                                    }}
+                                  />
+                                ) : null}
                                 <Link
                                   href={`/impact?task=${task.id}`}
-                                  title={`${task.key}: ${task.title}\n${format(new Date(sched.earliestStart as unknown as string), "d MMM")} – ${format(new Date(sched.earliestFinish as unknown as string), "d MMM")}\n${formatDays(-sched.slackDays)}`}
+                                  title={`${task.key}: ${task.title}${whoText ? `\n${whoText}` : ""}\n${format(new Date(sched.earliestStart as unknown as string), "d MMM")} – ${format(new Date(sched.earliestFinish as unknown as string), "d MMM")}\n${formatDays(-sched.slackDays)}`}
                                   style={{
                                     left: barLeft,
                                     width,
-                                    backgroundColor: `color-mix(in srgb, ${team.colour} ${done ? 20 : 42}%, var(--color-bg))`,
-                                    // A hairline of the team colour gives each bar a
-                                    // crisp edge on either theme without the weight
-                                    // of a solid fill.
+                                    backgroundColor: fill,
+                                    backgroundImage: blocked && !done ? BLOCKED_FILL : undefined,
+                                    // The team's colour down the bar's leading edge,
+                                    // with a hairline of it around the rest.
                                     boxShadow: done
                                       ? undefined
-                                      : `inset 0 0 0 1px color-mix(in srgb, ${team.colour} 75%, var(--color-bg))`,
+                                      : `inset 3px 0 0 ${team.colour}, inset 0 0 0 1px color-mix(in srgb, ${team.colour} 45%, var(--color-bg))`,
                                   }}
                                   className={clsx(
-                                    "absolute top-1/2 flex h-[18px] -translate-y-1/2 items-center overflow-hidden rounded-[4px] ring-offset-1 ring-offset-canvas transition-[height,box-shadow] hover:h-[22px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-                                    !done && (sched.isCritical ? "ring-1 ring-accent" : lateBy > 0 ? "ring-1 ring-danger" : ""),
+                                    "absolute top-1/2 flex h-[22px] -translate-y-1/2 items-center gap-1 overflow-hidden rounded-[4px] pr-1.5 pl-2 ring-offset-1 ring-offset-canvas transition-[filter] hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                                    !done && sched.isCritical && "ring-1 ring-accent",
                                   )}
                                 >
-                                  {/* Checklist progress fills the bar in the full colour. */}
+                                  {/* Checklist progress, along the bottom edge. */}
                                   {progress > 0 && !done ? (
                                     <span
                                       aria-hidden
-                                      className="absolute inset-y-0 left-0"
+                                      className="absolute bottom-0 left-0 h-[3px]"
                                       style={{ width: `${progress}%`, backgroundColor: team.colour }}
                                     />
                                   ) : null}
@@ -720,7 +817,7 @@ export function Timeline({
                                     <svg
                                       viewBox="0 0 12 12"
                                       aria-hidden
-                                      className="relative ml-1 h-2.5 w-2.5 shrink-0"
+                                      className="relative h-2.5 w-2.5 shrink-0"
                                       fill="none"
                                       stroke={`color-mix(in srgb, ${team.colour} 70%, var(--color-text))`}
                                       strokeWidth="2"
@@ -730,31 +827,43 @@ export function Timeline({
                                       <path d="M2.5 6.5 5 9l4.5-6" />
                                     </svg>
                                   ) : null}
+                                  {inside ? (
+                                    <span
+                                      aria-hidden
+                                      className={clsx(
+                                        "relative truncate text-[11px] font-medium whitespace-nowrap",
+                                        done ? "text-ink-3 line-through" : "text-ink",
+                                      )}
+                                    >
+                                      {text}
+                                    </span>
+                                  ) : null}
                                   <span className="sr-only">
                                     {task.key} {task.title}, {STATUS_LABEL[task.status]}
                                   </span>
                                 </Link>
-                                {/* The name beside its bar, so a bar months from the
-                                    task list can still be read where it is. In text
-                                    colours, never the team colour; the bar carries
-                                    whose it is. */}
-                                <span
-                                  aria-hidden
-                                  className={clsx(
-                                    "pointer-events-none absolute top-1/2 -translate-y-1/2 truncate text-[11px] whitespace-nowrap",
-                                    done ? "text-ink-3 line-through" : "text-ink-2",
-                                  )}
-                                  style={
-                                    labelAfter
-                                      ? { left: barRight + 6, maxWidth: Math.min(LABEL_MAX, Math.max(roomAfter, 0)) }
-                                      : { right: chartWidth - barLeft + 6, maxWidth: Math.min(LABEL_MAX, barLeft - 12) }
-                                  }
-                                >
-                                  {task.title}
-                                  {lateBy > 0 ? (
-                                    <span className="text-danger">{` · ${formatDays(lateBy)}`}</span>
-                                  ) : null}
-                                </span>
+                                {/* In text colours, never the team colour; the bar
+                                    carries whose it is. */}
+                                {inside ? null : (
+                                  <span
+                                    aria-hidden
+                                    className={clsx(
+                                      "pointer-events-none absolute top-1/2 -translate-y-1/2 truncate text-[11px] whitespace-nowrap",
+                                      done ? "text-ink-3 line-through" : "text-ink-2",
+                                    )}
+                                    style={
+                                      labelAfter
+                                        ? { left: barRight + 6, maxWidth: Math.min(LABEL_MAX, Math.max(roomAfter, 0)) }
+                                        : { right: chartWidth - barLeft + 6, maxWidth: Math.min(LABEL_MAX, barLeft - 12) }
+                                    }
+                                  >
+                                    {blocked ? "Blocked · " : ""}
+                                    {task.title}
+                                    {lateBy > 0 ? (
+                                      <span className="text-danger">{` · ${formatDays(lateBy)}`}</span>
+                                    ) : null}
+                                  </span>
+                                )}
                               </>
                             ) : null}
                           </Row>
@@ -819,8 +928,12 @@ function Row({
         style={{
           width: railWidth,
           ...tint,
-          // The team's colour down the left edge of its header row.
-          ...(tone === "team" && accent ? { boxShadow: `inset 3px 0 0 ${accent}` } : {}),
+          // The team's colour down the left edge of all its rows: one block
+          // per sub-team, like the merged team cells in the team's sheet.
+          ...(accent ? { boxShadow: `inset 4px 0 0 ${accent}` } : {}),
+          ...(tone === "team" && accent
+            ? { backgroundColor: `color-mix(in srgb, ${accent} 16%, var(--color-elevated))` }
+            : {}),
         }}
       >
         {rail ?? children}
