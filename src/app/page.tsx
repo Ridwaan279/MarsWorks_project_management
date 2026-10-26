@@ -176,6 +176,11 @@ export default async function OverviewPage() {
           })}
         </ul>
       </section>
+      <footer className="border-t border-line pt-6 text-xs text-ink-3">
+        <Link href="/privacy" className="rounded underline underline-offset-4 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          Privacy policy
+        </Link>
+      </footer>
     </div>
   );
 }

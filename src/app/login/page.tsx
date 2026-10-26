@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ALLOWED_DOMAIN, authSetup, safeNext } from "@/lib/auth/config";
 import { currentViewer } from "@/lib/auth/session";
@@ -73,6 +74,11 @@ export default async function LoginPage({
 
         <p className="text-center text-xs text-ink-3 text-pretty">
           Everyone on the team list has an account already: signing in finds it.
+        </p>
+        <p className="text-center text-xs text-ink-3">
+          <Link href="/privacy" className="rounded underline underline-offset-4 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            Privacy policy
+          </Link>
         </p>
       </div>
     </div>

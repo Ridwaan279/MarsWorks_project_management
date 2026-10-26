@@ -4,14 +4,20 @@ import { verifyToken } from "@/lib/auth/token";
 
 /**
  * The front door. Every page and API route needs a valid session cookie,
- * except signing in itself, the health check, and the Google Sheets sync --
- * which Google's servers call, and which checks its own secret.
+ * except signing in itself, the privacy policy, the health check, and the
+ * Google Sheets sync -- which Google's servers call, and which checks its own secret.
  *
  * Only the cookie's signature and expiry are checked here, as Next.js
  * advises for a proxy; who someone is and what they may do is checked again
  * where it matters (src/lib/auth/session.ts).
  */
-const OPEN = [/^\/login$/, /^\/api\/auth\//, /^\/api\/sheets\/sync$/, /^\/api\/health$/];
+const OPEN = [
+  /^\/login$/,
+  /^\/privacy$/,
+  /^\/api\/auth\//,
+  /^\/api\/sheets\/sync$/,
+  /^\/api\/health$/,
+];
 
 export async function proxy(request: NextRequest) {
   const setup = authSetup();
