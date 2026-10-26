@@ -53,6 +53,16 @@ export async function proxy(request: NextRequest) {
 
   const session = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value, setup.secret, "session");
   if (session) return NextResponse.next();
+  const guest = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value, setup.secret, "guest");
+  if (guest) {
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+      return NextResponse.json(
+        { error: "Guest access is read-only. Sign in with Google to make changes." },
+        { status: 403 },
+      );
+    }
+    return NextResponse.next();
+  }
 
   if (isApi) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const login = siteUrl(request, "/login");
