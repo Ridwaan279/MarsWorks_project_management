@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireWriteAccess } from "@/lib/auth/write-access";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { pokeSheet } from "@/lib/sheets/poke";
@@ -47,6 +48,8 @@ const createTask = z
  * transaction as the insert so two people adding a card at once cannot collide.
  */
 export async function POST(request: Request) {
+  const denied = await requireWriteAccess();
+  if (denied) return denied;
   const body = await request.json().catch(() => null);
   const parsed = createTask.safeParse(body);
   if (!parsed.success) {

@@ -10,6 +10,7 @@ import { useCoarsePointer } from "./media";
 import { checklistProgress } from "@/lib/progress";
 
 export interface TaskCardProps {
+  canEdit?: boolean;
   task: TaskView;
   team: TeamView;
   assignees: MemberView[];
@@ -235,7 +236,8 @@ export function SortableTaskCard(props: TaskCardProps) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: props.task.id });
+  } = useSortable({ id: props.task.id, disabled: props.canEdit === false });
+  const canEdit = props.canEdit !== false;
   const coarse = useCoarsePointer();
 
   /*
@@ -250,7 +252,7 @@ export function SortableTaskCard(props: TaskCardProps) {
    * On touch the listeners move to the grip on the left edge and nowhere else.
    * The rest of the card scrolls, and a drag has to be deliberate.
    */
-  const activator = coarse ? {} : listeners;
+  const activator = coarse || !canEdit ? {} : listeners;
 
   /*
    * touch-action matters as much as the listeners. `touch-none` tells the
@@ -262,12 +264,14 @@ export function SortableTaskCard(props: TaskCardProps) {
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={clsx(coarse ? "touch-manipulation" : "touch-none", isDragging && "card-dragging")}
+      className={clsx(coarse || !canEdit ? "touch-manipulation" : "touch-none", isDragging && "card-dragging")}
     >
       <div
         // dnd-kit's attributes already supply role="button" and tabIndex.
-        {...attributes}
+        {...(canEdit ? attributes : {})}
         {...activator}
+        role="button"
+        tabIndex={0}
         onClick={() => props.onOpen(props.task.id)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -281,12 +285,14 @@ export function SortableTaskCard(props: TaskCardProps) {
           "group/card relative block w-full rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
           // manipulation, not pan-y: the board scrolls sideways too, and
           // pan-y would swallow every horizontal swipe that began on a card.
-          coarse
+          !canEdit
+            ? "cursor-pointer touch-manipulation"
+            : coarse
             ? "touch-manipulation"
             : "cursor-grab touch-none active:cursor-grabbing",
         )}
       >
-        {coarse ? (
+        {coarse && canEdit ? (
           <button
             type="button"
             ref={setActivatorNodeRef}
@@ -310,7 +316,7 @@ export function SortableTaskCard(props: TaskCardProps) {
             </svg>
           </button>
         ) : null}
-        <div className={coarse ? "pl-6" : undefined}>
+        <div className={coarse && canEdit ? "pl-6" : undefined}>
           <TaskCardBody {...props} />
         </div>
       </div>

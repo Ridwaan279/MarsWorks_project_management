@@ -21,7 +21,8 @@ export interface SessionClaims extends TokenClaims {
 export interface Viewer {
   /** "off": sign-in not set up yet, so the site is open as before. */
   mode: "off" | "incomplete" | "on";
-  member: { id: string; name: string; email: string | null; role: Role } | null;
+  guest: boolean;
+  member: { id: string; name: string; email: string | null; role: Role; teamId: string | null } | null;
 }
 
 export async function sessionCookieValue(memberId: string, secret: string): Promise<string> {
@@ -33,15 +34,23 @@ export async function sessionCookieValue(memberId: string, secret: string): Prom
 
 export async function currentViewer(): Promise<Viewer> {
   const setup = authSetup();
-  if (setup.mode !== "on") return { mode: setup.mode, member: null };
+  if (setup.mode !== "on") return { mode: setup.mode, guest: false, member: null };
   const store = await cookies();
-  const claims = await verifyToken<SessionClaims>(store.get(SESSION_COOKIE)?.value, setup.secret, "session");
-  if (!claims) return { mode: "on", member: null };
+  const token = store.get(SESSION_COOKIE)?.value;
+  const guest = await verifyToken(token, setup.secret, "guest");
+  if (guest) return { mode: "on", guest: true, member: null };
+  const claims = await verifyToken<SessionClaims>(token, setup.secret, "session");
+  if (!claims || typeof claims.sub !== "string") return { mode: "on", guest: false, member: null };
   const member = await prisma.member.findUnique({
     where: { id: claims.sub },
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, name: true, email: true, role: true, teamId: true },
   });
-  return { mode: "on", member };
+  return { mode: "on", guest: false, member };
+}
+
+export function mayEditProject(viewer: Viewer): boolean {
+  if (viewer.guest) return false;
+  return viewer.mode === "off" || (viewer.mode === "on" && viewer.member !== null);
 }
 
 /**
@@ -49,6 +58,7 @@ export async function currentViewer(): Promise<Viewer> {
  * open, as it always was; once it is, only leads and technical advisors may.
  */
 export function mayDeleteTasks(viewer: Viewer): boolean {
+  if (!mayEditProject(viewer)) return false;
   if (viewer.mode === "off") return true;
   return canDeleteTasks(viewer.member?.role);
 }

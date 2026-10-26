@@ -45,8 +45,9 @@ export default function PrivacyPage() {
           We use sign-in details to identify members, check that they use a
           University of Sheffield account and manage access. Team roles determine
           permissions. Member names and assignments help people coordinate project
-          work, track progress and understand dependencies. Signed-in users can see
-          project information and member names used in the app.
+          work, track progress and understand dependencies. Members and anyone who
+          chooses guest access can see project information and member names used in
+          the app. Guests can browse all teams but cannot change project records.
         </p>
       </section>
 
@@ -72,6 +73,8 @@ export default function PrivacyPage() {
         <p>
           We use a session cookie to keep you signed in for up to {SESSION_DAYS} days
           and a temporary sign-in cookie that expires after {FLOW_MINUTES} minutes.
+          Guest access also uses a cookie lasting up to {SESSION_DAYS} days, without
+          creating a member account or requiring Google sign-in.
           Signing out clears the session cookie from your browser. Your light or dark
           theme preference is saved in your browser&apos;s local storage.
         </p>

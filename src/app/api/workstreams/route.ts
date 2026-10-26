@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireWriteAccess } from "@/lib/auth/write-access";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 
@@ -15,6 +16,8 @@ const createWorkstream = z.object({
  * one first is how tasks end up ungrouped.
  */
 export async function POST(request: Request) {
+  const denied = await requireWriteAccess();
+  if (denied) return denied;
   const parsed = createWorkstream.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(

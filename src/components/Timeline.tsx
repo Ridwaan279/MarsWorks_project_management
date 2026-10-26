@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { TeamFilter } from "./TeamFilter";
+import { initialTeamFilter } from "@/lib/team-filter";
 import { checklistProgress } from "@/lib/progress";
 import { academicBands, academicWeeks, type PeriodKind } from "@/lib/academic";
 import { format } from "date-fns";
@@ -33,6 +34,7 @@ interface TimelineProps {
   workstreams: WorkstreamView[];
   scheduled: Record<string, ScheduledTask>;
   asOf: string;
+  initialTeamId?: string;
 }
 
 const ZOOM = { compact: 5, normal: 9, wide: 16 } as const;
@@ -126,6 +128,7 @@ export function Timeline({
   workstreams,
   scheduled,
   asOf,
+  initialTeamId,
 }: TimelineProps) {
   /*
    * "normal" on a desktop, "compact" on a phone.
@@ -139,7 +142,7 @@ export function Timeline({
   const [zoom, setZoom] = useState<Zoom>("normal");
   const [hideDone, setHideDone] = useState(false);
   // Empty means every team; see TeamFilter.
-  const [teamFilter, setTeamFilter] = useState<string[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string[]>(() => initialTeamFilter(initialTeamId, teams));
   const [range, setRange] = useState<RangeKey>("current");
   const dayWidth = ZOOM[zoom];
   const narrow = useNarrow();

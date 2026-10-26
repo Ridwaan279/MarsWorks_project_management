@@ -39,6 +39,7 @@ import { TeamFilter } from "./TeamFilter";
 import { MemberOptions } from "./MemberOptions";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { TeamDot } from "./ui";
+import { initialTeamFilter } from "@/lib/team-filter";
 
 interface BoardProps {
   tasks: TaskView[];
@@ -52,6 +53,8 @@ interface BoardProps {
    *  the two clocks classify a task's window differently. */
   asOf: string;
   initialTaskId?: string;
+  initialTeamId?: string;
+  canEdit: boolean;
   /** Leads and technical advisors only; the server checks it again. */
   canDelete: boolean;
 }
@@ -79,6 +82,8 @@ export function KanbanBoard({
   scheduled,
   asOf,
   initialTaskId,
+  initialTeamId,
+  canEdit,
   canDelete,
 }: BoardProps) {
   const router = useRouter();
@@ -102,7 +107,7 @@ export function KanbanBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(initialTaskId ?? null);
   // Empty means every team; see TeamFilter.
-  const [teamFilter, setTeamFilter] = useState<string[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string[]>(() => initialTeamFilter(initialTeamId, teams));
   const [assigneeFilter, setAssigneeFilter] = useState<string | "ALL">("ALL");
   const [flagging, setFlagging] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
@@ -282,6 +287,7 @@ export function KanbanBoard({
   }
 
   function handleDragStart(event: DragStartEvent) {
+    if (!canEdit) return;
     // Snapshot before any optimistic move so a failed write rolls back to the
     // board as it was when the drag started, not to a half-applied state.
     rollbackRef.current = tasks.map((t) => ({ ...t }));
@@ -293,6 +299,7 @@ export function KanbanBoard({
 
   /** Move the card into the hovered column as soon as it crosses the boundary. */
   function handleDragOver(event: DragOverEvent) {
+    if (!canEdit) return;
     const { active, over } = event;
     if (!over) return;
     const activeStatus = statusOf(String(active.id));
@@ -307,6 +314,7 @@ export function KanbanBoard({
   }
 
   function handleDragEnd(event: DragEndEvent) {
+    if (!canEdit) return;
     const { active, over } = event;
     document.body.classList.remove("is-dragging");
     setActiveId(null);
@@ -691,13 +699,14 @@ export function KanbanBoard({
               status={column.status}
               label={column.label}
               tasks={columns.get(column.status) ?? []}
+              canEdit={canEdit}
               teamById={teamById}
               memberById={memberById}
               scheduled={scheduled}
               onOpen={setOpenTaskId}
-              onToggleFlag={toggleFlag}
-              onMove={setMoving}
-              onAdd={() => setCreatingIn(column.status)}
+              onToggleFlag={canEdit ? toggleFlag : undefined}
+              onMove={canEdit ? setMoving : undefined}
+              onAdd={canEdit ? () => setCreatingIn(column.status) : undefined}
             />
           ))}
         </div>
@@ -724,13 +733,14 @@ export function KanbanBoard({
           workstreams={workstreamList}
           allTasks={tasks}
           scheduled={scheduled[openTask.id]}
+          canEdit={canEdit}
           onClose={() => setOpenTaskId(null)}
           onSaved={handleTaskSaved}
-          onDeleted={canDelete ? handleTaskDeleted : undefined}
+          onDeleted={canEdit && canDelete ? handleTaskDeleted : undefined}
         />
       ) : null}
 
-      {movingTask ? (
+      {canEdit && movingTask ? (
         <MoveSheet
           taskKey={movingTask.key}
           taskTitle={movingTask.title}
@@ -743,7 +753,7 @@ export function KanbanBoard({
         />
       ) : null}
 
-      {flaggingTask ? (
+      {canEdit && flaggingTask ? (
         <FlagDialog
           taskKey={flaggingTask.key}
           taskTitle={flaggingTask.title}
@@ -755,7 +765,7 @@ export function KanbanBoard({
         />
       ) : null}
 
-      {creatingIn ? (
+      {canEdit && creatingIn ? (
         <NewTaskDialog
           status={creatingIn}
           teams={teams}
@@ -798,6 +808,7 @@ function BoardColumn({
   status,
   label,
   tasks,
+  canEdit,
   teamById,
   memberById,
   scheduled,
@@ -810,16 +821,17 @@ function BoardColumn({
   status: TaskStatus;
   label: string;
   tasks: TaskView[];
+  canEdit: boolean;
   teamById: Map<string, TeamView>;
   memberById: Map<string, MemberView>;
   scheduled: Record<string, ScheduledTask>;
   onOpen: (id: string) => void;
-  onToggleFlag: (taskId: string, flagged: boolean) => void;
-  onMove: (taskId: string) => void;
-  onAdd: () => void;
+  onToggleFlag?: (taskId: string, flagged: boolean) => void;
+  onMove?: (taskId: string) => void;
+  onAdd?: () => void;
 }) {
   // A column-level droppable so an empty column is still a valid drop target.
-  const { setNodeRef, isOver } = useDroppable({ id: status });
+  const { setNodeRef, isOver } = useDroppable({ id: status, disabled: !canEdit });
 
   return (
     <section
@@ -842,7 +854,7 @@ function BoardColumn({
             {tasks.length}
           </span>
         </h2>
-        <button
+        {onAdd ? <button
           type="button"
           onClick={onAdd}
           data-tour={status === "BACKLOG" ? "add" : undefined}
@@ -852,7 +864,7 @@ function BoardColumn({
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor" aria-hidden>
             <path d="M8 3a.75.75 0 0 1 .75.75v3.5h3.5a.75.75 0 0 1 0 1.5h-3.5v3.5a.75.75 0 0 1-1.5 0v-3.5h-3.5a.75.75 0 0 1 0-1.5h3.5v-3.5A.75.75 0 0 1 8 3Z" />
           </svg>
-        </button>
+        </button> : null}
       </header>
 
       <div
@@ -870,6 +882,7 @@ function BoardColumn({
                 key={task.id}
                 tourAnchor={status === "IN_PROGRESS" && index === 0}
                 task={task}
+                canEdit={canEdit}
                 team={teamById.get(task.teamId)!}
                 assignees={task.assigneeIds
                   .map((id) => memberById.get(id))
@@ -884,7 +897,7 @@ function BoardColumn({
         </SortableContext>
         {tasks.length === 0 ? (
           <p className="px-2 py-6 text-center text-xs text-ink-3">
-            Drop a card here
+            {canEdit ? "Drop a card here" : "No tasks in this column"}
           </p>
         ) : null}
       </div>

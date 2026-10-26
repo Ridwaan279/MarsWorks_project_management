@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireWriteAccess } from "@/lib/auth/write-access";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { refreshProgress } from "@/lib/checklist";
@@ -11,6 +12,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireWriteAccess();
+  if (denied) return denied;
   const { id } = await context.params;
   const parsed = createSubtask.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

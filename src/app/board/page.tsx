@@ -1,6 +1,6 @@
 import { loadProjectView } from "@/lib/project";
 import { KanbanBoard } from "@/components/KanbanBoard";
-import { currentViewer, mayDeleteTasks } from "@/lib/auth/session";
+import { currentViewer, mayDeleteTasks, mayEditProject } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +24,8 @@ export default async function BoardPage({
       scheduled={scheduled}
       asOf={project.asOf.toISOString()}
       initialTaskId={params.task}
+      initialTeamId={viewer.member?.teamId ?? undefined}
+      canEdit={mayEditProject(viewer)}
       canDelete={mayDeleteTasks(viewer)}
     />
   );

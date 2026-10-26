@@ -1,8 +1,23 @@
 # Signing in
 
-Mission Control is for the team only. People sign in with their University of
-Sheffield Google account -- the one ending in **@sheffield.ac.uk** -- and
-nothing else gets in.
+Members sign in with their University of Sheffield Google account -- the one
+ending in **@sheffield.ac.uk** -- to edit Mission Control. Anyone can choose
+**View as guest** on the login page to browse project information and member names
+across all teams, with read-only access. Guests cannot create, move, edit, flag or
+delete tasks, checklist items, links, dependencies or workstreams. Both the proxy
+and the individual project mutation handlers enforce this restriction. Guest
+sessions create no member records. Guests can sign in with Google from the header
+to get their normal member permissions.
+
+The board and timeline initially select the signed-in member's `Member.teamId`.
+Their team filters still allow any other team or all teams. Guests and members
+without a team assignment initially see all teams.
+
+No Supabase schema change or new SQL is needed for either feature. The existing
+email-linking SQL can remain unchanged: it preserves `teamId`, which already links
+each roster member to their sub-team. Guest sessions use signed cookies, not
+Supabase Auth users or a new database role. If a member sees all teams by default,
+check that their existing Member row has the correct `teamId` and linked email.
 
 - **Everyone on the team list has an account already** (`prisma/members.ts`).
   Signing in finds it by their university address, which is loaded once (Part 3

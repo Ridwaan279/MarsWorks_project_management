@@ -72,6 +72,15 @@ export default async function LoginPage({
           </a>
         ) : null}
 
+        {setup.mode === "on" ? (
+          <form action={`/api/auth/guest?next=${encodeURIComponent(next)}`} method="post" className="space-y-2">
+            <button type="submit" className="w-full rounded-lg border border-line px-4 py-2.5 text-sm text-ink-2 hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+              {viewer.guest ? "Continue as guest" : "View as guest"}
+            </button>
+            <p className="text-center text-xs text-ink-3">Browse all teams. Guest access is read-only.</p>
+          </form>
+        ) : null}
+
         <p className="text-center text-xs text-ink-3 text-pretty">
           Everyone on the team list has an account already: signing in finds it.
         </p>

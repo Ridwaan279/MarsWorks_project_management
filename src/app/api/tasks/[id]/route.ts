@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireWriteAccess } from "@/lib/auth/write-access";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { pokeSheet } from "@/lib/sheets/poke";
@@ -52,6 +53,8 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireWriteAccess();
+  if (denied) return denied;
   const { id } = await context.params;
   const body = await request.json().catch(() => null);
   const parsed = updateTask.safeParse(body);
@@ -135,6 +138,8 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireWriteAccess();
+  if (denied) return denied;
   // Checked here, not just by hiding the button: the board only shows what
   // the server would allow.
   if (!mayDeleteTasks(await currentViewer())) {

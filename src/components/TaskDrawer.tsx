@@ -25,6 +25,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { AvatarStack, ProgressBar, StatusBadge, TeamDot, formatDays } from "./ui";
 
 interface DrawerProps {
+  canEdit: boolean;
   task: TaskView;
   teams: TeamView[];
   members: MemberView[];
@@ -86,6 +87,7 @@ function Disclosure({
 }
 
 export function TaskDrawer({
+  canEdit,
   task,
   teams,
   members,
@@ -409,7 +411,7 @@ export function TaskDrawer({
             <StatusBadge status={draft.status} label={STATUS_LABEL[draft.status]} />
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {onDeleted ? (
+            {canEdit && onDeleted ? (
               <button
                 ref={deleteButtonRef}
                 type="button"
@@ -444,7 +446,12 @@ export function TaskDrawer({
           </div>
         </header>
 
-        <div className="selectable overscroll-none-safe flex-1 space-y-5 overflow-y-auto px-5 py-5">
+        <fieldset
+          disabled={!canEdit}
+          aria-label={canEdit ? "Edit task" : "Read-only task details"}
+          className="selectable overscroll-none-safe min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto border-0 px-5 py-5"
+        >
+          {!canEdit ? <p className="text-xs text-ink-3">Guest access is read-only. Sign in to edit this task.</p> : null}
           {/* Opening a flagged task should answer "why is this flagged?"
               before anything else on the screen. */}
           {draft.flagged ? (
@@ -914,7 +921,7 @@ export function TaskDrawer({
               you cannot start and a dependency you cannot record are the two
               things people gave up on this tool for. */}
 
-        </div>
+        </fieldset>
 
         <footer className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
           <p aria-live="polite" className="min-w-0 flex-1 text-xs">
@@ -939,16 +946,16 @@ export function TaskDrawer({
               onClick={onClose}
               className="rounded-md px-3 py-1.5 text-sm text-ink-2 transition-colors hover:bg-elevated hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              Cancel
+              {canEdit ? "Cancel" : "Close"}
             </button>
-            <button
+            {canEdit ? <button
               type="button"
               onClick={save}
               disabled={!dirty || saving}
               className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-canvas transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               {saving ? "Saving…" : "Save Changes"}
-            </button>
+            </button> : null}
           </div>
         </footer>
       </div>

@@ -58,7 +58,7 @@ export default async function RootLayout({
   const viewer = await currentViewer();
   // The way around the site is for people who are in it. On the sign-in
   // page, before anyone has signed in, the header is just the name.
-  const inside = viewer.mode === "off" || viewer.member !== null;
+  const inside = viewer.mode === "off" || viewer.member !== null || viewer.guest;
   return (
     <html
       lang="en"
@@ -106,7 +106,13 @@ export default async function RootLayout({
             {inside ? <NavLinks /> : null}
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <ThemeToggle />
-              {inside ? <HelpButton /> : null}
+              {inside && !viewer.guest ? <HelpButton /> : null}
+              {viewer.guest ? (
+                <>
+                  <Link href="/login" className="rounded px-2 py-1 text-xs text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">Sign in</Link>
+                  <UserMenu name="Guest" role="Read-only access" email={null} />
+                </>
+              ) : null}
               {viewer.member ? (
                 <UserMenu
                   name={viewer.member.name}
@@ -123,6 +129,11 @@ export default async function RootLayout({
             </p>
           ) : null}
         </header>
+        {viewer.guest ? (
+          <p className="border-b border-line bg-elevated px-4 py-2 text-xs text-ink-2 sm:px-6">
+            You&apos;re viewing as a guest. You can browse all teams, but changes are disabled.
+          </p>
+        ) : null}
 
         {/* No z-index here: one would make <main> its own stacking layer, and
             every drawer and dialog opened from a page would sit under the
