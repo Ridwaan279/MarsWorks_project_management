@@ -168,7 +168,7 @@ export function TaskCardBody({
       ) : null}
 
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2 text-[11px] text-ink-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink-3">
           <span className="font-mono" translate="no">
             {task.key}
           </span>
@@ -192,9 +192,17 @@ export function TaskCardBody({
               {task.links.length}
             </span>
           ) : null}
+          {task.priority === "CRITICAL" ? (
+            <span title="Critical priority" className="rounded bg-danger/15 px-1 font-medium text-danger">
+              Critical
+            </span>
+          ) : null}
           {scheduled && scheduled.isCritical && task.status !== "DONE" ? (
-            <span className="rounded bg-accent/15 px-1 font-medium text-accent">
-              critical
+            <span
+              title="On the critical path: a delay affects the project schedule."
+              className="rounded bg-accent/15 px-1 font-medium text-accent"
+            >
+              Critical path
             </span>
           ) : null}
         </div>
