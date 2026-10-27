@@ -1,6 +1,7 @@
 import { loadProjectView } from "@/lib/project";
 import { Timeline } from "@/components/Timeline";
 import { currentViewer } from "@/lib/auth/session";
+import { defaultTeamId } from "@/lib/team-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function TimelinePage() {
       workstreams={project.workstreams}
       scheduled={Object.fromEntries(project.schedule.tasks)}
       asOf={project.asOf.toISOString()}
-      initialTeamId={viewer.member?.teamId ?? undefined}
+      initialTeamId={defaultTeamId(viewer.member)}
     />
   );
 }

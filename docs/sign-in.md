@@ -12,6 +12,8 @@ to get their normal member permissions.
 The board and timeline initially select the signed-in member's `Member.teamId`.
 Their team filters still allow any other team or all teams. Guests and members
 without a team assignment initially see all teams.
+Ridwaan Joomun also initially sees all teams on both views, while remaining in
+his assigned sub-team and retaining the usual team filters.
 
 No Supabase schema change or new SQL is needed for either feature. The existing
 email-linking SQL can remain unchanged: it preserves `teamId`, which already links
