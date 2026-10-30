@@ -19,6 +19,7 @@ export function AssigneePicker({
   teamId,
   value,
   onChange,
+  readOnly = false,
 }: {
   id: string;
   members: MemberView[];
@@ -27,6 +28,8 @@ export function AssigneePicker({
   teamId: string;
   value: string[];
   onChange: (ids: string[]) => void;
+  /** Shows who is assigned, without the list for adding someone. */
+  readOnly?: boolean;
 }) {
   const chosen = new Set(value);
   const own = members.filter((m) => m.teamId === teamId);
@@ -77,7 +80,7 @@ export function AssigneePicker({
         </div>
       ) : null}
 
-      {others.length > 0 ? (
+      {others.length > 0 && !readOnly ? (
         <select
           id={id}
           value=""

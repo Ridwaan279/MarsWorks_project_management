@@ -62,6 +62,7 @@ export function TaskCardBody({
   assignees,
   scheduled,
   dragging,
+  canEdit,
   onToggleFlag,
   onMove,
 }: Omit<TaskCardProps, "onOpen"> & { dragging?: boolean }) {
@@ -129,11 +130,12 @@ export function TaskCardBody({
           >
             <FlagIcon filled={task.flagged} />
           </button>
-        ) : (
+        ) : task.flagged || canEdit !== false ? (
+          // A guest cannot flag, so an empty flag would only invite a click.
           <span className={task.flagged ? "text-danger" : "text-ink-3"}>
             <FlagIcon filled={task.flagged} />
           </span>
-        )}
+        ) : null}
       </div>
 
       {!task.plannedEnd && task.status !== "DONE" ? (

@@ -2,9 +2,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { KanbanBoard } from "./KanbanBoard";
+import { TaskCardBody } from "./TaskCard";
 import { TaskDrawer } from "./TaskDrawer";
 import { Timeline } from "./Timeline";
-import type { TaskView, TeamView } from "@/lib/project";
+import type { MemberView, TaskView, TeamView } from "@/lib/project";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
@@ -47,6 +48,39 @@ describe("read-only guest views", () => {
     expect(html).toContain("Check fit");
     expect(html).not.toContain("Save Changes");
     expect(html).not.toMatch(/>\s*Delete\s*</);
+  });
+
+  it("offers guests no add or remove controls in a task, rather than disabled ones", () => {
+    const blocker = { depId: "dep-1", id: "task-2", key: "SW-1", title: "Implement navigation", teamId: "sw" };
+    const members: MemberView[] = [
+      { id: "m1", name: "Ada Lovelace", teamId: "mech", githubLogin: null, avatarUrl: null },
+      { id: "m2", name: "Alan Turing", teamId: "sw", githubLogin: null, avatarUrl: null },
+    ];
+    const drawer = (canEdit: boolean) => renderToStaticMarkup(createElement(TaskDrawer, {
+      task: { ...task, blockedBy: [blocker], assigneeIds: ["m1"] }, teams, members, milestones: [], workstreams: [],
+      allTasks: [task], scheduled: undefined, canEdit, onClose: vi.fn(), onSaved: vi.fn(),
+    }));
+    const guest = drawer(false);
+    const member = drawer(true);
+    for (const control of [
+      "Add a checklist item", "Remove &quot;Check fit&quot;", "Add Link", "Remove link Drawing",
+      "Add a task this one waits on", "Remove dependency on SW-1", "Add someone from another sub-team",
+    ]) {
+      expect(guest).not.toContain(control);
+      expect(member).toContain(control);
+    }
+    expect(guest).toContain("Implement navigation");
+    expect(guest).toContain("Ada Lovelace");
+  });
+
+  it("shows guests a flag only on flagged cards", () => {
+    const card = (flagged: boolean, canEdit?: boolean) => renderToStaticMarkup(
+      createElement(TaskCardBody, { task: { ...task, flagged }, team: teams[0], assignees: [], scheduled: undefined, canEdit }),
+    );
+    expect(card(false, false)).not.toContain('<span class="text-ink-3"><svg');
+    expect(card(true, false)).toContain('<span class="text-danger"><svg');
+    // The drag overlay, which members see, still mirrors the card.
+    expect(card(false)).toContain('<span class="text-ink-3"><svg');
   });
 
   it("preserves member editing controls", () => {

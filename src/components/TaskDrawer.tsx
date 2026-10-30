@@ -524,6 +524,7 @@ export function TaskDrawer({
                 teamId={draft.teamId}
                 value={draft.assigneeIds}
                 onChange={(assigneeIds) => setDraft({ ...draft, assigneeIds })}
+                readOnly={!canEdit}
               />
             </div>
 
@@ -597,39 +598,43 @@ export function TaskDrawer({
                       {st.title}
                     </span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => removeSubtask(st.id)}
-                    aria-label={`Remove "${st.title}"`}
-                    className="mt-0.5 shrink-0 rounded p-1 text-ink-3 transition-opacity [@media(hover:hover)]:opacity-0 group-hover/st:opacity-100 hover:text-danger focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  >
-                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
-                      <path d="M4.3 3.3 8 7l3.7-3.7 1 1L9 8l3.7 3.7-1 1L8 9l-3.7 3.7-1-1L7 8 3.3 4.3Z" />
-                    </svg>
-                  </button>
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      onClick={() => removeSubtask(st.id)}
+                      aria-label={`Remove "${st.title}"`}
+                      className="mt-0.5 shrink-0 rounded p-1 text-ink-3 transition-opacity [@media(hover:hover)]:opacity-0 group-hover/st:opacity-100 hover:text-danger focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
+                        <path d="M4.3 3.3 8 7l3.7-3.7 1 1L9 8l3.7 3.7-1 1L8 9l-3.7 3.7-1-1L7 8 3.3 4.3Z" />
+                      </svg>
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
           ) : (
             <p className="text-xs text-ink-3">No checklist items yet.</p>
           )}
-          <form onSubmit={addSubtask} className="flex gap-2">
-            <input
-              value={subtaskTitle}
-              onChange={(e) => setSubtaskTitle(e.target.value)}
-              placeholder="Add a checklist item"
-              aria-label="New checklist item"
-              autoComplete="off"
-              className={`${FIELD} text-xs`}
-            />
-            <button
-              type="submit"
-              disabled={!subtaskTitle.trim()}
-              className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              Add
-            </button>
-          </form>
+          {canEdit ? (
+            <form onSubmit={addSubtask} className="flex gap-2">
+              <input
+                value={subtaskTitle}
+                onChange={(e) => setSubtaskTitle(e.target.value)}
+                placeholder="Add a checklist item"
+                aria-label="New checklist item"
+                autoComplete="off"
+                className={`${FIELD} text-xs`}
+              />
+              <button
+                type="submit"
+                disabled={!subtaskTitle.trim()}
+                className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Add
+              </button>
+            </form>
+          ) : null}
           </section>
 
           <section className="space-y-2">
@@ -649,59 +654,65 @@ export function TaskDrawer({
                     >
                       {link.label}
                     </a>
-                    <button
-                      type="button"
-                      onClick={() => removeLink(link.id)}
-                      aria-label={`Remove link ${link.label}`}
-                      className="rounded p-0.5 text-ink-3 transition-colors hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    >
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
-                        <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
-                      </svg>
-                    </button>
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => removeLink(link.id)}
+                        aria-label={`Remove link ${link.label}`}
+                        className="rounded p-0.5 text-ink-3 transition-colors hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      >
+                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                          <path d="M4.3 3.3a1 1 0 0 1 1.4 0L8 5.6l2.3-2.3a1 1 0 1 1 1.4 1.4L9.4 7l2.3 2.3a1 1 0 0 1-1.4 1.4L8 8.4l-2.3 2.3a1 1 0 0 1-1.4-1.4L6.6 7 4.3 4.7a1 1 0 0 1 0-1.4Z" />
+                        </svg>
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
-            ) : null}
+            ) : canEdit ? null : (
+              <p className="text-xs text-ink-3">No links.</p>
+            )}
 
             {/* The URL gets a row of its own: it is the long value, and sharing
                 one row with the label left neither enough room to read. */}
-            <form onSubmit={addLink} className="space-y-2">
-              <label className="sr-only" htmlFor="link-url">
-                Link address
-              </label>
-              <input
-                id="link-url"
-                type="url"
-                inputMode="url"
-                spellCheck={false}
-                autoComplete="off"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://drive.google.com/…"
-                className={`${FIELD} text-xs`}
-              />
-              <div className="flex gap-2">
-                <label className="sr-only" htmlFor="link-label">
-                  Link label
+            {canEdit ? (
+              <form onSubmit={addLink} className="space-y-2">
+                <label className="sr-only" htmlFor="link-url">
+                  Link address
                 </label>
                 <input
-                  id="link-label"
-                  value={linkLabel}
-                  onChange={(e) => setLinkLabel(e.target.value)}
+                  id="link-url"
+                  type="url"
+                  inputMode="url"
+                  spellCheck={false}
                   autoComplete="off"
-                  placeholder="Label (optional)"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://drive.google.com/…"
                   className={`${FIELD} text-xs`}
                 />
-                <button
-                  type="submit"
-                  disabled={!linkUrl.trim()}
-                  className="shrink-0 rounded-md border border-line px-3 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                >
-                  Add Link
-                </button>
-              </div>
-            </form>
+                <div className="flex gap-2">
+                  <label className="sr-only" htmlFor="link-label">
+                    Link label
+                  </label>
+                  <input
+                    id="link-label"
+                    value={linkLabel}
+                    onChange={(e) => setLinkLabel(e.target.value)}
+                    autoComplete="off"
+                    placeholder="Label (optional)"
+                    className={`${FIELD} text-xs`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!linkUrl.trim()}
+                    className="shrink-0 rounded-md border border-line px-3 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    Add Link
+                  </button>
+                </div>
+              </form>
+            ) : null}
           </section>
 
           <Disclosure title="More details">
@@ -812,7 +823,7 @@ export function TaskDrawer({
                         key={dep.depId}
                         dep={dep}
                         teams={teams}
-                        onRemove={() => removeDependency(dep.depId)}
+                        onRemove={canEdit ? () => removeDependency(dep.depId) : undefined}
                       />
                     ))}
                   </ul>
@@ -821,28 +832,30 @@ export function TaskDrawer({
                     Nothing yet &mdash; this task can start whenever.
                   </p>
                 )}
-                <form onSubmit={addDependency} className="flex gap-2">
-                  <select
-                    aria-label="Task this one waits on"
-                    value={dependencyId}
-                    onChange={(e) => setDependencyId(e.target.value)}
-                    className={`${FIELD} text-xs`}
-                  >
-                    <option value="">Add a task this one waits on…</option>
-                    {dependencyOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.key} — {option.title}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="submit"
-                    disabled={!dependencyId}
-                    className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  >
-                    Add
-                  </button>
-                </form>
+                {canEdit ? (
+                  <form onSubmit={addDependency} className="flex gap-2">
+                    <select
+                      aria-label="Task this one waits on"
+                      value={dependencyId}
+                      onChange={(e) => setDependencyId(e.target.value)}
+                      className={`${FIELD} text-xs`}
+                    >
+                      <option value="">Add a task this one waits on…</option>
+                      {dependencyOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.key} — {option.title}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      disabled={!dependencyId}
+                      className="shrink-0 rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      Add
+                    </button>
+                  </form>
+                ) : null}
               </div>
 
               {draft.blocks.length > 0 ? (
@@ -854,7 +867,7 @@ export function TaskDrawer({
                         key={dep.depId}
                         dep={dep}
                         teams={teams}
-                        onRemove={() => removeDependency(dep.depId)}
+                        onRemove={canEdit ? () => removeDependency(dep.depId) : undefined}
                       />
                     ))}
                   </ul>
