@@ -28,35 +28,52 @@ export interface MemberDefinition {
 export const MEMBERS: MemberDefinition[] = [
   // Operations
   { name: "Adam Binmore", team: "OPS", role: "PROJECT_LEAD" },
+  { name: "Amir J Berkowitz", team: "OPS" },
+  { name: "Blaise Glennon", team: "OPS" },
   { name: "Elouise Wilkes", team: "OPS", role: "PROJECT_LEAD" },
-  { name: "Katie Mason", team: "OPS" },
+  { name: "Hannah Major", team: "OPS" },
+  { name: "Ibrahim Samaah", team: "OPS" },
+  { name: "Katie Mason", team: "OPS", role: "TEAM_LEAD" },
+  { name: "Kosisochukwu Daniella Ngonadi", team: "OPS" },
   { name: "Ridwaan Joomun", team: "OPS", role: "PROJECT_LEAD" },
-  { name: "Soong Seng Hee", team: "OPS" },
+  { name: "Soong Seng Hee", team: "OPS", role: "TECHNICAL_ADVISOR" },
 
   // Mechanical
+  { name: "Alan Umesh", team: "MECH" },
   { name: "Daniel Parkus", team: "MECH", role: "TEAM_LEAD", aliases: ["Daniel"] },
+  { name: "Ixie Akpan", team: "MECH" },
   { name: "Jack Sutton", team: "MECH", aliases: ["Jack"] },
   { name: "John Straughn", team: "MECH" },
+  { name: "Kevin Holmshaw", team: "MECH" },
   { name: "Matt Shepherd", team: "MECH", role: "TECHNICAL_ADVISOR", aliases: ["Matt"] },
+  { name: "Morris Wong", team: "MECH" },
   { name: "Owen Griffiths", team: "MECH", aliases: ["Owen"] },
   { name: "Yusuf Rahim", team: "MECH" },
 
   // Electronics
+  { name: "Ahmed Othman OM Sayed", team: "ELEC" },
   { name: "Ali Ahmad", team: "ELEC", aliases: ["Ali"] },
+  { name: "Alya Su Alkan", team: "ELEC" },
+  { name: "Benjamin Gostelow", team: "ELEC" },
   { name: "Dexi Li", team: "ELEC", role: "TECHNICAL_ADVISOR" },
   { name: "Harry Geofrey Haines", team: "ELEC", aliases: ["Harry"] },
   { name: "Kai Dolan", team: "ELEC", role: "TEAM_LEAD" },
   { name: "Karim El-Kheater", team: "ELEC" },
+  { name: "Susan D Blake", team: "ELEC" },
   { name: "Thomas Haley", team: "ELEC", aliases: ["Thomas A Haley", "Thomas", "Tom"] },
 
   // Robotics
+  { name: "Arjun Pandit", team: "ROBO" },
   { name: "Ben Cole", team: "ROBO", role: "TEAM_LEAD" },
   { name: "Chi Nguyen", team: "ROBO" },
   { name: "Finlay Budd", team: "ROBO" },
+  { name: "Jacob Chapman", team: "ROBO" },
   { name: "Kee Yee Yang", team: "ROBO" },
-  { name: "Manasi Barge", team: "ROBO" },
+  { name: "Luke F Burden", team: "ROBO" },
   { name: "Maninee Bambole", team: "ROBO", role: "TEAM_LEAD" },
+  { name: "Munir Danladi Isa Osori", team: "ROBO" },
   { name: "Reuben Crouwel-Welburn", team: "ROBO" },
+  { name: "Teejhan Hansraj", team: "ROBO" },
 
   // Science
   { name: "Emily Buck", team: "SCI" },
@@ -68,9 +85,21 @@ export const MEMBERS: MemberDefinition[] = [
   { name: "Yaseen Shaikh", team: "SCI" },
 
   // Software
+  { name: "Adam MSA Reda", team: "SW" },
+  { name: "Golibe A Nwobi", team: "SW" },
   { name: "Jack Hamer", team: "SW", role: "TECHNICAL_ADVISOR" },
   { name: "Keaton Docherty", team: "SW" },
+  { name: "Khizar A Khan", team: "SW" },
+  { name: "Kyaw Zawe Lin", team: "SW" },
+  { name: "Luke Crowley", team: "SW" },
   { name: "Nheeru Tumber", team: "SW", role: "TEAM_LEAD" },
   { name: "Shadab Mir", team: "SW" },
   { name: "Yanki Kirlikova", team: "SW" },
+
+  // Drone
+  { name: "Aaditya K Siripal", team: "DRONE" },
+  { name: "Ifan L Tweed", team: "DRONE" },
+  { name: "James JK Morris", team: "DRONE" },
+  { name: "Morgan J Sewell", team: "DRONE" },
+  { name: "Sulton Tangribergenov", team: "DRONE" },
 ];
