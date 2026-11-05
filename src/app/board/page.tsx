@@ -26,6 +26,7 @@ export default async function BoardPage({
       asOf={project.asOf.toISOString()}
       initialTaskId={params.task}
       initialTeamId={defaultTeamId(viewer.member)}
+      viewerId={viewer.member?.id}
       canEdit={mayEditProject(viewer)}
       canDelete={mayDeleteTasks(viewer)}
     />

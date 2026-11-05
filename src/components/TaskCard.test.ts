@@ -67,3 +67,42 @@ describe("task priority and critical-path badges", () => {
     expect(html).not.toMatch(/>\s*Critical path\s*</);
   });
 });
+
+describe("who a card is for", () => {
+  const kai = { id: "kai", name: "Kai Dolan", githubLogin: null, avatarUrl: null, teamId: "sw" };
+  const jack = { id: "jack-h", name: "Jack Hamer", githubLogin: null, avatarUrl: null, teamId: "sw" };
+  const short = new Map([["kai", "Kai"], ["jack-h", "Jack H"]]);
+  const card = (props: { viewerId?: string; ownerLabel?: string | null; flagged?: boolean }) =>
+    renderToStaticMarkup(createElement(TaskCardBody, {
+      task: { ...task, assigneeIds: ["kai", "jack-h"], ownerLabel: props.ownerLabel ?? null, flagged: props.flagged ?? false },
+      team, assignees: [kai, jack], shortNames: short, viewerId: props.viewerId, scheduled: undefined,
+    }));
+
+  it("says their first names, not initials", () => {
+    const html = card({});
+    expect(html).toContain(">Kai</span>");
+    expect(html).toContain(">Jack H</span>");
+    expect(html).not.toContain(">KD<");
+  });
+
+  it("glows only for the person signed in, and says so to screen readers", () => {
+    for (const html of [card({ viewerId: "jack-h" }), card({ viewerId: "jack-h", flagged: true })]) {
+      expect(html).toContain('data-mine="true"');
+      expect(html).toContain("var(--glow-mine)");
+      expect(html).toContain("Assigned to you.");
+      // Their own name comes first, so it is never folded into "+N".
+      expect(html.indexOf(">Jack H</span>")).toBeLessThan(html.indexOf(">Kai</span>"));
+    }
+    for (const html of [card({}), card({ viewerId: "someone-else" })]) {
+      expect(html).not.toContain("data-mine");
+      expect(html).not.toContain("--glow-mine");
+    }
+  });
+
+  it("still names a group alongside the people", () => {
+    const html = card({ ownerLabel: "Executive Team" });
+    expect(html).toContain("Executive Team");
+    expect(html).toContain(">Kai</span>");
+    expect(html).not.toContain("Unassigned");
+  });
+});

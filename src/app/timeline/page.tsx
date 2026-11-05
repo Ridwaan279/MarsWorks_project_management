@@ -17,6 +17,7 @@ export default async function TimelinePage() {
       scheduled={Object.fromEntries(project.schedule.tasks)}
       asOf={project.asOf.toISOString()}
       initialTeamId={defaultTeamId(viewer.member)}
+      viewerId={viewer.member?.id}
     />
   );
 }

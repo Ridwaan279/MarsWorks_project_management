@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import type { HealthLevel, TaskPriority, TaskStatus } from "@/lib/domain";
+import type { NamedPerson } from "@/lib/names";
 
 export function TeamDot({ colour, className }: { colour: string; className?: string }) {
   return (
@@ -138,6 +139,60 @@ export function AvatarStack({
         <span className="inline-grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-elevated px-1 text-[9px] font-medium text-ink-3 ring-2 ring-panel">
           +{more}
         </span>
+      ) : null}
+    </span>
+  );
+}
+
+/**
+ * The people on a task as labels with their first names, readable at a glance
+ * where initials in a circle were not. Past `max`, the rest are counted: "+2",
+ * or with `countRest` off, only named in the tooltip.
+ */
+export function NameChips({
+  people,
+  max = 3,
+  size = "md",
+  countRest = true,
+  className,
+}: {
+  people: NamedPerson[];
+  max?: number;
+  size?: "sm" | "md";
+  countRest?: boolean;
+  className?: string;
+}) {
+  if (people.length === 0) return null;
+  const limit = countRest ? Math.max(1, max - 1) : max;
+  const shown = people.length > max ? people.slice(0, limit) : people;
+  const rest = people.slice(shown.length);
+  const everyone = !countRest && rest.length > 0 ? people.map((p) => p.name).join(", ") : undefined;
+  const chip = clsx(
+    "inline-flex max-w-full items-center truncate rounded-full font-medium ring-1",
+    size === "sm" ? "px-1.5 py-px text-[10px]" : "px-2 py-0.5 text-xs",
+  );
+  return (
+    <span title={everyone} className={clsx("flex min-w-0 flex-wrap items-center gap-1", className)}>
+      {shown.map((person, i) => (
+        <span
+          key={`${person.name}-${i}`}
+          title={everyone ? undefined : person.you ? `${person.name} (you)` : person.name}
+          className={clsx(
+            chip,
+            person.you ? "bg-accent/20 text-ink ring-accent/70" : "bg-elevated text-ink ring-line",
+          )}
+        >
+          <span aria-hidden className="truncate">{person.short}</span>
+          <span className="sr-only">{person.you ? `${person.name} (you)` : person.name}</span>
+        </span>
+      ))}
+      {rest.length > 0 && countRest ? (
+        <span title={rest.map((p) => p.name).join(", ")} className={clsx(chip, "bg-elevated text-ink-2 ring-line")}>
+          <span aria-hidden>+{rest.length}</span>
+          <span className="sr-only">and {rest.map((p) => p.name).join(", ")}</span>
+        </span>
+      ) : rest.length > 0 ? (
+        <span className="sr-only">and {rest.map((p) => p.name).join(", ")}</span>
       ) : null}
     </span>
   );

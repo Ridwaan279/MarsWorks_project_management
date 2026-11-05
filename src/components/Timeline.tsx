@@ -24,7 +24,8 @@ import type {
   WorkstreamView,
 } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
-import { AvatarStack, TeamDot, formatDays } from "./ui";
+import { NameChips, TeamDot, formatDays } from "./ui";
+import { peopleOn, shortNames } from "@/lib/names";
 
 interface TimelineProps {
   tasks: TaskView[];
@@ -35,6 +36,8 @@ interface TimelineProps {
   scheduled: Record<string, ScheduledTask>;
   asOf: string;
   initialTeamId?: string;
+  /** The member signed in, whose own tasks glow. */
+  viewerId?: string | null;
 }
 
 const ZOOM = { compact: 5, normal: 9, wide: 16 } as const;
@@ -85,6 +88,11 @@ const PERIOD_COLOUR: Record<PeriodKind, string | null> = {
  */
 const BLOCKED_FILL =
   "repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text-muted) 45%, var(--color-bg)) 0 5px, color-mix(in srgb, var(--color-text-muted) 22%, var(--color-bg)) 5px 10px)";
+
+/** The glow on the viewer's own bars; see --glow-mine-halo in globals.css. */
+const BAR_GLOW = "var(--glow-mine-halo)";
+/** The critical path's outline, a pixel clear of the bar. */
+const CRITICAL_RING = "0 0 0 1px var(--color-bg), 0 0 0 2px var(--color-accent)";
 const periodTint = (kind: PeriodKind | null, strength: number) => {
   const colour = kind ? PERIOD_COLOUR[kind] : null;
   return colour ? `color-mix(in srgb, ${colour} ${strength}%, transparent)` : undefined;
@@ -129,6 +137,7 @@ export function Timeline({
   scheduled,
   asOf,
   initialTeamId,
+  viewerId,
 }: TimelineProps) {
   /*
    * "normal" on a desktop, "compact" on a phone.
@@ -173,6 +182,7 @@ export function Timeline({
 
   const today = startOfDay(new Date(asOf));
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
+  const shortNameById = useMemo(() => shortNames(members), [members]);
 
   const visible = useMemo(
     () =>
@@ -424,6 +434,16 @@ export function Timeline({
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-4 rounded-[3px] ring-1 ring-accent ring-inset" aria-hidden /> critical path
           </span>
+          {viewerId ? (
+            <span className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="h-2.5 w-4 rounded-[3px] bg-elevated"
+                style={{ boxShadow: BAR_GLOW }}
+              />{" "}
+              your tasks
+            </span>
+          ) : null}
           <span className="flex items-center gap-1.5">
             <span
               aria-hidden
@@ -492,7 +512,7 @@ export function Timeline({
                 style={{ width: RAIL }}
               >
                 <span>Sub-team / task</span>
-                {narrow ? null : <span className="w-24 text-right">Who</span>}
+                {narrow ? null : <span className="w-28 text-right">Who</span>}
               </div>
               <div className="relative shrink-0" style={{ width: chartWidth }}>
                 {/* University periods. Each name sticks just past the frozen
@@ -709,7 +729,9 @@ export function Timeline({
                             ? Math.max(sched.planVarianceDays ?? 0, -sched.slackDays, 0)
                             : 0;
                         const progress = done ? 100 : (checklistProgress(task)?.percent ?? 0);
-                        const who = task.assigneeIds.map((id) => memberById.get(id)?.name ?? "?");
+                        const people = peopleOn(task.assigneeIds, memberById, shortNameById, viewerId);
+                        const mine = people.some((p) => p.you);
+                        const who = people.map((p) => p.name);
                         const plan =
                           task.plannedStart && task.plannedEnd
                             ? {
@@ -760,12 +782,20 @@ export function Timeline({
                                 >
                                   {task.title}
                                 </span>
-                                {narrow ? (
-                                  <AvatarStack names={who} max={2} className="mr-2" />
-                                ) : (
+                                {people.length > 0 ? (
+                                  <NameChips
+                                    people={people}
+                                    max={narrow ? 1 : 2}
+                                    // A phone's rail has room for one name and
+                                    // a little of the title, not a count too.
+                                    countRest={!narrow}
+                                    size="sm"
+                                    className={clsx("shrink-0 flex-nowrap justify-end", narrow ? "mr-2 max-w-16" : "mr-3 w-28")}
+                                  />
+                                ) : narrow ? null : (
                                   <span
                                     title={whoText || undefined}
-                                    className="mr-3 w-24 shrink-0 truncate text-right text-[11px] text-ink-3"
+                                    className="mr-3 w-28 shrink-0 truncate text-right text-[11px] text-ink-3"
                                   >
                                     {whoText}
                                   </span>
@@ -798,14 +828,24 @@ export function Timeline({
                                     backgroundColor: fill,
                                     backgroundImage: blocked && !done ? BLOCKED_FILL : undefined,
                                     // The team's colour down the bar's leading edge,
-                                    // with a hairline of it around the rest.
-                                    boxShadow: done
-                                      ? undefined
-                                      : `inset 3px 0 0 ${team.colour}, inset 0 0 0 1px color-mix(in srgb, ${team.colour} 45%, var(--color-bg))`,
+                                    // with a hairline of it around the rest; the
+                                    // critical path's outline; and a glow on the
+                                    // viewer's own work. All in one box-shadow,
+                                    // which an inline style would otherwise
+                                    // replace -- as it did a ring-accent class.
+                                    boxShadow:
+                                      [
+                                        done
+                                          ? null
+                                          : `inset 3px 0 0 ${team.colour}, inset 0 0 0 1px color-mix(in srgb, ${team.colour} 45%, var(--color-bg))`,
+                                        !done && sched.isCritical ? CRITICAL_RING : null,
+                                        mine ? BAR_GLOW : null,
+                                      ]
+                                        .filter(Boolean)
+                                        .join(", ") || undefined,
                                   }}
                                   className={clsx(
                                     "absolute top-1/2 flex h-[22px] -translate-y-1/2 items-center gap-1 overflow-hidden rounded-[4px] pr-1.5 pl-2 ring-offset-1 ring-offset-canvas transition-[filter] hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-                                    !done && sched.isCritical && "ring-1 ring-accent",
                                   )}
                                 >
                                   {/* Checklist progress, along the bottom edge. */}

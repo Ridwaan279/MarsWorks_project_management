@@ -1,11 +1,14 @@
+import clsx from "clsx";
 import Link from "next/link";
 import { format } from "date-fns";
 import { loadProjectView } from "@/lib/project";
+import { currentViewer } from "@/lib/auth/session";
+import { peopleOn, shortNames } from "@/lib/names";
 import { HEALTH_LABEL, STATUS_LABEL } from "@/lib/domain";
 import {
-  AvatarStack,
   EmptyState,
   HealthPill,
+  NameChips,
   ProgressBar,
   StatusBadge,
   TeamDot,
@@ -18,7 +21,9 @@ export const dynamic = "force-dynamic";
  * need acting on. Kept off the front page so that page stays scannable.
  */
 export default async function TeamsPage() {
-  const project = await loadProjectView();
+  const [project, viewer] = await Promise.all([loadProjectView(), currentViewer()]);
+  const viewerId = viewer.member?.id;
+  const shortNameById = shortNames(project.members);
   const teamById = new Map(project.teams.map((t) => [t.id, t]));
   const memberById = new Map(project.members.map((m) => [m.id, m]));
   const healthByTeam = new Map(project.health.map((h) => [h.teamId, h]));
@@ -163,12 +168,13 @@ export default async function TeamsPage() {
           <ul className="grid gap-2 sm:grid-cols-2">
             {flagged.map((task) => {
               const team = teamById.get(task.teamId)!;
-              const assigned = task.assigneeIds.map((id) => memberById.get(id)?.name ?? "?");
+              const assigned = peopleOn(task.assigneeIds, memberById, shortNameById, viewerId);
+                const mine = assigned.some((p) => p.you);
               return (
                 <li key={task.id}>
                   <Link
                     href={`/board?task=${task.id}`}
-                    className="flex items-start gap-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2.5 transition-colors hover:bg-danger/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    className={clsx("flex items-start gap-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2.5 transition-colors hover:bg-danger/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent", mine && "shadow-[var(--glow-mine)]")}
                   >
                     <TeamDot colour={team.colour} className="mt-1.5" />
                     <span className="min-w-0 flex-1">
@@ -188,7 +194,7 @@ export default async function TeamsPage() {
                     </span>
                     <span className="flex shrink-0 items-center gap-2 self-start">
                       <StatusBadge status={task.status} label={STATUS_LABEL[task.status]} />
-                      <AvatarStack names={assigned} />
+                      <NameChips people={assigned} max={2} className="justify-end" />
                     </span>
                   </Link>
                 </li>
@@ -211,12 +217,13 @@ export default async function TeamsPage() {
             <ul className="space-y-2">
               {blocked.map((task) => {
                 const team = teamById.get(task.teamId)!;
-                const assigned = task.assigneeIds.map((id) => memberById.get(id)?.name ?? "?");
+                const assigned = peopleOn(task.assigneeIds, memberById, shortNameById, viewerId);
+                const mine = assigned.some((p) => p.you);
                 return (
                   <li key={task.id}>
                     <Link
                       href={`/board?task=${task.id}`}
-                      className="flex items-start gap-3 rounded-lg border border-line bg-panel px-3 py-2.5 transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      className={clsx("flex items-start gap-3 rounded-lg border border-line bg-panel px-3 py-2.5 transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent", mine && "shadow-[var(--glow-mine)]")}
                     >
                       <TeamDot colour={team.colour} className="mt-1.5" />
                       <span className="min-w-0 flex-1">
@@ -228,7 +235,7 @@ export default async function TeamsPage() {
                             : ""}
                         </span>
                       </span>
-                      <AvatarStack names={assigned} />
+                      <NameChips people={assigned} max={2} className="justify-end" />
                     </Link>
                   </li>
                 );
@@ -246,11 +253,13 @@ export default async function TeamsPage() {
             <ul className="space-y-2">
               {late.slice(0, 10).map(({ task, scheduled }) => {
                 const team = teamById.get(task.teamId)!;
+                const assigned = peopleOn(task.assigneeIds, memberById, shortNameById, viewerId);
+                const mine = assigned.some((p) => p.you);
                 return (
                   <li key={task.id}>
                     <Link
                       href={`/impact?task=${task.id}`}
-                      className="flex items-center gap-3 rounded-lg border border-line bg-panel px-3 py-2.5 transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      className={clsx("flex items-center gap-3 rounded-lg border border-line bg-panel px-3 py-2.5 transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent", mine && "shadow-[var(--glow-mine)]")}
                     >
                       <TeamDot colour={team.colour} />
                       <span className="min-w-0 flex-1">
@@ -259,6 +268,7 @@ export default async function TeamsPage() {
                           {team.name}
                         </span>
                       </span>
+                      <NameChips people={assigned} max={2} className="hidden shrink-0 justify-end sm:flex" />
                       <StatusBadge status={task.status} label={STATUS_LABEL[task.status]} />
                       <span className="shrink-0 text-xs font-medium tabular-nums text-danger">
                         +{scheduled.planVarianceDays}d
@@ -283,14 +293,16 @@ export default async function TeamsPage() {
           <ul className="flex flex-wrap gap-2">
             {undated.map((task) => {
               const team = teamById.get(task.teamId)!;
+              const mine = viewerId ? task.assigneeIds.includes(viewerId) : false;
               return (
                 <li key={task.id}>
                   <Link
                     href={`/board?task=${task.id}`}
-                    className="flex items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    className={clsx("flex items-center gap-2 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs transition-colors hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent", mine && "shadow-[var(--glow-mine)]")}
                   >
                     <TeamDot colour={team.colour} />
                     <span className="max-w-[16rem] truncate">{task.title}</span>
+                    {mine ? <span className="sr-only">(assigned to you)</span> : null}
                   </Link>
                 </li>
               );

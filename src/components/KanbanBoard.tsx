@@ -40,6 +40,7 @@ import { MemberOptions } from "./MemberOptions";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { TeamDot } from "./ui";
 import { initialTeamFilter } from "@/lib/team-filter";
+import { shortNames } from "@/lib/names";
 
 interface BoardProps {
   tasks: TaskView[];
@@ -54,6 +55,8 @@ interface BoardProps {
   asOf: string;
   initialTaskId?: string;
   initialTeamId?: string;
+  /** The member signed in, whose own tasks glow. */
+  viewerId?: string | null;
   canEdit: boolean;
   /** Leads and technical advisors only; the server checks it again. */
   canDelete: boolean;
@@ -83,6 +86,7 @@ export function KanbanBoard({
   asOf,
   initialTaskId,
   initialTeamId,
+  viewerId,
   canEdit,
   canDelete,
 }: BoardProps) {
@@ -170,6 +174,7 @@ export function KanbanBoard({
 
   const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
+  const shortNameById = useMemo(() => shortNames(members), [members]);
   const membersOf = useCallback(
     (task: TaskView) =>
       task.assigneeIds
@@ -702,6 +707,8 @@ export function KanbanBoard({
               canEdit={canEdit}
               teamById={teamById}
               memberById={memberById}
+              shortNames={shortNameById}
+              viewerId={viewerId}
               scheduled={scheduled}
               onOpen={setOpenTaskId}
               onToggleFlag={canEdit ? toggleFlag : undefined}
@@ -717,6 +724,8 @@ export function KanbanBoard({
               task={activeTask}
               team={teamById.get(activeTask.teamId)!}
               assignees={membersOf(activeTask)}
+              shortNames={shortNameById}
+              viewerId={viewerId}
               scheduled={scheduled[activeTask.id]}
               dragging
             />
@@ -811,6 +820,8 @@ function BoardColumn({
   canEdit,
   teamById,
   memberById,
+  shortNames,
+  viewerId,
   scheduled,
   onOpen,
   onToggleFlag,
@@ -824,6 +835,8 @@ function BoardColumn({
   canEdit: boolean;
   teamById: Map<string, TeamView>;
   memberById: Map<string, MemberView>;
+  shortNames: ReadonlyMap<string, string>;
+  viewerId?: string | null;
   scheduled: Record<string, ScheduledTask>;
   onOpen: (id: string) => void;
   onToggleFlag?: (taskId: string, flagged: boolean) => void;
@@ -870,7 +883,9 @@ function BoardColumn({
       <div
         ref={setNodeRef}
         data-column-scroll
-        className="overscroll-y-contain-safe flex-1 overflow-y-auto px-2 pb-2"
+        // pt-2: room for the glow on a first card that is yours, which this
+        // scroll box would otherwise clip.
+        className="overscroll-y-contain-safe flex-1 overflow-y-auto px-2 pt-2 pb-2"
       >
         <SortableContext
           items={tasks.map((t) => t.id)}
@@ -887,6 +902,8 @@ function BoardColumn({
                 assignees={task.assigneeIds
                   .map((id) => memberById.get(id))
                   .filter((m): m is MemberView => Boolean(m))}
+                shortNames={shortNames}
+                viewerId={viewerId}
                 scheduled={scheduled[task.id]}
                 onOpen={onOpen}
                 onToggleFlag={onToggleFlag}

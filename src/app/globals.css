@@ -37,6 +37,15 @@
   --color-today: #4c9aff;
   --color-milestone: #c77dff;
 
+  /* The glow on the signed-in member's own tasks, on board cards and the
+     sub-teams lists. In the accent colour, outside the card, so it never
+     covers the team colour or the late and tight rings. Timeline bars get
+     the halo alone, tighter so it stays in its row: a crisp orange outline
+     there already means the critical path. */
+  --glow-mine: 0 0 0 2px color-mix(in srgb, var(--color-accent) 80%, transparent),
+    0 0 18px 2px color-mix(in srgb, var(--color-accent) 45%, transparent);
+  --glow-mine-halo: 0 0 12px 3px color-mix(in srgb, var(--color-accent) 65%, transparent);
+
   /* Sub-team identity. Also stored per team in the database, so the two must
      be kept in step; scripts/brand-team-colours.sql writes these. */
   --team-operations: #8b9aaf;

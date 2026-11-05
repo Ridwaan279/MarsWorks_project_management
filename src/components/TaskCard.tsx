@@ -5,15 +5,20 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { MemberView, TaskView, TeamView } from "@/lib/project";
 import type { ScheduledTask } from "@/lib/schedule";
-import { AvatarStack, ProgressBar, TeamDot } from "./ui";
+import { NameChips, ProgressBar, TeamDot } from "./ui";
 import { useCoarsePointer } from "./media";
 import { checklistProgress } from "@/lib/progress";
+import { peopleOn } from "@/lib/names";
 
 export interface TaskCardProps {
   canEdit?: boolean;
   task: TaskView;
   team: TeamView;
   assignees: MemberView[];
+  /** First names as the board shows them; see shortNames. */
+  shortNames?: ReadonlyMap<string, string>;
+  /** The member signed in: their own tasks glow. */
+  viewerId?: string | null;
   scheduled: ScheduledTask | undefined;
   onOpen: (taskId: string) => void;
   onToggleFlag?: (taskId: string, flagged: boolean) => void;
@@ -34,12 +39,14 @@ export interface TaskCardProps {
  * still told apart at a glance but red still means late.
  *
  * Schedule state rides on the ring rather than the border, because the border
- * is spoken for. Both live in one box-shadow: an inline boxShadow replaces
- * Tailwind's ring utilities wholesale, so they cannot be left to a class.
+ * is spoken for. Both live in one box-shadow, with the glow on the viewer's
+ * own cards outside them: an inline boxShadow replaces Tailwind's ring
+ * utilities wholesale, so none of them can be left to a class.
  */
 function cardStyle(
   colour: string,
   state: "late" | "tight" | null,
+  mine = false,
 ): React.CSSProperties {
   const rail = `inset 3px 0 0 0 ${colour}`;
   const ring =
@@ -51,15 +58,25 @@ function cardStyle(
   return {
     backgroundColor: `color-mix(in srgb, ${colour} 7%, var(--color-card))`,
     borderColor: `color-mix(in srgb, ${colour} 70%, var(--color-border))`,
-    boxShadow: ring ? `${rail}, ${ring}` : rail,
+    // Listed first is drawn on top, so the late or tight ring stays visible
+    // along the inside of the glow.
+    boxShadow: [rail, ring, mine ? MINE_GLOW : null].filter(Boolean).join(", "),
   };
 }
+
+/**
+ * The glow on the signed-in member's own tasks, so they can find their work
+ * on a board of sixty people's. See --glow-mine in globals.css.
+ */
+const MINE_GLOW = "var(--glow-mine)";
 
 /** The visual card. Shared by the sortable card and the drag overlay. */
 export function TaskCardBody({
   task,
   team,
   assignees,
+  shortNames,
+  viewerId,
   scheduled,
   dragging,
   canEdit,
@@ -69,13 +86,21 @@ export function TaskCardBody({
   const late = scheduled ? scheduled.slackDays < 0 : false;
   const checklist = checklistProgress(task);
   const tight = scheduled ? scheduled.slackDays >= 0 && scheduled.slackDays <= 2 : false;
+  const people = peopleOn(
+    assignees.map((m) => m.id),
+    new Map(assignees.map((m) => [m.id, m])),
+    shortNames ?? new Map(),
+    viewerId,
+  );
+  const mine = people.some((p) => p.you);
 
   return (
     <div
+      data-mine={mine || undefined}
       style={
         task.flagged
-          ? { boxShadow: `inset 3px 0 0 0 ${team.colour}` }
-          : cardStyle(team.colour, late ? "late" : tight ? "tight" : null)
+          ? { boxShadow: `inset 3px 0 0 0 ${team.colour}${mine ? `, ${MINE_GLOW}` : ""}` }
+          : cardStyle(team.colour, late ? "late" : tight ? "tight" : null, mine)
       }
       className={clsx(
         "space-y-2.5 rounded-lg border p-3 pl-3.5 text-left transition-[transform,box-shadow] duration-200 group-hover/card:-translate-y-px",
@@ -208,16 +233,27 @@ export function TaskCardBody({
             </span>
           ) : null}
         </div>
-        {assignees.length > 0 ? (
-          <AvatarStack names={assignees.map((m) => m.name)} />
-        ) : task.ownerLabel ? (
-          // A group rather than people ("Executive Team"): say who, not
-          // "Unassigned".
-          <span className="max-w-[9rem] truncate text-[11px] text-ink-3">{task.ownerLabel}</span>
-        ) : (
-          <span className="text-[11px] text-ink-3">Unassigned</span>
-        )}
+        {people.length === 0 && !task.ownerLabel ? (
+          <span className="shrink-0 text-[11px] text-ink-3">Unassigned</span>
+        ) : null}
       </div>
+
+      {/* Who it is for, by first name, on a line of its own so the names
+          have room to be read. A group ("Executive Team") is said as well. */}
+      {people.length > 0 || task.ownerLabel ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
+          <NameChips people={people} />
+          {task.ownerLabel ? (
+            <span
+              title={task.ownerLabel}
+              className="max-w-full truncate rounded-full px-2 py-0.5 text-xs text-ink-2 ring-1 ring-line ring-inset"
+            >
+              {task.ownerLabel}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {mine ? <span className="sr-only">Assigned to you.</span> : null}
     </div>
   );
 }
