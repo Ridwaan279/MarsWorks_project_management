@@ -159,6 +159,19 @@ html.theme-ready body * {
 }
 
 /*
+ * A <select>'s open list is drawn by the browser. On Windows it takes the
+ * select's own background -- white, for a transparent one -- while the
+ * options keep the select's text colour: white on white in the dark theme,
+ * which hid every name in the assignee list. So the options get the theme's
+ * colours outright, whatever the select they sit in looks like.
+ */
+option,
+optgroup {
+  background-color: var(--color-card);
+  color: var(--color-text);
+}
+
+/*
  * Dragging the pointer across a board or a Gantt chart should move things, not
  * paint a selection over half the page. Selection is off by default and
  * switched back on for form controls and anything marked .selectable.

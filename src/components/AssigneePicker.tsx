@@ -88,7 +88,7 @@ export function AssigneePicker({
             if (e.target.value && !chosen.has(e.target.value)) onChange([...value, e.target.value]);
           }}
           aria-label="Add someone from another sub-team"
-          className="w-full min-w-0 rounded-md border border-dashed border-line bg-transparent px-2.5 py-1.5 text-xs text-ink-3 focus:border-accent focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="w-full min-w-0 rounded-md border border-dashed border-line bg-canvas px-2.5 py-1.5 text-xs text-ink-3 focus:border-accent focus:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <option value="">+ Add someone from another sub-team…</option>
           <MemberOptions members={others.filter((m) => !chosen.has(m.id))} teams={teams} />
