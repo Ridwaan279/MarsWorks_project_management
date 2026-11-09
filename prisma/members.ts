@@ -10,9 +10,10 @@
  * them up; see docs/sign-in.md.
  *
  * `aliases` are other names the same person appears under in the old
- * planners. The seed uses them to link imported tasks, and the roster step
- * uses them to give an existing short-named member ("Matt") their full name
- * rather than adding them a second time, so their tasks stay theirs.
+ * planners, or an earlier spelling of their name. The seed uses them to link
+ * imported tasks, and the roster step uses them to give an existing member
+ * ("Matt", "Nheeru Tumber") their full or corrected name rather than adding
+ * them a second time, so their tasks stay theirs.
  */
 import type { MemberRole } from "../src/generated/prisma";
 
@@ -44,7 +45,6 @@ export const MEMBERS: MemberDefinition[] = [
   { name: "Ixie Akpan", team: "MECH" },
   { name: "Jack Sutton", team: "MECH", aliases: ["Jack"] },
   { name: "John Straughn", team: "MECH" },
-  { name: "Kevin Holmshaw", team: "MECH" },
   { name: "Matt Shepherd", team: "MECH", role: "TECHNICAL_ADVISOR", aliases: ["Matt"] },
   { name: "Matthew Garton-Pope", team: "MECH" },
   { name: "Morris Wong", team: "MECH" },
@@ -87,13 +87,12 @@ export const MEMBERS: MemberDefinition[] = [
 
   // Software
   { name: "Adam MSA Reda", team: "SW" },
-  { name: "Golibe A Nwobi", team: "SW" },
   { name: "Jack Hamer", team: "SW", role: "TECHNICAL_ADVISOR" },
   { name: "Keaton Docherty", team: "SW" },
   { name: "Khizar A Khan", team: "SW" },
   { name: "Kyaw Zawe Lin", team: "SW" },
   { name: "Luke Crowley", team: "SW" },
-  { name: "Nheeru Tumber", team: "SW", role: "TEAM_LEAD" },
+  { name: "Neehru Tumber", team: "SW", role: "TEAM_LEAD", aliases: ["Nheeru Tumber"] },
   { name: "Shadab Mir", team: "SW" },
   { name: "Yanki Kirlikova", team: "SW" },
 
