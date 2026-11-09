@@ -46,6 +46,7 @@ export const MEMBERS: MemberDefinition[] = [
   { name: "John Straughn", team: "MECH" },
   { name: "Kevin Holmshaw", team: "MECH" },
   { name: "Matt Shepherd", team: "MECH", role: "TECHNICAL_ADVISOR", aliases: ["Matt"] },
+  { name: "Matthew Garton-Pope", team: "MECH" },
   { name: "Morris Wong", team: "MECH" },
   { name: "Owen Griffiths", team: "MECH", aliases: ["Owen"] },
   { name: "Yusuf Rahim", team: "MECH" },
