@@ -17,7 +17,7 @@ const base: TaskView = {
   actualEnd: null, stage: null, ownerLabel: null, notes: null, flagged: false, flagReason: null, boardOrder: 1000,
   teamId: "sw", assigneeIds: [], milestoneId: null, workstreamId: null, links: [], subtasks: [], blockedBy: [], blocks: [],
 };
-// The longer task sets the finish, so it alone is on the critical path.
+// The longer task sets the finish, so it alone has no spare time.
 const tasks = [
   { ...base, id: "mine", key: "SW-1", title: "Navigation", estimateDays: 10, plannedEnd: new Date("2026-11-13"), assigneeIds: ["kai", "jack-h"] },
   { ...base, id: "theirs", key: "SW-2", title: "Telemetry", estimateDays: 1, assigneeIds: ["jack-s"] },
@@ -46,7 +46,7 @@ describe("the timeline's people", () => {
     expect(render()).not.toContain("your tasks");
   });
 
-  it("draws the critical path's outline on its bar", () => {
+  it("outlines the bar of a task with no spare time", () => {
     expect(schedule.tasks.get("mine")?.isCritical).toBe(true);
     expect(schedule.tasks.get("theirs")?.isCritical).toBe(false);
     expect(render().match(/0 0 0 2px var\(--color-accent\)/g)?.length).toBe(1);

@@ -200,7 +200,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
               </p>
               <p className="text-xs text-ink-3">
                 {result.projectShiftDays === 0
-                  ? "absorbed by existing float"
+                  ? "absorbed by spare time"
                   : "beyond today's forecast"}
               </p>
             </Card>
@@ -211,7 +211,7 @@ export function ImpactSimulator({ tasks, teams, milestones, initialTaskId }: Pro
             {result.affectedMilestones.length === 0 ? (
               <EmptyState
                 title="No milestone moves."
-                hint="There is enough float between this task and every dated checkpoint."
+                hint="There is enough spare time between this task and every milestone."
               />
             ) : (
               <ul className="space-y-2">

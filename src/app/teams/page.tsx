@@ -2,6 +2,7 @@ import clsx from "clsx";
 import Link from "next/link";
 import { format } from "date-fns";
 import { loadProjectView } from "@/lib/project";
+import { BEHIND_PLAN_MIN_DAYS, behindPlanDays } from "@/lib/schedule";
 import { currentViewer } from "@/lib/auth/session";
 import { peopleOn, shortNames } from "@/lib/names";
 import { HEALTH_LABEL, STATUS_LABEL } from "@/lib/domain";
@@ -40,9 +41,9 @@ export default async function TeamsPage() {
   const flagged = project.tasks.filter((t) => t.flagged);
   const blocked = openTasks.filter((t) => t.status === "BLOCKED");
   const late = openTasks
-    .map((task) => ({ task, scheduled: project.schedule.tasks.get(task.id)! }))
-    .filter((row) => row.scheduled.planVarianceDays !== null && row.scheduled.planVarianceDays > 0)
-    .sort((a, b) => (b.scheduled.planVarianceDays ?? 0) - (a.scheduled.planVarianceDays ?? 0));
+    .map((task) => ({ task, behind: behindPlanDays(project.schedule.tasks.get(task.id)) }))
+    .filter((row) => row.behind > 0)
+    .sort((a, b) => b.behind - a.behind);
 
   return (
     <div className="selectable mx-auto max-w-6xl space-y-10 px-4 py-10 sm:px-6">
@@ -78,8 +79,8 @@ export default async function TeamsPage() {
                 <th scope="col" className="px-4 py-2.5 text-right font-medium">Open</th>
                 <th scope="col" className="px-4 py-2.5 text-right font-medium">Blocked</th>
                 <th scope="col" className="px-4 py-2.5 text-right font-medium">Undated</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-medium">Vs plan</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-medium">Finishes</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-medium" title={`The task furthest behind its planned end date, counted from ${BEHIND_PLAN_MIN_DAYS} days`}>Behind plan</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-medium" title="When the team's last open task is expected to finish">Expected finish</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -247,11 +248,14 @@ export default async function TeamsPage() {
         <section className="min-w-0 space-y-3">
           <h2 className="text-sm font-semibold text-ink-2">Behind plan ({late.length})
           </h2>
+          <p className="text-xs text-ink-3 text-pretty">
+            Expected to finish at least {BEHIND_PLAN_MIN_DAYS} days after their planned end date, most behind first.
+          </p>
           {late.length === 0 ? (
             <EmptyState title="Nothing is late against its planned dates." />
           ) : (
             <ul className="space-y-2">
-              {late.slice(0, 10).map(({ task, scheduled }) => {
+              {late.slice(0, 10).map(({ task, behind }) => {
                 const team = teamById.get(task.teamId)!;
                 const assigned = peopleOn(task.assigneeIds, memberById, shortNameById, viewerId);
                 const mine = assigned.some((p) => p.you);
@@ -271,7 +275,7 @@ export default async function TeamsPage() {
                       <NameChips people={assigned} max={2} className="hidden shrink-0 justify-end sm:flex" />
                       <StatusBadge status={task.status} label={STATUS_LABEL[task.status]} />
                       <span className="shrink-0 text-xs font-medium tabular-nums text-danger">
-                        +{scheduled.planVarianceDays}d
+                        +{behind}d
                       </span>
                     </Link>
                   </li>

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  BEHIND_PLAN_MIN_DAYS,
+  behindPlanDays,
   computeSchedule,
   computeTeamHealth,
   durationDays,
@@ -102,6 +104,117 @@ describe("planned dates", () => {
   it("has no plan variance for a task with no committed end date", () => {
     const result = computeSchedule(input({ tasks: [task({ id: "a" })] }));
     expect(result.tasks.get("a")!.planVarianceDays).toBeNull();
+  });
+});
+
+describe("expected dates follow the plan", () => {
+  const expected = (t: ScheduleTask, more: Partial<ScheduleInput> = {}) =>
+    computeSchedule(input({ tasks: [t], ...more })).tasks.get(t.id)!;
+
+  it("expects a task in its planned window to finish on time, ticked checklist or not", () => {
+    // Planned for the ten days around today, nothing ticked off yet.
+    const s = expected(task({ id: "a", status: "IN_PROGRESS", plannedStart: addDays(ASOF, -5), plannedEnd: addDays(ASOF, 5) }));
+    expect(daysBetween(ASOF, s.earliestFinish)).toBe(5);
+    expect(s.planVarianceDays).toBe(0);
+    expect(s.expectedBecause).toEqual({ kind: "plan" });
+  });
+
+  it("counts an overdue task as late by the days since its planned end, not by its whole length again", () => {
+    // The task in the report: planned to end 45 days ago, 24 days long, not
+    // done. Previously forecast as 24 days of work from today: 69 days late.
+    const s = expected(task({ id: "a", status: "IN_PROGRESS", plannedStart: addDays(ASOF, -69), plannedEnd: addDays(ASOF, -45) }));
+    expect(daysBetween(ASOF, s.earliestFinish)).toBe(0);
+    expect(s.planVarianceDays).toBe(45);
+    expect(s.expectedBecause).toEqual({ kind: "overdue" });
+  });
+
+  it("moves a task later when what it waits on runs late, keeping its planned length", () => {
+    const result = computeSchedule(input({
+      tasks: [
+        task({ id: "cad", plannedStart: addDays(ASOF, -20), plannedEnd: addDays(ASOF, -10) }),
+        task({ id: "build", plannedStart: addDays(ASOF, -10), plannedEnd: addDays(ASOF, 4) }),
+      ],
+      edges: [{ predecessorId: "cad", successorId: "build", lagDays: 0 }],
+    }));
+    const build = result.tasks.get("build")!;
+    // CAD is overdue, so due today; the build's 14 days start then.
+    expect(daysBetween(ASOF, build.earliestStart)).toBe(0);
+    expect(build.planVarianceDays).toBe(10);
+    expect(build.expectedBecause).toEqual({ kind: "waits", taskId: "cad" });
+  });
+
+  it("puts finished work on its planned dates, behind nothing and holding nothing up", () => {
+    const result = computeSchedule(input({
+      tasks: [
+        task({ id: "done", status: "DONE", plannedStart: addDays(ASOF, -30), plannedEnd: addDays(ASOF, -20) }),
+        task({ id: "next", plannedStart: addDays(ASOF, -20), plannedEnd: addDays(ASOF, 3) }),
+      ],
+      edges: [{ predecessorId: "done", successorId: "next", lagDays: 0 }],
+    }));
+    const done = result.tasks.get("done")!;
+    expect(daysBetween(ASOF, done.earliestStart)).toBe(-30);
+    expect(daysBetween(ASOF, done.earliestFinish)).toBe(-20);
+    expect(done.planVarianceDays).toBe(0);
+    expect(done.isCritical).toBe(false);
+    expect(result.tasks.get("next")!.expectedBecause).toEqual({ kind: "plan" });
+  });
+
+  it("starts a task with no dates today, for its estimate", () => {
+    const s = expected(task({ id: "a", estimateDays: 6 }));
+    expect(daysBetween(ASOF, s.earliestFinish)).toBe(6);
+    expect(s.expectedBecause).toEqual({ kind: "estimate" });
+  });
+
+  it("slips a dated task by exactly the simulated delay", () => {
+    const scenario = input({ tasks: [task({ id: "a", plannedStart: addDays(ASOF, -2), plannedEnd: addDays(ASOF, 8) })] });
+    expect(simulateDelay(scenario, "a", 9).affectedTasks[0].shiftDays).toBe(9);
+  });
+});
+
+describe("behind plan", () => {
+  it(`counts only from ${BEHIND_PLAN_MIN_DAYS} days`, () => {
+    expect(BEHIND_PLAN_MIN_DAYS).toBe(7);
+    expect(behindPlanDays({ planVarianceDays: 6 })).toBe(0);
+    expect(behindPlanDays({ planVarianceDays: 7 })).toBe(7);
+    expect(behindPlanDays({ planVarianceDays: 45 })).toBe(45);
+    expect(behindPlanDays({ planVarianceDays: -3 })).toBe(0);
+    expect(behindPlanDays({ planVarianceDays: null })).toBe(0);
+    expect(behindPlanDays(undefined)).toBe(0);
+  });
+
+  it("does not mark a team behind for a task a few days late", () => {
+    const scenario = input({
+      tasks: [task({ id: "a", teamId: "mech", plannedStart: addDays(ASOF, -10), plannedEnd: addDays(ASOF, -3) })],
+    });
+    const health = computeTeamHealth(scenario, computeSchedule(scenario))[0];
+    expect(health.worstPlanVarianceDays).toBe(0);
+    expect(health.health).toBe("ON_TRACK");
+  });
+});
+
+describe("spare time", () => {
+  it("names what it is measured to: a waiting task, a milestone, or the end of the project", () => {
+    const result = computeSchedule(input({
+      tasks: [
+        task({ id: "cad", plannedStart: ASOF, plannedEnd: addDays(ASOF, 5) }),
+        task({ id: "build", plannedStart: addDays(ASOF, 10), plannedEnd: addDays(ASOF, 20), milestoneId: "m1" }),
+        task({ id: "posters", plannedStart: ASOF, plannedEnd: addDays(ASOF, 2) }),
+        task({ id: "season", plannedStart: ASOF, plannedEnd: addDays(ASOF, 60) }),
+      ],
+      edges: [{ predecessorId: "cad", successorId: "build", lagDays: 0 }],
+      milestones: [{ id: "m1", name: "Rover rolls", targetDate: addDays(ASOF, 25) }],
+    }));
+    const cad = result.tasks.get("cad")!;
+    // The build may start as late as day 15 and still meet the milestone.
+    expect(cad.limitedBy).toEqual({ kind: "task", taskId: "build" });
+    expect(cad.slackDays).toBe(10);
+    expect(result.tasks.get("build")!.limitedBy).toEqual({ kind: "milestone", milestoneId: "m1" });
+    expect(result.tasks.get("build")!.slackDays).toBe(5);
+    expect(result.tasks.get("posters")!.limitedBy).toEqual({ kind: "project" });
+    expect(result.tasks.get("posters")!.slackDays).toBe(58);
+    // The work that finishes last has no spare time.
+    expect(result.tasks.get("season")!.slackDays).toBe(0);
+    expect(result.tasks.get("season")!.isCritical).toBe(true);
   });
 });
 

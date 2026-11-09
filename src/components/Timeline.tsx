@@ -23,8 +23,9 @@ import type {
   TeamView,
   WorkstreamView,
 } from "@/lib/project";
-import type { ScheduledTask } from "@/lib/schedule";
-import { NameChips, TeamDot, formatDays } from "./ui";
+import { BEHIND_PLAN_MIN_DAYS, behindPlanDays, type ScheduledTask } from "@/lib/schedule";
+import { NameChips, TeamDot } from "./ui";
+import { spareTimeLabel } from "./schedule-words";
 import { peopleOn, shortNames } from "@/lib/names";
 
 interface TimelineProps {
@@ -91,7 +92,7 @@ const BLOCKED_FILL =
 
 /** The glow on the viewer's own bars; see --glow-mine-halo in globals.css. */
 const BAR_GLOW = "var(--glow-mine-halo)";
-/** The critical path's outline, a pixel clear of the bar. */
+/** The no-spare-time outline, a pixel clear of the bar. */
 const CRITICAL_RING = "0 0 0 1px var(--color-bg), 0 0 0 2px var(--color-accent)";
 const periodTint = (kind: PeriodKind | null, strength: number) => {
   const colour = kind ? PERIOD_COLOUR[kind] : null;
@@ -360,6 +361,20 @@ export function Timeline({
     scrolledRef.current = true;
   }, [todayOffset, dayWidth]);
 
+  /*
+   * How far the chart is scrolled, as --scroll-x on the chart itself, so a
+   * bar that starts off to the left can keep its label in view (see the
+   * bars). A CSS variable rather than state: nothing re-renders as you scroll.
+   */
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const update = () => chart.style.setProperty("--scroll-x", `${chart.scrollLeft}px`);
+    update();
+    chart.addEventListener("scroll", update, { passive: true });
+    return () => chart.removeEventListener("scroll", update);
+  }, []);
+
   // Range and zoom changes rebuild the axis, so re-anchor on the next paint.
   useEffect(() => {
     scrolledRef.current = false;
@@ -432,7 +447,7 @@ export function Timeline({
 
         <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-3">
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-4 rounded-[3px] ring-1 ring-accent ring-inset" aria-hidden /> critical path
+            <span className="h-2.5 w-4 rounded-[3px] ring-1 ring-accent ring-inset" aria-hidden /> no spare time
           </span>
           {viewerId ? (
             <span className="flex items-center gap-1.5">
@@ -450,7 +465,7 @@ export function Timeline({
               className="h-2.5 w-4 rounded-[3px]"
               style={{ backgroundColor: "color-mix(in srgb, var(--color-danger) 30%, var(--color-bg))" }}
             />{" "}
-            running late
+            {BEHIND_PLAN_MIN_DAYS}+ days behind plan
           </span>
           <span className="flex items-center gap-1.5">
             <span aria-hidden className="h-2.5 w-4 rounded-[3px] border border-dashed border-ink-3" /> planned dates
@@ -721,13 +736,9 @@ export function Timeline({
                         const blocked = task.status === "BLOCKED";
                         const barLeft = barStart * dayWidth;
                         const barRight = barLeft + width;
-                        // Running over, as the team's sheet puts it: forecast to
-                        // finish after its own planned end, or late enough to
-                        // hold up what depends on it. Whichever is the larger.
-                        const lateBy =
-                          sched && !done
-                            ? Math.max(sched.planVarianceDays ?? 0, -sched.slackDays, 0)
-                            : 0;
+                        // Running over, as the team's sheet puts it: expected to
+                        // finish a week or more after its own planned end.
+                        const lateBy = sched && !done ? behindPlanDays(sched) : 0;
                         const progress = done ? 100 : (checklistProgress(task)?.percent ?? 0);
                         const people = peopleOn(task.assigneeIds, memberById, shortNameById, viewerId);
                         const mine = people.some((p) => p.you);
@@ -742,11 +753,15 @@ export function Timeline({
                               }
                             : null;
                         const whoText = who.length > 0 ? who.join(", ") : (task.ownerLabel ?? "");
-                        const text = `${blocked ? "Blocked · " : ""}${task.title}${lateBy > 0 ? ` · ${formatDays(lateBy)}` : ""}`;
+                        const text = `${blocked ? "Blocked · " : ""}${task.title}${lateBy > 0 ? ` · ${lateBy} days behind` : ""}`;
                         // Written inside the bar, as the team's sheet does, when it
                         // fits; otherwise beside it -- after the bar, unless that
-                        // runs off the edge and there is more room before.
-                        const inside = width >= text.length * CHAR_WIDTH + (done ? 30 : 16);
+                        // runs off the edge and there is more room before. Work
+                        // that began before what is in view (an overdue task,
+                        // started in August) has its label moved along to where
+                        // the bar comes into view, rather than off the left edge.
+                        const offLeft = Math.max(0, -barLeft);
+                        const inside = width - offLeft >= text.length * CHAR_WIDTH + (done ? 30 : 16);
                         const roomAfter = chartWidth - barRight - 12;
                         const labelAfter = roomAfter >= 120 || barLeft - 12 < roomAfter;
                         // Late work runs red and blocked work grey, as in the
@@ -821,15 +836,18 @@ export function Timeline({
                                 ) : null}
                                 <Link
                                   href={`/impact?task=${task.id}`}
-                                  title={`${task.key}: ${task.title}${whoText ? `\n${whoText}` : ""}\n${format(new Date(sched.earliestStart as unknown as string), "d MMM")} – ${format(new Date(sched.earliestFinish as unknown as string), "d MMM")}\n${formatDays(-sched.slackDays)}`}
+                                  title={`${task.key}: ${task.title}${whoText ? `\n${whoText}` : ""}\n${done ? "Done" : `Expected ${format(new Date(sched.earliestStart as unknown as string), "d MMM")} – ${format(new Date(sched.earliestFinish as unknown as string), "d MMM")}`}${lateBy > 0 ? `\n${lateBy} days behind plan` : ""}${done ? "" : `\n${spareTimeLabel(sched.slackDays)}`}`}
                                   style={{
                                     left: barLeft,
                                     width,
+                                    // Never more than the bar is wide, or a bar that
+                                    // ends before the view would stretch into it.
+                                    paddingLeft: `max(8px, min(calc(var(--scroll-x, 0px) - ${barLeft}px + 8px), ${Math.max(8, width - 8)}px))`,
                                     backgroundColor: fill,
                                     backgroundImage: blocked && !done ? BLOCKED_FILL : undefined,
                                     // The team's colour down the bar's leading edge,
                                     // with a hairline of it around the rest; the
-                                    // critical path's outline; and a glow on the
+                                    // no-spare-time outline; and a glow on the
                                     // viewer's own work. All in one box-shadow,
                                     // which an inline style would otherwise
                                     // replace -- as it did a ring-accent class.
@@ -903,7 +921,7 @@ export function Timeline({
                                     {blocked ? "Blocked · " : ""}
                                     {task.title}
                                     {lateBy > 0 ? (
-                                      <span className="text-danger">{` · ${formatDays(lateBy)}`}</span>
+                                      <span className="text-danger">{` · ${lateBy} days behind`}</span>
                                     ) : null}
                                   </span>
                                 )}

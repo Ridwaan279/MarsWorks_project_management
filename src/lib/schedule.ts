@@ -1,13 +1,25 @@
 /**
- * Critical-path scheduling over the task dependency graph.
+ * When each task is expected to happen, and how much it can slip.
  *
- * Everything here is pure: dates in, dates out, no database and no clock of its
- * own. That keeps it unit-testable and makes the "what if X slips" simulation a
- * matter of re-running the same function against a modified input.
+ * The rules are meant to be explainable in a sentence each, because the team
+ * reads the results (see the Schedule section of a task):
  *
- * Durations are calendar days. A student team does not work a predictable
- * five-day week, so pretending otherwise would add machinery without adding
- * accuracy.
+ * - Expected dates are the planned dates. They move later only when a task
+ *   this one waits on is expected to finish after this one was due to start
+ *   -- then it keeps its planned length from that point -- or when its planned
+ *   end has passed and it is not done, when it is expected today: overdue.
+ *   A task with no planned dates is expected from today, for its estimate.
+ * - Behind plan is the expected finish against the planned end, and counts
+ *   only from BEHIND_PLAN_MIN_DAYS.
+ * - Spare time is how much later a task could finish before it holds up
+ *   something else: a task waiting on it, the milestone it feeds, or the end
+ *   of the project. A task with none is "no spare time" (the critical path).
+ *
+ * Everything here is pure: dates in, dates out, no database and no clock of
+ * its own. That keeps it unit-testable and makes the "what if X slips"
+ * simulation a matter of re-running the same function against a modified
+ * input. Durations are calendar days: a student team does not work a
+ * predictable five-day week.
  */
 
 import {
@@ -66,23 +78,67 @@ export interface ScheduleInput {
   asOf: Date;
 }
 
+/** Why a task's expected dates are what they are. */
+export type ExpectedBecause =
+  /** On its planned dates. */
+  | { kind: "plan" }
+  /** Pushed later by a task it waits on, expected to finish late. */
+  | { kind: "waits"; taskId: string }
+  /** Its planned end has passed and it is not done, so it is due today. */
+  | { kind: "overdue" }
+  /** No planned dates: from today (or its "not before" date) for its estimate. */
+  | { kind: "estimate" }
+  /** Held back by its "not before" date. */
+  | { kind: "notBefore" }
+  | { kind: "done" };
+
+/** What decides how late a task may finish: see latestFinish. */
+export type LimitedBy =
+  /** A task that waits on this one has to start. */
+  | { kind: "task"; taskId: string }
+  /** The milestone this task feeds is due. */
+  | { kind: "milestone"; milestoneId: string }
+  /** Nothing waits on it, so only the end of the project. */
+  | { kind: "project" };
+
 export interface ScheduledTask {
   id: string;
-  /** Days of work still to do. Zero once the task is done. */
+  /** Days from today (or its expected start) to its expected finish. */
   remainingDays: number;
+  /** Expected start: see ExpectedBecause. */
   earliestStart: Date;
+  /** Expected finish. */
   earliestFinish: Date;
+  expectedBecause: ExpectedBecause;
   latestStart: Date;
+  /** The latest it can finish without holding up `limitedBy`. */
   latestFinish: Date;
-  /** Days this task can slip before it delays something that matters. */
+  limitedBy: LimitedBy;
+  /** Spare time: days it can finish later than expected. Negative means late
+   *  already for whatever `limitedBy` names. */
   slackDays: number;
+  /** No spare time: if it runs late, so does what it is limited by. */
   isCritical: boolean;
   /**
-   * Forecast finish measured against the team's own committed end date.
-   * Positive means late against their plan. Null when no end date is set --
-   * which is itself worth surfacing, since an undated task cannot be late.
+   * Expected finish against the team's own planned end date. Positive means
+   * later than planned; see behindPlanDays for when that counts. Null when no
+   * end date is set -- which is itself worth surfacing, since an undated task
+   * cannot be late.
    */
   planVarianceDays: number | null;
+}
+
+/**
+ * A task counts as behind plan only from this many days. A few days either
+ * way is the normal give in a student team's plan, not news; flagging it
+ * would bury the tasks that really are slipping.
+ */
+export const BEHIND_PLAN_MIN_DAYS = 7;
+
+/** Days a task is behind its plan, or 0 when it is not (yet) far enough. */
+export function behindPlanDays(task: Pick<ScheduledTask, "planVarianceDays"> | undefined): number {
+  const days = task?.planVarianceDays ?? 0;
+  return days >= BEHIND_PLAN_MIN_DAYS ? days : 0;
 }
 
 export interface MilestoneForecast {
@@ -124,6 +180,16 @@ export function plannedDurationDays(task: ScheduleTask): number | null {
 /** The duration the scheduler works from: the plan if there is one. */
 export function durationDays(task: ScheduleTask): number {
   return plannedDurationDays(task) ?? Math.max(0, task.estimateDays);
+}
+
+/**
+ * The span of a task's planned dates, or null without both. Unlike
+ * plannedDurationDays, a one-day task (start and end the same day) counts.
+ */
+function plannedSpan(task: ScheduleTask): number | null {
+  if (!task.plannedStart || !task.plannedEnd) return null;
+  const span = daysBetween(startOfDay(task.plannedStart), startOfDay(task.plannedEnd));
+  return span >= 0 ? span : null;
 }
 
 /** Work left on a task, in days, never negative. */
@@ -233,77 +299,123 @@ export function computeSchedule(input: ScheduleInput): ScheduleResult {
 
   const earliestStart = new Map<string, Date>();
   const earliestFinish = new Map<string, Date>();
+  const because = new Map<string, ExpectedBecause>();
 
   for (const id of solveOrder) {
     const task = byId.get(id)!;
-    let start = asOf;
-    // An explicit constraint wins; otherwise the committed start date acts as
-    // one, because that is when the team expects to have the people and parts.
-    const anchor = task.earliestStart ?? task.plannedStart;
-    if (anchor) {
-      const bound = startOfDay(anchor);
-      if (bound > start) start = bound;
+    const span = plannedSpan(task);
+    const simulated = Math.max(0, task.simulatedDelayDays ?? 0);
+
+    if (isComplete(task.status)) {
+      // Finished work sits where it was planned (today, if it never had
+      // dates) and holds nothing up.
+      const start = startOfDay(task.plannedStart ?? task.plannedEnd ?? asOf);
+      const finish = task.plannedEnd ? startOfDay(task.plannedEnd) : start;
+      earliestStart.set(id, start);
+      earliestFinish.set(id, addDays(finish < start ? start : finish, simulated));
+      because.set(id, { kind: "done" });
+      continue;
+    }
+
+    // Where it starts before anything pushes it: on its planned dates; or,
+    // without both dates, today (no earlier than a lone planned start).
+    let start = span !== null ? startOfDay(task.plannedStart!) : asOf;
+    let reason: ExpectedBecause = span !== null ? { kind: "plan" } : { kind: "estimate" };
+    if (span === null && task.plannedStart && startOfDay(task.plannedStart) > start) {
+      start = startOfDay(task.plannedStart);
+    }
+    if (task.earliestStart && startOfDay(task.earliestStart) > start) {
+      start = startOfDay(task.earliestStart);
+      reason = { kind: "notBefore" };
     }
     for (const edge of graph.predecessors.get(id)!) {
       // Ignore edges that run back into a cycle; they have no valid finish yet.
       if (cyclicSet.has(id) && cyclicSet.has(edge.predecessorId)) continue;
+      // Finished work no longer holds anything up.
+      if (isComplete(byId.get(edge.predecessorId)!.status)) continue;
       const predFinish = earliestFinish.get(edge.predecessorId);
       if (!predFinish) continue;
       const candidate = addDays(predFinish, edge.lagDays);
-      if (candidate > start) start = candidate;
+      if (candidate > start) {
+        start = candidate;
+        reason = { kind: "waits", taskId: edge.predecessorId };
+      }
+    }
+
+    // Dated work keeps its planned length; undated work takes what is left
+    // of its estimate. Either way, work that is not done cannot finish in the
+    // past: past its end date, it is due today.
+    let finish = addDays(start, span ?? remainingDays({ ...task, simulatedDelayDays: 0 }));
+    if (finish < asOf) {
+      finish = asOf;
+      reason = { kind: "overdue" };
     }
     earliestStart.set(id, start);
-    earliestFinish.set(id, addDays(start, remainingDays(task)));
+    earliestFinish.set(id, addDays(finish, simulated));
+    because.set(id, reason);
   }
 
-  const projectFinish = input.tasks.reduce<Date>((latest, task) => {
-    const finish = earliestFinish.get(task.id)!;
-    return finish > latest ? finish : latest;
-  }, asOf);
+  // When the work still to do is expected to be finished.
+  const projectFinish = input.tasks
+    .filter((task) => !isComplete(task.status))
+    .reduce<Date>((latest, task) => {
+      const finish = earliestFinish.get(task.id)!;
+      return finish > latest ? finish : latest;
+    }, asOf);
 
   const milestoneById = new Map(input.milestones.map((m) => [m.id, m]));
   const latestFinish = new Map<string, Date>();
   const latestStart = new Map<string, Date>();
+  const limitedBy = new Map<string, LimitedBy>();
 
   for (const id of [...solveOrder].reverse()) {
     const task = byId.get(id)!;
-    // A sink is bounded by its milestone if it feeds one, otherwise by the
-    // project's own forecast finish (which gives it zero slack by definition).
+    // Bounded by its milestone if it feeds one, otherwise by the end of the
+    // project (which leaves the work that finishes last no spare time)...
     const milestone = task.milestoneId ? milestoneById.get(task.milestoneId) : undefined;
     let finish = milestone ? startOfDay(milestone.targetDate) : projectFinish;
+    let limit: LimitedBy = milestone ? { kind: "milestone", milestoneId: milestone.id } : { kind: "project" };
 
-    const outgoing = graph.successors.get(id)!;
-    for (const edge of outgoing) {
+    // ...or sooner, by when a task waiting on it has to start.
+    for (const edge of graph.successors.get(id)!) {
       if (cyclicSet.has(id) && cyclicSet.has(edge.successorId)) continue;
+      if (isComplete(byId.get(edge.successorId)!.status)) continue;
       const succStart = latestStart.get(edge.successorId);
       if (!succStart) continue;
       const candidate = addDays(succStart, -edge.lagDays);
-      if (candidate < finish) finish = candidate;
+      if (candidate < finish) {
+        finish = candidate;
+        limit = { kind: "task", taskId: edge.successorId };
+      }
     }
 
+    // Starting as much later as finishing, for the same length of work.
+    const length = daysBetween(earliestStart.get(id)!, earliestFinish.get(id)!);
     latestFinish.set(id, finish);
-    latestStart.set(id, addDays(finish, -remainingDays(task)));
+    latestStart.set(id, addDays(finish, -length));
+    limitedBy.set(id, limit);
   }
 
   const tasks = new Map<string, ScheduledTask>();
   for (const task of input.tasks) {
+    const done = isComplete(task.status);
     const es = earliestStart.get(task.id)!;
     const ef = earliestFinish.get(task.id)!;
     const lf = latestFinish.get(task.id)!;
-    const ls = latestStart.get(task.id)!;
-    const slackDays = daysBetween(es, ls);
+    const slackDays = daysBetween(ef, lf);
     tasks.set(task.id, {
       id: task.id,
-      remainingDays: remainingDays(task),
+      remainingDays: done ? 0 : Math.max(0, daysBetween(es > asOf ? es : asOf, ef)),
       earliestStart: es,
       earliestFinish: ef,
-      latestStart: ls,
+      expectedBecause: because.get(task.id)!,
+      latestStart: latestStart.get(task.id)!,
       latestFinish: lf,
+      limitedBy: limitedBy.get(task.id)!,
       slackDays,
-      isCritical: slackDays <= 0 && !isComplete(task.status),
-      planVarianceDays: task.plannedEnd
-        ? daysBetween(startOfDay(task.plannedEnd), ef)
-        : null,
+      isCritical: slackDays <= 0 && !done,
+      // Finished work is not behind anything.
+      planVarianceDays: task.plannedEnd ? (done ? 0 : daysBetween(startOfDay(task.plannedEnd), ef)) : null,
     });
   }
 
@@ -443,7 +555,7 @@ export interface TeamHealth {
   minSlackDays: number;
   /** Worst milestone variance this team is responsible for. */
   worstVarianceDays: number;
-  /** Worst slip against the team's own committed end dates. */
+  /** Most days any open task is behind plan; 0 below BEHIND_PLAN_MIN_DAYS. */
   worstPlanVarianceDays: number;
   /** Open tasks with no committed end date -- invisible to any forecast. */
   undatedTasks: number;
@@ -505,27 +617,20 @@ export function computeTeamHealth(
         }, schedule.tasks.get(open[0].id)!.earliestFinish)
       : null;
 
-    const planVariances = open
-      .map((t) => schedule.tasks.get(t.id)!.planVarianceDays)
-      .filter((v): v is number => v !== null);
-    const worstPlanVarianceDays = planVariances.length ? Math.max(...planVariances) : 0;
+    const worstPlanVarianceDays = Math.max(0, ...open.map((t) => behindPlanDays(schedule.tasks.get(t.id))));
     const undatedTasks = open.filter((t) => !t.plannedEnd).length;
 
+    // Behind: a task is behind plan, or a milestone will be missed by more
+    // than a couple of days. At risk: nothing planned at all (unmeasured, not
+    // healthy), something blocked, or a milestone only just missed. Having no
+    // spare time is not a risk in itself: the work that finishes last always
+    // has none.
     let health: HealthLevel = "ON_TRACK";
     if (tasks.length === 0) {
-      // Nothing planned at all: unmeasured, not healthy.
       health = "AT_RISK";
-    } else if (
-      minSlackDays < 0 ||
-      worstVarianceDays > 0 ||
-      worstPlanVarianceDays > 0 ||
-      blocked > 0
-    ) {
-      health =
-        minSlackDays < -2 || worstVarianceDays > 2 || worstPlanVarianceDays > 5
-          ? "BEHIND"
-          : "AT_RISK";
-    } else if (minSlackDays <= 2) {
+    } else if (worstPlanVarianceDays > 0 || minSlackDays < -2 || worstVarianceDays > 2) {
+      health = "BEHIND";
+    } else if (blocked > 0 || minSlackDays < 0 || worstVarianceDays > 0) {
       health = "AT_RISK";
     }
 

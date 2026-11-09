@@ -18,11 +18,12 @@ import type {
   TeamView,
   WorkstreamView,
 } from "@/lib/project";
-import type { ScheduledTask } from "@/lib/schedule";
+import { behindPlanDays, type ScheduledTask } from "@/lib/schedule";
+import { behindPlanReason, expectedReason, spareTimeLabel, spareTimeReason } from "./schedule-words";
 import { AssigneePicker } from "./AssigneePicker";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { AvatarStack, ProgressBar, StatusBadge, TeamDot, formatDays } from "./ui";
+import { AvatarStack, ProgressBar, StatusBadge, TeamDot } from "./ui";
 
 interface DrawerProps {
   canEdit: boolean;
@@ -880,47 +881,56 @@ export function TaskDrawer({
             <Disclosure
               title="Schedule"
               badge={
-                scheduled.planVarianceDays !== null && scheduled.planVarianceDays > 0
-                  ? `${scheduled.planVarianceDays}d late`
-                  : undefined
+                behindPlanDays(scheduled) > 0 && task.status !== "DONE"
+                  ? `${behindPlanDays(scheduled)} days behind`
+                  : scheduled.isCritical
+                    ? "No spare time"
+                    : undefined
               }
             >
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                <div className="flex justify-between gap-2">
-                  <dt className="text-ink-3">Can start</dt>
-                  <dd className="tabular-nums">{format(scheduled.earliestStart, "d MMM")}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-ink-3">Forecast finish</dt>
-                  <dd className="tabular-nums">{format(scheduled.earliestFinish, "d MMM")}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-ink-3">Must finish by</dt>
-                  <dd className="tabular-nums">{format(scheduled.latestFinish, "d MMM")}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt className="text-ink-3">Float</dt>
-                  <dd
-                    className={
-                      scheduled.slackDays < 0
-                        ? "font-medium tabular-nums text-danger"
-                        : "tabular-nums text-ink-2"
-                    }
-                  >
-                    {formatDays(-scheduled.slackDays)}
-                  </dd>
-                </div>
+              {/* Each number with where it comes from: see schedule-words.ts,
+                  and the rules at the top of lib/schedule.ts. */}
+              <dl className="space-y-3 text-xs">
+                <ScheduleRow
+                  label="Planned"
+                  value={
+                    task.plannedStart && task.plannedEnd
+                      ? `${format(task.plannedStart, "d MMM")} – ${format(task.plannedEnd, "d MMM")}`
+                      : task.plannedEnd
+                        ? `By ${format(task.plannedEnd, "d MMM")}`
+                        : "No dates set"
+                  }
+                  reason={task.plannedEnd ? "The dates set on this task." : "With no planned end date it can't be behind plan."}
+                  tone={task.plannedEnd ? undefined : "warning"}
+                />
+                {task.status === "DONE" ? null : (
+                  <>
+                    <ScheduleRow
+                      label="Expected"
+                      value={`${format(scheduled.earliestStart, "d MMM")} – ${format(scheduled.earliestFinish, "d MMM")}`}
+                      reason={expectedReason(scheduled, task.plannedEnd, (id) => allTasks.find((t) => t.id === id))}
+                    />
+                    {scheduled.planVarianceDays !== null ? (
+                      <ScheduleRow
+                        label="Behind plan"
+                        value={behindPlanDays(scheduled) > 0 ? `${behindPlanDays(scheduled)} days` : "No"}
+                        reason={behindPlanReason(scheduled.planVarianceDays)}
+                        tone={behindPlanDays(scheduled) > 0 ? "danger" : undefined}
+                      />
+                    ) : null}
+                    <ScheduleRow
+                      label="Spare time"
+                      value={spareTimeLabel(scheduled.slackDays)}
+                      reason={spareTimeReason(
+                        scheduled,
+                        (id) => allTasks.find((t) => t.id === id),
+                        (id) => milestones.find((m) => m.id === id)?.name,
+                      )}
+                      tone={scheduled.slackDays < 0 ? "danger" : scheduled.slackDays === 0 ? "accent" : undefined}
+                    />
+                  </>
+                )}
               </dl>
-              {scheduled.planVarianceDays === null ? (
-                <p className="text-xs text-warning">
-                  No planned end date, so this task is invisible to the forecast.
-                </p>
-              ) : null}
-              {scheduled.isCritical ? (
-                <p className="text-xs text-accent">
-                  On the critical path — any slip moves the whole project.
-                </p>
-              ) : null}
               <Link
                 href={`/impact?task=${task.id}`}
                 className="inline-block rounded text-xs text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -1006,6 +1016,40 @@ export function TaskDrawer({
           <p className="font-medium text-ink">This cannot be undone.</p>
         </ConfirmDialog>
       ) : null}
+    </div>
+  );
+}
+
+function ScheduleRow({
+  label,
+  value,
+  reason,
+  tone,
+}: {
+  label: string;
+  value: string;
+  reason: string;
+  tone?: "danger" | "warning" | "accent";
+}) {
+  // One group per row, as a <dl> allows: the label, its value, and the
+  // reason under both.
+  return (
+    <div className="grid grid-cols-[1fr_auto] items-baseline gap-x-3">
+      <dt className="text-ink-2">{label}</dt>
+      <dd
+        className={
+          tone === "danger"
+            ? "text-right font-medium tabular-nums text-danger"
+            : tone === "warning"
+              ? "text-right font-medium text-warning"
+              : tone === "accent"
+                ? "text-right font-medium text-accent"
+                : "text-right font-medium tabular-nums text-ink"
+        }
+      >
+        {value}
+      </dd>
+      <dd className="col-span-2 mt-0.5 text-[11px] leading-snug text-ink-3 text-pretty">{reason}</dd>
     </div>
   );
 }

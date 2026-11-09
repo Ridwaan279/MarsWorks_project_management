@@ -36,7 +36,7 @@ const GUIDES: Record<string, Guide> = {
       },
       {
         heading: "Sub-team cards",
-        body: "Progress, open work, and how far each team is slipping against its own dates. Red text means behind plan. Click any card for the detail.",
+        body: "Progress, open work, and how far each team is slipping against its own dates. Red text means a task is a week or more behind plan. Click any card for the detail.",
         target: "[data-tour='teams']",
       },
       {
@@ -106,7 +106,7 @@ const GUIDES: Record<string, Guide> = {
       },
       {
         heading: "Read a bar",
-        body: "Each bar is coloured by the sub-team that owns it, and the filled part is progress. An orange outline means the task is on the critical path, so any slip there moves the whole project.",
+        body: "Each bar is coloured by the sub-team that owns it, and the filled part is progress. Red means a week or more behind plan. An orange outline means no spare time: if it runs late, so does the work after it.",
         target: "[data-tour='chart']",
       },
     ],
@@ -121,7 +121,7 @@ const GUIDES: Record<string, Guide> = {
       },
       {
         heading: "Read the blast radius",
-        body: "Only tasks that depend on it move. A delay smaller than the available float changes nothing at all, and that float is the project’s buffer.",
+        body: "Only tasks that depend on it move. A delay shorter than its spare time changes nothing at all: that spare time is the project’s buffer.",
         target: "[data-tour='result']",
       },
     ],

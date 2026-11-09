@@ -20,7 +20,7 @@ function render(overrides: Partial<TaskView>, scheduled?: ScheduledTask) {
   return renderToStaticMarkup(createElement(TaskCardBody, { task: { ...task, ...overrides }, team, assignees: [], scheduled }));
 }
 
-describe("task priority and critical-path badges", () => {
+describe("task priority and no-spare-time badges", () => {
   // Two independent tasks: the longer task determines the project finish,
   // even when the shorter task has a higher manually assigned priority.
   const longTask = { ...task, id: "long", estimateDays: 10 };
@@ -29,26 +29,26 @@ describe("task priority and critical-path badges", () => {
   const onPath = schedule.tasks.get("long")!;
   const offPath = schedule.tasks.get("short")!;
 
-  it("shows Critical priority for a task outside the critical path", () => {
+  it("shows Critical priority for a task with spare time", () => {
     expect(offPath.isCritical).toBe(false);
     const html = render({ priority: "CRITICAL" }, offPath);
     expect(html).toContain('title="Critical priority"');
     expect(html).toMatch(/>\s*Critical\s*</);
-    expect(html).not.toContain("Critical path");
+    expect(html).not.toContain("No spare time");
   });
 
-  it.each(["LOW", "MEDIUM", "HIGH"] as const)("does not label a %s-priority task Critical when it is on the critical path", (priority) => {
+  it.each(["LOW", "MEDIUM", "HIGH"] as const)("does not label a %s-priority task Critical when it has no spare time", (priority) => {
     expect(onPath.isCritical).toBe(true);
     const html = render({ priority }, onPath);
     expect(html).not.toContain('title="Critical priority"');
     expect(html).not.toMatch(/>\s*Critical\s*</);
-    expect(html).toMatch(/>\s*Critical path\s*</);
+    expect(html).toMatch(/>\s*No spare time\s*</);
   });
 
-  it("can show both meanings when a Critical-priority task is also on the critical path", () => {
+  it("can show both meanings when a Critical-priority task also has no spare time", () => {
     const html = render({ priority: "CRITICAL" }, onPath);
     expect(html).toContain('title="Critical priority"');
-    expect(html).toMatch(/>\s*Critical path\s*</);
+    expect(html).toMatch(/>\s*No spare time\s*</);
   });
 
   it("updates the priority badge when a saved priority changes in either direction", () => {
@@ -61,10 +61,10 @@ describe("task priority and critical-path badges", () => {
     expect(render({ priority: "CRITICAL" })).toContain('title="Critical priority"');
   });
 
-  it("keeps a completed task's selected priority while hiding its critical-path badge", () => {
+  it("keeps a completed task's selected priority while hiding its no-spare-time badge", () => {
     const html = render({ priority: "CRITICAL", status: "DONE" }, onPath);
     expect(html).toContain('title="Critical priority"');
-    expect(html).not.toMatch(/>\s*Critical path\s*</);
+    expect(html).not.toMatch(/>\s*No spare time\s*</);
   });
 });
 
@@ -104,5 +104,20 @@ describe("who a card is for", () => {
     expect(html).toContain("Executive Team");
     expect(html).toContain(">Kai</span>");
     expect(html).not.toContain("Unassigned");
+  });
+});
+
+describe("behind plan on a card", () => {
+  const card = (planVarianceDays: number, status: TaskView["status"] = "IN_PROGRESS") =>
+    renderToStaticMarkup(createElement(TaskCardBody, {
+      task: { ...task, status }, team, assignees: [],
+      scheduled: { ...computeSchedule({ tasks: [task], edges: [], milestones: [], asOf: new Date("2026-10-27") }).tasks.get(task.id)!, planVarianceDays },
+    }));
+
+  it("says how far behind, only from a week", () => {
+    expect(card(6)).not.toContain("behind");
+    expect(card(7)).toContain(">7 days behind<");
+    expect(card(45)).toContain(">45 days behind<");
+    expect(card(45, "DONE")).not.toContain("behind");
   });
 });

@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { MemberView, TaskView, TeamView } from "@/lib/project";
-import type { ScheduledTask } from "@/lib/schedule";
+import { behindPlanDays, type ScheduledTask } from "@/lib/schedule";
 import { NameChips, ProgressBar, TeamDot } from "./ui";
 import { useCoarsePointer } from "./media";
 import { checklistProgress } from "@/lib/progress";
@@ -36,29 +36,21 @@ export interface TaskCardProps {
  * The outline is mixed with the neutral border rather than used neat. A dozen
  * saturated rectangles side by side fight each other and drown the schedule
  * warnings, which matter more than whose card it is; mixed, each team is
- * still told apart at a glance but red still means late.
+ * still told apart at a glance but red still means behind plan.
  *
- * Schedule state rides on the ring rather than the border, because the border
- * is spoken for. Both live in one box-shadow, with the glow on the viewer's
- * own cards outside them: an inline boxShadow replaces Tailwind's ring
- * utilities wholesale, so none of them can be left to a class.
+ * Being behind plan rides on a ring rather than the border, because the
+ * border is spoken for, and is said in words on the card too. The ring and
+ * the glow on the viewer's own cards live in one box-shadow: an inline
+ * boxShadow replaces Tailwind's ring utilities wholesale, so none of them can
+ * be left to a class.
  */
-function cardStyle(
-  colour: string,
-  state: "late" | "tight" | null,
-  mine = false,
-): React.CSSProperties {
+function cardStyle(colour: string, behind: boolean, mine = false): React.CSSProperties {
   const rail = `inset 3px 0 0 0 ${colour}`;
-  const ring =
-    state === "late"
-      ? "0 0 0 1px color-mix(in srgb, var(--color-danger) 55%, transparent)"
-      : state === "tight"
-        ? "0 0 0 1px color-mix(in srgb, var(--color-warning) 45%, transparent)"
-        : null;
+  const ring = behind ? "0 0 0 1px color-mix(in srgb, var(--color-danger) 55%, transparent)" : null;
   return {
     backgroundColor: `color-mix(in srgb, ${colour} 7%, var(--color-card))`,
     borderColor: `color-mix(in srgb, ${colour} 70%, var(--color-border))`,
-    // Listed first is drawn on top, so the late or tight ring stays visible
+    // Listed first is drawn on top, so the behind-plan ring stays visible
     // along the inside of the glow.
     boxShadow: [rail, ring, mine ? MINE_GLOW : null].filter(Boolean).join(", "),
   };
@@ -83,9 +75,8 @@ export function TaskCardBody({
   onToggleFlag,
   onMove,
 }: Omit<TaskCardProps, "onOpen"> & { dragging?: boolean }) {
-  const late = scheduled ? scheduled.slackDays < 0 : false;
+  const behind = task.status === "DONE" ? 0 : behindPlanDays(scheduled);
   const checklist = checklistProgress(task);
-  const tight = scheduled ? scheduled.slackDays >= 0 && scheduled.slackDays <= 2 : false;
   const people = peopleOn(
     assignees.map((m) => m.id),
     new Map(assignees.map((m) => [m.id, m])),
@@ -100,7 +91,7 @@ export function TaskCardBody({
       style={
         task.flagged
           ? { boxShadow: `inset 3px 0 0 0 ${team.colour}${mine ? `, ${MINE_GLOW}` : ""}` }
-          : cardStyle(team.colour, late ? "late" : tight ? "tight" : null, mine)
+          : cardStyle(team.colour, behind > 0, mine)
       }
       className={clsx(
         "space-y-2.5 rounded-lg border p-3 pl-3.5 text-left transition-[transform,box-shadow] duration-200 group-hover/card:-translate-y-px",
@@ -224,12 +215,20 @@ export function TaskCardBody({
               Critical
             </span>
           ) : null}
+          {behind > 0 ? (
+            <span
+              title={`Expected to finish ${behind} days after its planned end date.`}
+              className="rounded bg-danger/15 px-1 font-medium text-danger"
+            >
+              {behind} days behind
+            </span>
+          ) : null}
           {scheduled && scheduled.isCritical && task.status !== "DONE" ? (
             <span
-              title="On the critical path: a delay affects the project schedule."
+              title="No spare time: if this task finishes late, the work after it does too."
               className="rounded bg-accent/15 px-1 font-medium text-accent"
             >
-              Critical path
+              No spare time
             </span>
           ) : null}
         </div>
