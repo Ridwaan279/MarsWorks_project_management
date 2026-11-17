@@ -188,6 +188,19 @@ describe("planning a sync", () => {
     expect(p.warnings.join(" ")).toMatch(/missing from the sheet/);
   });
 
+  it("leaves The Big 3 on the website only, quietly, until the sheet has its tab", () => {
+    const t = task("BIG3-1", { team: "BIG3", title: "Sponsor pitch" });
+    const without = plan([{ name: SW, rows: [] }], [t]);
+    expect(without.ops).toEqual([]);
+    expect(without.warnings).toEqual([]);
+    // Once someone adds a "Big 3 Tasks" tab, the next sync fills it in...
+    const withTab = plan([{ name: SW, rows: [] }, { name: "Big 3 Tasks", rows: [] }], [t]);
+    expect(withTab.ops).toEqual([expect.objectContaining({ op: "upsert", id: "BIG3-1", tab: "Big 3 Tasks" })]);
+    // ...and rows typed there become Big 3 tasks.
+    const typed = plan([{ name: "Big 3 Tasks", rows: [row(2, { title: "Budget review", start: "2026-11-20" })] }], []);
+    expect(typed.taskCreates).toEqual([expect.objectContaining({ fields: expect.objectContaining({ team: "BIG3", title: "Budget review" }) })]);
+  });
+
   it("removes a row for a task deleted on the website", () => {
     const p = plan([{ name: SW, rows: [row(5, { id: "SW-9", title: "Gone" })] }], [], [], ["SW-9"]);
     expect(p.ops).toEqual([{ op: "delete", id: "SW-9" }]);

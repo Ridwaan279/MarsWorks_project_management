@@ -115,9 +115,23 @@ When a new version of `MarsWorksSync.gs` comes out:
 | Sci Tasks                   | Science                 |
 | Software Tasks              | Software                |
 | Drone Tasks                 | Drone                   |
+| Big 3 Tasks                 | The Big 3               |
 
 Any other tab, including **Mini Tasks**, is left alone. The "Timeline" tabs
 are Google's own views of the task tabs and are never touched.
+
+A sub-team whose tab is not in the sheet still works on the website; its
+tasks are just not copied to the sheet. To bring them in, add the tab:
+
+1. **+** (bottom left) to add a blank tab, and rename it exactly as in the
+   table, e.g. `Big 3 Tasks`. Start from a blank tab rather than duplicating
+   another sub-team's: copied rows carry that team's Website IDs.
+2. In row 1, type the headings `Tasks`, `Assignee`, `Start Date`,
+   `End Date`, `Status` and `Notes`, one per column.
+3. **MarsWorks > Sync now**, or wait up to five minutes. The sync adds the
+   Website ID column and the Status dropdowns itself, then writes in the
+   sub-team's tasks from the website.
+4. Optional: **Insert > Timeline** for a timeline view, set up as below.
 
 | Sheet column | Website                                                     |
 | ------------ | ----------------------------------------------------------- |

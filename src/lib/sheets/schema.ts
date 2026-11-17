@@ -17,6 +17,9 @@ export const TAB_TEAM: Record<string, string> = {
   "Sci Tasks": "SCI",
   "Software Tasks": "SW",
   "Drone Tasks": "DRONE",
+  // Optional: until the sheet has this tab, The Big 3's tasks stay on the
+  // website only, and nothing complains. See docs/google-sheets-sync.md.
+  "Big 3 Tasks": "BIG3",
 };
 
 /** Where milestones created on the website are written. */

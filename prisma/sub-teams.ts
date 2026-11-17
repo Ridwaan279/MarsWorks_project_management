@@ -15,7 +15,9 @@
  * readable. Mechanical carries the MarsWorks orange. Drone, added later, was
  * picked to sit as far as the wheel allows from the six before it (OKLab
  * distance, checked under simulated colour blindness too) and from the danger
- * and warning colours.
+ * and warning colours. The Big 3's yellow-gold was picked the same way, from
+ * what was left: the hues further from everything were pale creams that
+ * vanish on the light theme, or salmon pinks too like the red for late work.
  */
 import type { TeamView } from "../src/generated/prisma";
 
@@ -35,6 +37,7 @@ export const SUB_TEAMS: SubTeamDefinition[] = [
   { key: "SCI", name: "Science", colour: "#d96baa", defaultView: "TIMELINE", description: "Science kit, experiments, and scientific requirements." },
   { key: "SW", name: "Software", colour: "#9b72e8", defaultView: "BOARD", description: "Software management, manual control, and autonomous navigation." },
   { key: "DRONE", name: "Drone", colour: "#1da56c", defaultView: "BOARD", description: "The drone project." },
+  { key: "BIG3", name: "The Big 3", colour: "#e6c84f", defaultView: "BOARD", description: "The Big 3." },
 ];
 
 /**
