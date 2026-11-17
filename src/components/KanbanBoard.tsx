@@ -39,6 +39,8 @@ import { TeamFilter } from "./TeamFilter";
 import { MemberOptions } from "./MemberOptions";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { TeamDot } from "./ui";
+import { SearchBox } from "./SearchBox";
+import { taskMatcher } from "@/lib/search";
 import { initialTeamFilter } from "@/lib/team-filter";
 import { shortNames } from "@/lib/names";
 
@@ -116,6 +118,7 @@ export function KanbanBoard({
   const [flagging, setFlagging] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [creatingIn, setCreatingIn] = useState<TaskStatus | null>(null);
   const [scope, setScope] = useState<"CURRENT" | "ALL">("CURRENT");
   // Workstreams can be created from the new-task dialog, so this list has to
@@ -198,22 +201,39 @@ export function KanbanBoard({
     [teamFilter, assigneeFilter],
   );
 
+  /*
+   * A search looks across every date -- the task you are looking for may be
+   * finished, or not due yet -- but keeps the sub-team and person filters,
+   * and says how many matches they are hiding.
+   */
+  const matchesSearch = useMemo(
+    () => taskMatcher(query, (id) => memberById.get(id)?.name),
+    [query, memberById],
+  );
+
   const visible = useMemo(
     () =>
       tasks.filter(
         (task) =>
-          matchesFilters(task) && (scope === "ALL" || isCurrent(task, today)),
+          matchesFilters(task) &&
+          (matchesSearch ? matchesSearch(task) : scope === "ALL" || isCurrent(task, today)),
       ),
-    [tasks, matchesFilters, scope, today],
+    [tasks, matchesFilters, matchesSearch, scope, today],
   );
 
   /** How much "Current" is hiding, so nothing disappears without saying so. */
   const hiddenByScope = useMemo(
     () =>
-      scope === "ALL"
+      scope === "ALL" || matchesSearch
         ? 0
         : tasks.filter((t) => matchesFilters(t) && !isCurrent(t, today)).length,
-    [tasks, matchesFilters, scope, today],
+    [tasks, matchesFilters, matchesSearch, scope, today],
+  );
+
+  /** Matches the sub-team and person filters are hiding. */
+  const hiddenByFilters = useMemo(
+    () => (matchesSearch ? tasks.filter((t) => !matchesFilters(t) && matchesSearch(t)).length : 0),
+    [tasks, matchesFilters, matchesSearch],
   );
 
   const columns = useMemo(() => {
@@ -419,6 +439,15 @@ export function KanbanBoard({
     [router],
   );
 
+  /** A checklist item, link or dependency the server has accepted. */
+  const handleTaskChanged = useCallback(
+    (taskId: string, change: (current: TaskView) => TaskView) => {
+      setTasks((current) => current.map((t) => (t.id === taskId ? change(t) : t)));
+      router.refresh();
+    },
+    [router],
+  );
+
   // Its dependencies went with it in the database, so other cards stop
   // showing it as something they wait on (or that waits on them) right away.
   const handleTaskDeleted = useCallback(
@@ -541,6 +570,8 @@ export function KanbanBoard({
           ))}
         </div>
 
+        <SearchBox value={query} onChange={setQuery} className="min-w-[7.5rem] flex-1 sm:w-56 sm:flex-none" />
+
         {/*
           On a phone the two filters wrapped onto a line of their own, and with
           the scope buttons and the counts that put roughly half the screen
@@ -591,8 +622,29 @@ export function KanbanBoard({
         </div>
 
         <div className="ml-auto flex items-center gap-3 text-xs text-ink-3">
-          <span className="tabular-nums">
-            {visible.length} shown
+          <span className="tabular-nums" aria-live="polite">
+            {matchesSearch ? (
+              <>
+                {visible.length === 0 ? "No matches" : visible.length === 1 ? "1 match" : `${visible.length} matches`}
+                {hiddenByFilters > 0 ? (
+                  <>
+                    {" · "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTeamFilter([]);
+                        setAssigneeFilter("ALL");
+                      }}
+                      className="rounded text-accent underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      {hiddenByFilters} more outside your filters
+                    </button>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <>{visible.length} shown</>
+            )}
             {hiddenByScope > 0 ? (
               <>
                 {" · "}
@@ -745,6 +797,7 @@ export function KanbanBoard({
           canEdit={canEdit}
           onClose={() => setOpenTaskId(null)}
           onSaved={handleTaskSaved}
+          onChanged={handleTaskChanged}
           onDeleted={canEdit && canDelete ? handleTaskDeleted : undefined}
         />
       ) : null}

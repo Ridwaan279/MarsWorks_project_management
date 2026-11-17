@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   const response = NextResponse.redirect(siteUrl(request, flow.next));
   response.cookies.set(
     SESSION_COOKIE,
-    await sessionCookieValue(member.id, setup.secret),
+    await sessionCookieValue(member.id, setup.secret, check.identity.email),
     cookieOptions(request, SESSION_DAYS * 86_400),
   );
   response.cookies.set(OAUTH_COOKIE, "", cookieOptions(request, 0, "/api/auth"));

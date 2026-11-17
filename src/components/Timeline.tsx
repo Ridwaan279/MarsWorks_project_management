@@ -25,6 +25,8 @@ import type {
 } from "@/lib/project";
 import { BEHIND_PLAN_MIN_DAYS, behindPlanDays, type ScheduledTask } from "@/lib/schedule";
 import { NameChips, TeamDot } from "./ui";
+import { SearchBox } from "./SearchBox";
+import { taskMatcher } from "@/lib/search";
 import { spareTimeLabel } from "./schedule-words";
 import { peopleOn, shortNames } from "@/lib/names";
 
@@ -151,6 +153,7 @@ export function Timeline({
    */
   const [zoom, setZoom] = useState<Zoom>("normal");
   const [hideDone, setHideDone] = useState(false);
+  const [query, setQuery] = useState("");
   // Empty means every team; see TeamFilter.
   const [teamFilter, setTeamFilter] = useState<string[]>(() => initialTeamFilter(initialTeamId, teams));
   const [range, setRange] = useState<RangeKey>("current");
@@ -185,14 +188,19 @@ export function Timeline({
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const shortNameById = useMemo(() => shortNames(members), [members]);
 
+  const matchesSearch = useMemo(
+    () => taskMatcher(query, (id) => memberById.get(id)?.name),
+    [query, memberById],
+  );
   const visible = useMemo(
     () =>
       tasks.filter(
         (t) =>
           (!hideDone || t.status !== "DONE") &&
-          (teamFilter.length === 0 || teamFilter.includes(t.teamId)),
+          (teamFilter.length === 0 || teamFilter.includes(t.teamId)) &&
+          (!matchesSearch || matchesSearch(t)),
       ),
-    [tasks, hideDone, teamFilter],
+    [tasks, hideDone, teamFilter, matchesSearch],
   );
 
   /**
@@ -383,6 +391,7 @@ export function Timeline({
   return (
     <div ref={rootRef} className="flex h-[calc(100dvh-3.5rem)] flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-6">
+        <SearchBox value={query} onChange={setQuery} className="w-full sm:w-56" />
         <div data-tour="filters" className="flex items-center gap-2 text-xs text-ink-2">
           <label htmlFor="timeline-team-filter">Sub-team</label>
           <TeamFilter
@@ -441,8 +450,14 @@ export function Timeline({
           Hide completed
         </label>
 
-        <span className="text-xs text-ink-3 tabular-nums" data-testid="timeline-count">
-          {visible.length} shown
+        <span className="text-xs text-ink-3 tabular-nums" data-testid="timeline-count" aria-live="polite">
+          {matchesSearch
+            ? visible.length === 0
+              ? "No matches"
+              : visible.length === 1
+                ? "1 match"
+                : `${visible.length} matches`
+            : `${visible.length} shown`}
         </span>
 
         <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-3">

@@ -24,6 +24,7 @@ import { AssigneePicker } from "./AssigneePicker";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { AvatarStack, ProgressBar, StatusBadge, TeamDot } from "./ui";
+import { NO_PENDING, rebaseDraft, refusal, type PendingChanges } from "./task-draft";
 
 interface DrawerProps {
   canEdit: boolean;
@@ -36,7 +37,15 @@ interface DrawerProps {
   allTasks: TaskView[];
   scheduled: ScheduledTask | undefined;
   onClose: () => void;
+  /** Save pressed and accepted: the task as saved. */
   onSaved: (task: TaskView) => void;
+  /**
+   * A checklist item, link or dependency the server has accepted, as a change
+   * to apply to the board's own copy of the task. A change rather than a
+   * whole task, so unsaved field edits in the panel never reach the board,
+   * and two changes finishing together cannot undo one another.
+   */
+  onChanged?: (taskId: string, change: (current: TaskView) => TaskView) => void;
   /**
    * The task is gone from the database; the drawer is about to close. Left
    * out for people who may not delete tasks, which hides the Delete button.
@@ -98,6 +107,7 @@ export function TaskDrawer({
   scheduled,
   onClose,
   onSaved,
+  onChanged,
   onDeleted,
 }: DrawerProps) {
   const [draft, setDraft] = useState(task);
@@ -113,10 +123,41 @@ export function TaskDrawer({
   const panelRef = useRef<HTMLDivElement>(null);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
 
+  // Checklist, link and dependency changes on their way to the server. They
+  // show at once, and survive the board reloading before they have landed.
+  const [pending, setPending] = useState<PendingChanges>(NO_PENDING);
+  // One request at a time per item, in the order they were made: ticking and
+  // unticking quickly must not arrive at the server the other way round.
+  const queues = useRef(new Map<string, Promise<void>>());
+  function inTurn(id: string, run: () => Promise<void>): Promise<void> {
+    const next = (queues.current.get(id) ?? Promise.resolve()).then(run, run);
+    queues.current.set(id, next);
+    return next;
+  }
+
   const [seenTask, setSeenTask] = useState(task);
   if (task !== seenTask) {
     setSeenTask(task);
-    setDraft(task);
+    setDraft(rebaseDraft(draft, seenTask, task, pending));
+  }
+
+  /** Tell the board about a change the server has accepted. */
+  function confirmed(change: (current: TaskView) => TaskView) {
+    if (onChanged) onChanged(task.id, change);
+    else onSaved(change(task));
+  }
+
+  /** Send a change; the response, or null when it never arrived. */
+  async function send(url: string, method: string, body?: unknown): Promise<Response | null> {
+    try {
+      return await fetch(url, {
+        method,
+        headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch {
+      return null;
+    }
   }
 
   useEffect(() => {
@@ -235,143 +276,154 @@ export function TaskDrawer({
         label = "Link";
       }
     }
-    try {
-      const response = await fetch(`/api/tasks/${task.id}/links`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label, url: linkUrl.trim() }),
-      });
-      if (!response.ok) {
-        setError("Links must start with http:// or https://");
-        return;
-      }
-      const created = await response.json();
-      const next = { ...draft, links: [...draft.links, created] };
-      setDraft(next);
-      onSaved(next);
-      setLinkLabel("");
-      setLinkUrl("");
-      setError(null);
-    } catch {
-      setError("Could not add that link.");
+    const response = await send(`/api/tasks/${task.id}/links`, "POST", { label, url: linkUrl.trim() });
+    if (!response?.ok) {
+      setError(
+        response?.status === 400 ? "Links must start with http:// or https://" : await refusal(response, "that link"),
+      );
+      return;
     }
+    const created = await response.json();
+    const link = { id: created.id, label: created.label, url: created.url };
+    setDraft((d) => ({ ...d, links: [...d.links, link] }));
+    confirmed((t) => ({ ...t, links: [...t.links, link] }));
+    setLinkLabel("");
+    setLinkUrl("");
+    setError(null);
   }
 
-  async function removeLink(linkId: string) {
-    const next = { ...draft, links: draft.links.filter((l) => l.id !== linkId) };
-    setDraft(next);
-    onSaved(next);
-    await fetch(`/api/links/${linkId}`, { method: "DELETE" }).catch(() => {});
+  function removeLink(linkId: string) {
+    const link = draft.links.find((l) => l.id === linkId);
+    if (!link) return;
+    setPending((p) => ({ ...p, removed: [...p.removed, linkId] }));
+    setDraft((d) => ({ ...d, links: d.links.filter((l) => l.id !== linkId) }));
+    void inTurn(linkId, async () => {
+      const response = await send(`/api/links/${linkId}`, "DELETE");
+      setPending((p) => ({ ...p, removed: p.removed.filter((id) => id !== linkId) }));
+      // 404: gone already, which is what was wanted.
+      if (response?.ok || response?.status === 404) {
+        confirmed((t) => ({ ...t, links: t.links.filter((l) => l.id !== linkId) }));
+        return;
+      }
+      setDraft((d) => ({ ...d, links: [...d.links, link] }));
+      setError(await refusal(response, "that change"));
+    });
   }
 
   async function addSubtask(event: React.FormEvent) {
     event.preventDefault();
     const title = subtaskTitle.trim();
     if (!title) return;
-    try {
-      const response = await fetch(`/api/tasks/${task.id}/subtasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
+    const response = await send(`/api/tasks/${task.id}/subtasks`, "POST", { title });
+    if (!response?.ok) {
+      setError(await refusal(response, "that checklist item"));
+      return;
+    }
+    const created = await response.json();
+    const item = { id: created.id, title: created.title, done: created.done };
+    setDraft((d) => ({ ...d, subtasks: [...d.subtasks, item] }));
+    confirmed((t) => ({ ...t, subtasks: [...t.subtasks, item] }));
+    setSubtaskTitle("");
+    setError(null);
+  }
+
+  /*
+   * Ticked on screen at once; the board hears of it only once the server has
+   * it. Telling the board first had it reload the task from the server while
+   * the tick was still on its way -- and put the old, unticked list back.
+   */
+  function toggleSubtask(subtaskId: string, done: boolean) {
+    const tick = (list: TaskView["subtasks"], value: boolean) =>
+      list.map((st) => (st.id === subtaskId ? { ...st, done: value } : st));
+    setPending((p) => ({ ...p, done: { ...p.done, [subtaskId]: done } }));
+    setDraft((d) => ({ ...d, subtasks: tick(d.subtasks, done) }));
+    void inTurn(subtaskId, async () => {
+      const response = await send(`/api/subtasks/${subtaskId}`, "PATCH", { done });
+      // Still pending only if a later tick on the same item replaced this one.
+      setPending((p) => {
+        if (p.done[subtaskId] !== done) return p;
+        const rest = { ...p.done };
+        delete rest[subtaskId];
+        return { ...p, done: rest };
       });
-      if (!response.ok) {
-        setError("Could not add that checklist item.");
+      if (response?.ok) {
+        confirmed((t) => ({ ...t, subtasks: tick(t.subtasks, done) }));
         return;
       }
-      const created = await response.json();
-      const next = {
-        ...draft,
-        subtasks: [
-          ...draft.subtasks,
-          { id: created.id, title: created.title, done: created.done },
-        ],
-      };
-      setDraft(next);
-      onSaved(next);
-      setSubtaskTitle("");
-      setError(null);
-    } catch {
-      setError("Could not add that checklist item.");
-    }
+      setDraft((d) => ({ ...d, subtasks: tick(d.subtasks, !done) }));
+      setError(await refusal(response, "that tick"));
+    });
   }
 
-  async function toggleSubtask(subtaskId: string, done: boolean) {
-    const next = {
-      ...draft,
-      subtasks: draft.subtasks.map((st) =>
-        st.id === subtaskId ? { ...st, done } : st,
-      ),
-    };
-    setDraft(next);
-    onSaved(next);
-    await fetch(`/api/subtasks/${subtaskId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ done }),
-    }).catch(() => {});
-  }
-
-  async function removeSubtask(subtaskId: string) {
-    const next = {
-      ...draft,
-      subtasks: draft.subtasks.filter((st) => st.id !== subtaskId),
-    };
-    setDraft(next);
-    onSaved(next);
-    await fetch(`/api/subtasks/${subtaskId}`, { method: "DELETE" }).catch(() => {});
+  function removeSubtask(subtaskId: string) {
+    const index = draft.subtasks.findIndex((st) => st.id === subtaskId);
+    if (index < 0) return;
+    const item = draft.subtasks[index];
+    setPending((p) => ({ ...p, removed: [...p.removed, subtaskId] }));
+    setDraft((d) => ({ ...d, subtasks: d.subtasks.filter((st) => st.id !== subtaskId) }));
+    void inTurn(subtaskId, async () => {
+      const response = await send(`/api/subtasks/${subtaskId}`, "DELETE");
+      setPending((p) => ({ ...p, removed: p.removed.filter((id) => id !== subtaskId) }));
+      if (response?.ok || response?.status === 404) {
+        confirmed((t) => ({ ...t, subtasks: t.subtasks.filter((st) => st.id !== subtaskId) }));
+        return;
+      }
+      setDraft((d) => {
+        const list = [...d.subtasks];
+        list.splice(Math.min(index, list.length), 0, item);
+        return { ...d, subtasks: list };
+      });
+      setError(await refusal(response, "that change to the checklist"));
+    });
   }
 
   async function addDependency(event: React.FormEvent) {
     event.preventDefault();
     if (!dependencyId) return;
-    try {
-      const response = await fetch(`/api/tasks/${task.id}/dependencies`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ predecessorId: dependencyId }),
-      });
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        // The API explains a refused link (a loop, a duplicate); it is more
-        // useful than anything this component could guess.
-        setError(body?.error ?? "Could not add that dependency.");
-        return;
-      }
-      const created = await response.json();
-      const predecessor = allTasks.find((t) => t.id === dependencyId);
-      if (predecessor) {
-        const next = {
-          ...draft,
-          blockedBy: [
-            ...draft.blockedBy,
-            {
-              depId: created.id,
-              id: predecessor.id,
-              key: predecessor.key,
-              title: predecessor.title,
-              teamId: predecessor.teamId,
-            },
-          ],
-        };
-        setDraft(next);
-        onSaved(next);
-      }
-      setDependencyId("");
-      setError(null);
-    } catch {
-      setError("Could not add that dependency.");
+    const response = await send(`/api/tasks/${task.id}/dependencies`, "POST", { predecessorId: dependencyId });
+    if (!response?.ok) {
+      // The API explains a refused link (a loop, a duplicate); it is more
+      // useful than anything this component could guess.
+      const body = response?.status === 400 || response?.status === 409 ? await response.json().catch(() => null) : null;
+      setError(body?.error ?? (await refusal(response, "that dependency")));
+      return;
     }
+    const created = await response.json();
+    const predecessor = allTasks.find((t) => t.id === dependencyId);
+    if (predecessor) {
+      const dep = {
+        depId: created.id,
+        id: predecessor.id,
+        key: predecessor.key,
+        title: predecessor.title,
+        teamId: predecessor.teamId,
+      };
+      setDraft((d) => ({ ...d, blockedBy: [...d.blockedBy, dep] }));
+      confirmed((t) => ({ ...t, blockedBy: [...t.blockedBy, dep] }));
+    }
+    setDependencyId("");
+    setError(null);
   }
 
-  async function removeDependency(depId: string) {
-    const next = {
-      ...draft,
-      blockedBy: draft.blockedBy.filter((d) => d.depId !== depId),
-      blocks: draft.blocks.filter((d) => d.depId !== depId),
-    };
-    setDraft(next);
-    onSaved(next);
-    await fetch(`/api/dependencies/${depId}`, { method: "DELETE" }).catch(() => {});
+  function removeDependency(depId: string) {
+    const before = { blockedBy: draft.blockedBy, blocks: draft.blocks };
+    const without = <T extends { blockedBy: TaskView["blockedBy"]; blocks: TaskView["blocks"] }>(t: T): T => ({
+      ...t,
+      blockedBy: t.blockedBy.filter((d) => d.depId !== depId),
+      blocks: t.blocks.filter((d) => d.depId !== depId),
+    });
+    setPending((p) => ({ ...p, removed: [...p.removed, depId] }));
+    setDraft(without);
+    void inTurn(depId, async () => {
+      const response = await send(`/api/dependencies/${depId}`, "DELETE");
+      setPending((p) => ({ ...p, removed: p.removed.filter((id) => id !== depId) }));
+      if (response?.ok || response?.status === 404) {
+        confirmed(without);
+        return;
+      }
+      setDraft((d) => ({ ...d, ...before }));
+      setError(await refusal(response, "that change"));
+    });
   }
 
   const doneSubtasks = draft.subtasks.filter((st) => st.done).length;
@@ -452,7 +504,7 @@ export function TaskDrawer({
           aria-label={canEdit ? "Edit task" : "Read-only task details"}
           className="selectable overscroll-none-safe min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto border-0 px-5 py-5"
         >
-          {!canEdit ? <p className="text-xs text-ink-3">Guest access is read-only. Sign in to edit this task.</p> : null}
+          {!canEdit ? <p className="text-xs text-ink-3">Read-only. Sign in to edit this task.</p> : null}
           {/* Opening a flagged task should answer "why is this flagged?"
               before anything else on the screen. */}
           {draft.flagged ? (

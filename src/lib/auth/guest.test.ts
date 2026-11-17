@@ -8,9 +8,9 @@ import { requireWriteAccess } from "./write-access";
 import { proxy } from "../../proxy";
 import { POST as guestLogin } from "../../app/api/auth/guest/route";
 
-const mocks = vi.hoisted(() => ({ token: undefined as string | undefined, findUnique: vi.fn() }));
+const mocks = vi.hoisted(() => ({ token: undefined as string | undefined, findUnique: vi.fn(), findFirst: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => mocks.token ? { value: mocks.token } : undefined }) }));
-vi.mock("../db", () => ({ prisma: { member: { findUnique: mocks.findUnique } } }));
+vi.mock("../db", () => ({ prisma: { member: { findUnique: mocks.findUnique, findFirst: mocks.findFirst } } }));
 
 const secret = "guest-test-secret-that-is-at-least-32-characters";
 const base = "https://mission.example";
@@ -28,6 +28,8 @@ beforeEach(() => {
   mocks.token = undefined;
   mocks.findUnique.mockReset();
   mocks.findUnique.mockResolvedValue(member);
+  mocks.findFirst.mockReset();
+  mocks.findFirst.mockResolvedValue(null);
 });
 
 describe("guest sessions", () => {
@@ -46,7 +48,7 @@ describe("guest sessions", () => {
   it("identifies guests without a database lookup and refuses all write permissions", async () => {
     mocks.token = await guestCookieValue(secret);
     const viewer = await currentViewer();
-    expect(viewer).toEqual({ mode: "on", guest: true, member: null });
+    expect(viewer).toEqual({ mode: "on", guest: true, member: null, stale: false });
     expect(mayEditProject(viewer)).toBe(false);
     expect(mayDeleteTasks(viewer)).toBe(false);
     expect((await requireWriteAccess())?.status).toBe(403);
@@ -84,6 +86,31 @@ describe("guest sessions", () => {
   it("does not offer guest sessions with incomplete authentication", async () => {
     vi.stubEnv("GOOGLE_CLIENT_SECRET", "");
     expect((await guestLogin(request("/api/auth/guest", "POST"))).headers.get("location")).toBe(base + "/login?error=setup");
+  });
+});
+
+describe("a session whose account has changed", () => {
+  it("follows the person's address to their place on the team list after a merge", async () => {
+    // Signed in to an early account, since folded into the list's row.
+    mocks.token = await sessionCookieValue("early-account", secret, member.email);
+    mocks.findUnique.mockResolvedValue(null);
+    mocks.findFirst.mockResolvedValue(member);
+    const viewer = await currentViewer();
+    expect(viewer.member?.id).toBe("member-1");
+    expect(viewer.stale).toBe(false);
+    expect(await requireWriteAccess()).toBeNull();
+    expect(mocks.findFirst.mock.calls[0][0].where.email).toEqual({ equals: member.email, mode: "insensitive" });
+  });
+
+  it("is told to sign in again, rather than quietly ignored, when the account is gone", async () => {
+    mocks.token = await sessionCookieValue("removed-member", secret);
+    mocks.findUnique.mockResolvedValue(null);
+    const viewer = await currentViewer();
+    expect(viewer).toMatchObject({ member: null, guest: false, stale: true });
+    expect(mayEditProject(viewer)).toBe(false);
+    const refused = await requireWriteAccess();
+    expect(refused?.status).toBe(401);
+    expect((await refused!.json()).error).toContain("Sign in again");
   });
 });
 

@@ -58,7 +58,7 @@ export default async function RootLayout({
   const viewer = await currentViewer();
   // The way around the site is for people who are in it. On the sign-in
   // page, before anyone has signed in, the header is just the name.
-  const inside = viewer.mode === "off" || viewer.member !== null || viewer.guest;
+  const inside = viewer.mode === "off" || viewer.member !== null || viewer.guest || viewer.stale;
   return (
     <html
       lang="en"
@@ -132,6 +132,14 @@ export default async function RootLayout({
         {viewer.guest ? (
           <p className="border-b border-line bg-elevated px-4 py-2 text-xs text-ink-2 sm:px-6">
             You&apos;re viewing as a guest. You can browse all teams, but changes are disabled.
+          </p>
+        ) : viewer.stale ? (
+          <p role="status" className="border-b border-warning/40 bg-warning/10 px-4 py-2 text-xs text-ink sm:px-6">
+            Your account has changed since you signed in, so changes are switched off.{" "}
+            <Link href="/login" className="font-medium text-accent underline-offset-2 hover:underline">
+              Sign in again
+            </Link>{" "}
+            to carry on.
           </p>
         ) : null}
 

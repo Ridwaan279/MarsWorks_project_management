@@ -174,7 +174,8 @@ export function NewTaskDialog({
           plannedStart: plannedStart || null,
           plannedEnd: plannedEnd || null,
           links,
-          subtasks,
+          // A step typed but not yet added is still meant to be on the list.
+          subtasks: subtaskTitle.trim() ? [...subtasks, subtaskTitle.trim()] : subtasks,
         }),
       });
       if (!response.ok) {

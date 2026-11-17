@@ -6,7 +6,13 @@ export async function requireWriteAccess(): Promise<NextResponse | null> {
   const viewer = await currentViewer();
   if (mayEditProject(viewer)) return null;
   return NextResponse.json(
-    { error: viewer.guest ? "Guest access is read-only. Sign in with Google to make changes." : "Sign in first." },
+    {
+      error: viewer.guest
+        ? "Guest access is read-only. Sign in with Google to make changes."
+        : viewer.stale
+          ? "Your account has changed since you signed in. Sign in again to make changes."
+          : "Sign in first.",
+    },
     { status: viewer.guest ? 403 : 401 },
   );
 }
