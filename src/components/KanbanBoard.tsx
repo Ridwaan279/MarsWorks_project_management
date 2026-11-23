@@ -81,6 +81,17 @@ function orderBetween(before?: number, after?: number): number {
   return (before + after) / 2;
 }
 
+/**
+ * What "Current" shows. A Blocked task, and an open task blocking one, are
+ * current whatever their dates: blocking work made in a hurry usually has
+ * none, and hiding it is how it seemed to vanish.
+ */
+function isCurrentWork(task: TaskView, today: Date): boolean {
+  if (task.status === "BLOCKED") return true;
+  if (task.status !== "DONE" && task.status !== "IN_REVIEW" && task.blocks.some((b) => b.blocking)) return true;
+  return isCurrent(task, today);
+}
+
 export function KanbanBoard({
   tasks: initialTasks,
   teams,
@@ -221,7 +232,7 @@ export function KanbanBoard({
       tasks.filter(
         (task) =>
           matchesFilters(task) &&
-          (matchesSearch ? matchesSearch(task) : scope === "ALL" || isCurrent(task, today)),
+          (matchesSearch ? matchesSearch(task) : scope === "ALL" || isCurrentWork(task, today)),
       ),
     [tasks, matchesFilters, matchesSearch, scope, today],
   );
@@ -231,7 +242,7 @@ export function KanbanBoard({
     () =>
       scope === "ALL" || matchesSearch
         ? 0
-        : tasks.filter((t) => matchesFilters(t) && !isCurrent(t, today)).length,
+        : tasks.filter((t) => matchesFilters(t) && !isCurrentWork(t, today)).length,
     [tasks, matchesFilters, matchesSearch, scope, today],
   );
 
@@ -822,6 +833,8 @@ export function KanbanBoard({
 
       {openTask ? (
         <TaskDrawer
+          // A different task is a fresh panel, not this one's edits carried over.
+          key={openTask.id}
           task={openTask}
           teams={teams}
           members={members}
@@ -834,6 +847,7 @@ export function KanbanBoard({
           onSaved={handleTaskSaved}
           onChanged={handleTaskChanged}
           onBlock={canEdit ? () => setBlockingId(openTask.id) : undefined}
+          onOpenTask={setOpenTaskId}
           onDeleted={canEdit && canDelete ? handleTaskDeleted : undefined}
         />
       ) : null}
@@ -858,8 +872,33 @@ export function KanbanBoard({
           members={members}
           allTasks={tasks}
           onCancel={() => setBlockingId(null)}
-          onBlocked={() => {
+          onBlocked={({ reason, created }) => {
+            const blocked = tasks.find((t) => t.id === blockingId);
             setBlockingId(null);
+            // Shown at once, so an open task panel already reads Blocked: its
+            // Save must not put back the status it had a moment ago.
+            setTasks((current) =>
+              current.map((t) =>
+                t.id === blockingId
+                  ? {
+                      ...t,
+                      status: "BLOCKED",
+                      flagged: true,
+                      flagReason: reason,
+                      blockedByMemberId: t.status === "BLOCKED" ? t.blockedByMemberId : (viewerId ?? null),
+                    }
+                  : t,
+              ),
+            );
+            // New tasks land in their sub-team's To do, maybe under another
+            // filter; say where, so none seems to vanish.
+            const made = created.map(
+              (c) => `${c.key} "${c.title}" in ${teams.find((t) => t.id === c.teamId)?.name ?? "its sub-team"}'s To do`,
+            );
+            setNotice(
+              `Blocked ${blocked?.key ?? "the task"}.` +
+                (made.length > 0 ? ` Made ${made.join(" and ")}. Open the blocked task to see what it is waiting on.` : ""),
+            );
             router.refresh();
           }}
         />

@@ -10,9 +10,9 @@ import { CLEARS_BLOCK } from "@/lib/blocking";
 import { TASK_PRIORITIES, type TaskStatus } from "@/lib/domain";
 
 /**
- * Move a task to Blocked: say why, and what it is waiting on. See
+ * Move a task to Blocked: say why, and optionally what it is waiting on. See
  * src/lib/blocking.ts. Everything happens together or not at all, so a task
- * is never left Blocked without its reason and blockers.
+ * is never left Blocked without its reason, or with half its blockers.
  */
 const blockTask = z.object({
   reason: z.string().trim().min(1, "Say why it is blocked.").max(500),
@@ -29,8 +29,9 @@ const blockTask = z.object({
         z.object({ kind: z.literal("existing"), taskId: z.string().min(1) }),
       ]),
     )
-    .min(1, "Add at least one task it is waiting on.")
-    .max(10),
+    // None is fine: blocked with just a reason, it stays Blocked until moved.
+    .max(10)
+    .default([]),
 });
 
 class Refused extends Error {
@@ -60,7 +61,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (!task) throw new Refused("That task no longer exists.", 404);
 
       const blockerIds: string[] = [];
-      const created: { id: string; key: string }[] = [];
+      const created: { id: string; key: string; title: string; teamId: string }[] = [];
       const allocators = new Map<string, () => string>();
 
       for (const blocker of blockers) {
@@ -106,7 +107,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
               : undefined,
             boardOrder: (first?.boardOrder ?? 1000) - 1000,
           },
-          select: { id: true, key: true },
+          select: { id: true, key: true, title: true, teamId: true },
         });
         created.push(made);
         blockerIds.push(made.id);

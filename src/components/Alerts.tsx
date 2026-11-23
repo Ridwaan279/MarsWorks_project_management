@@ -23,7 +23,10 @@ export function AlertsDialog({ alerts, memberId }: { alerts: AlertsData; memberI
   const [notices, setNotices] = useState(alerts.notices);
   const { blockers } = alerts;
   // Changes when a blocker appears or goes, so a new one is shown again.
-  const signature = blockers.map((b) => `${b.id}:${b.priority}`).join(",");
+  // Ones this person set up themselves are listed, but never pop up: they
+  // already know, and are usually still in the middle of it.
+  const news = blockers.filter((b) => !b.byYou);
+  const signature = news.map((b) => `${b.id}:${b.priority}`).join(",");
   const seenKey = `mw-blockers-seen:${memberId}`;
 
   /* eslint-disable react-hooks/set-state-in-effect -- reading browser storage after hydration */
@@ -34,8 +37,8 @@ export function AlertsDialog({ alerts, memberId }: { alerts: AlertsData; memberI
     } catch {
       // Storage refused (private browsing): show it, which is the safe side.
     }
-    if (alerts.notices.length > 0 || (blockers.length > 0 && !shownThisVisit)) setOpen(true);
-  }, [alerts.notices.length, blockers.length, seenKey, signature]);
+    if (alerts.notices.length > 0 || (news.length > 0 && !shownThisVisit)) setOpen(true);
+  }, [alerts.notices.length, news.length, seenKey, signature]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {

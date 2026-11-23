@@ -19,12 +19,20 @@ const LABEL = "block text-xs font-medium text-ink-2";
 /** Done and In review clear a block, so they cannot be what one waits on. */
 const CLEARED: TaskStatus[] = ["DONE", "IN_REVIEW"];
 
+/** What the board needs to know once a task is blocked. */
+export interface Blocked {
+  reason: string;
+  /** Tasks made here to clear the block, so the board can say where they went. */
+  created: { id: string; key: string; title: string; teamId: string }[];
+}
+
 /**
- * Moving a task to Blocked asks why, and what it is waiting on: a new task
- * for whatever needs doing (with a priority saying how urgent it is, and the
- * people who will do it), or a task that already exists. The task goes back
- * to In progress by itself once all of them are Done or In review; see
- * src/lib/blocking.ts. Cancelling leaves the task where it was.
+ * Moving a task to Blocked asks why, and optionally what it is waiting on: a
+ * new task for whatever needs doing (with a priority saying how urgent it is,
+ * and the people who will do it), or a task that already exists. With those,
+ * the task goes back to In progress by itself once all of them are Done or In
+ * review; see src/lib/blocking.ts. With only a reason it stays Blocked until
+ * someone moves it on. Cancelling leaves the task where it was.
  */
 export function BlockDialog({
   task,
@@ -39,7 +47,7 @@ export function BlockDialog({
   members: MemberView[];
   allTasks: TaskView[];
   onCancel: () => void;
-  onBlocked: () => void;
+  onBlocked: (blocked: Blocked) => void;
 }) {
   const blankWith = (key: number): Blocker => ({
     kind: "new",
@@ -91,8 +99,11 @@ export function BlockDialog({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!reason.trim()) return setError("Say why it is blocked.");
-    for (const b of blockers) {
-      if (b.kind === "new" && !b.title.trim()) return setError("Give each new task a title.");
+    // A new-task line left exactly as it came is not one: blocking with just a
+    // reason needs no extra step. One started and not finished is a mistake.
+    const sending = blockers.filter((b) => !(b.kind === "new" && !b.title.trim() && b.assigneeIds.length === 0));
+    for (const b of sending) {
+      if (b.kind === "new" && !b.title.trim()) return setError("Give the new task a title, or remove it.");
       if (b.kind === "existing" && !b.taskId) return setError("Choose the task it is waiting on, or remove that line.");
     }
     setSaving(true);
@@ -103,7 +114,7 @@ export function BlockDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reason: reason.trim(),
-          blockers: blockers.map((b) =>
+          blockers: sending.map((b) =>
             b.kind === "new"
               ? { kind: "new", title: b.title.trim(), teamId: b.teamId, priority: b.priority, assigneeIds: b.assigneeIds }
               : { kind: "existing", taskId: b.taskId },
@@ -115,7 +126,8 @@ export function BlockDialog({
         setError(body?.error ?? "Could not block that task. Try again in a moment.");
         return;
       }
-      onBlocked();
+      const body = await response.json().catch(() => null);
+      onBlocked({ reason: reason.trim(), created: body?.created ?? [] });
     } catch {
       setError("Could not block that task: check your connection and try again.");
     } finally {
@@ -161,10 +173,13 @@ export function BlockDialog({
           </div>
 
           <fieldset className="space-y-2">
-            <legend className={LABEL}>What is it waiting on?</legend>
+            <legend className={LABEL}>
+              What is it waiting on? <span className="font-normal text-ink-3">(optional)</span>
+            </legend>
             <p className="text-[11px] text-ink-3 text-pretty">
-              Add the task, or tasks, that have to happen first. Their sub-team&apos;s lead is told, with
-              the priority. When they are all Done or In review, this task goes back to In progress by itself.
+              The task, or tasks, that have to happen first. Their sub-team&apos;s lead is told, with the
+              priority, and when they are all Done or In review this task goes back to In progress by itself.
+              Leave this empty to block it with just a reason: it then stays Blocked until someone moves it on.
             </p>
 
             {blockers.map((b, i) => (
@@ -200,15 +215,13 @@ export function BlockDialog({
                       </button>
                     ))}
                   </div>
-                  {blockers.length > 1 ? (
-                    <button
-                      type="button"
-                      onClick={() => setBlockers((list) => list.filter((x) => x.key !== b.key))}
-                      className="ml-auto rounded px-1.5 py-0.5 text-xs text-ink-3 hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    >
-                      Remove
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setBlockers((list) => list.filter((x) => x.key !== b.key))}
+                    className="ml-auto rounded px-1.5 py-0.5 text-xs text-ink-3 hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    Remove
+                  </button>
                 </div>
 
                 {b.kind === "new" ? (
@@ -314,7 +327,7 @@ export function BlockDialog({
               onClick={() => setBlockers((list) => [...list, blank()])}
               className="w-full rounded-md border border-dashed border-line px-3 py-1.5 text-xs text-ink-2 hover:border-line-strong hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              + Add another task it is waiting on
+              {blockers.length === 0 ? "+ Add a task it is waiting on" : "+ Add another task it is waiting on"}
             </button>
           </fieldset>
         </div>

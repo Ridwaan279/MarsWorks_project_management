@@ -20,6 +20,8 @@ export interface BlockerAlert {
   teamName: string;
   /** The Blocked tasks waiting on it. */
   blocking: { id: string; key: string; title: string; teamName: string }[];
+  /** Every task it blocks was blocked by this person, so it is no news to them. */
+  byYou: boolean;
 }
 
 export interface Notice {
@@ -74,7 +76,11 @@ export async function alertsFor(member: { id: string; role: Role; teamId: string
             team: { select: { name: true } },
             blocks: {
               where: stillBlocking,
-              select: { successor: { select: { id: true, key: true, title: true, team: { select: { name: true } } } } },
+              select: {
+                successor: {
+                  select: { id: true, key: true, title: true, blockedByMemberId: true, team: { select: { name: true } } },
+                },
+              },
             },
           },
         }),
@@ -95,7 +101,8 @@ export async function alertsFor(member: { id: string; role: Role; teamId: string
       priority: t.priority as TaskPriority,
       status: t.status as TaskStatus,
       teamName: t.team.name,
-      blocking: t.blocks.map((b) => ({ ...b.successor, teamName: b.successor.team.name })),
+      blocking: t.blocks.map(({ successor: s }) => ({ id: s.id, key: s.key, title: s.title, teamName: s.team.name })),
+      byYou: t.blocks.every((b) => b.successor.blockedByMemberId === member.id),
     }))
     .sort((a, b) => rank(a.priority) - rank(b.priority) || a.key.localeCompare(b.key, undefined, { numeric: true }));
   return { blockers, notices };

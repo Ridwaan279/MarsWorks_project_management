@@ -48,6 +48,8 @@ interface DrawerProps {
   onChanged?: (taskId: string, change: (current: TaskView) => TaskView) => void;
   /** Choosing Blocked: the board asks why and what on (see BlockDialog). */
   onBlock?: () => void;
+  /** Open another task in the panel: what this one waits on, or blocks. */
+  onOpenTask?: (taskId: string) => void;
   /**
    * The task is gone from the database; the drawer is about to close. Left
    * out for people who may not delete tasks, which hides the Delete button.
@@ -111,6 +113,7 @@ export function TaskDrawer({
   onSaved,
   onChanged,
   onBlock,
+  onOpenTask,
   onDeleted,
 }: DrawerProps) {
   const [draft, setDraft] = useState(task);
@@ -194,23 +197,32 @@ export function TaskDrawer({
   async function save() {
     setSaving(true);
     setError(null);
+    // Only what was changed here. Sending every field wrote back whatever the
+    // panel last saw: a task blocked a moment earlier, or moved by someone
+    // else or in the Google Sheet while the panel was open, was put back.
+    const changes: Record<string, unknown> = {};
+    if (draft.title !== task.title) changes.title = draft.title;
+    if (draft.description !== task.description) changes.description = draft.description;
+    if (draft.status !== task.status) changes.status = draft.status;
+    if (draft.priority !== task.priority) changes.priority = draft.priority;
+    if (!sameMembers(draft.assigneeIds, task.assigneeIds)) changes.assigneeIds = draft.assigneeIds;
+    if (draft.milestoneId !== task.milestoneId) changes.milestoneId = draft.milestoneId;
+    if (draft.workstreamId !== task.workstreamId) changes.workstreamId = draft.workstreamId;
+    if (draft.ownerLabel !== task.ownerLabel) changes.ownerLabel = draft.ownerLabel || null;
+    if (draft.notes !== task.notes) changes.notes = draft.notes || null;
+    if (
+      toDateInput(draft.plannedStart) !== toDateInput(task.plannedStart) ||
+      toDateInput(draft.plannedEnd) !== toDateInput(task.plannedEnd)
+    ) {
+      // Both, so the server can check the start is not after the end.
+      changes.plannedStart = toDateInput(draft.plannedStart) || null;
+      changes.plannedEnd = toDateInput(draft.plannedEnd) || null;
+    }
     try {
       const response = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: draft.title,
-          description: draft.description,
-          status: draft.status,
-          priority: draft.priority,
-          assigneeIds: draft.assigneeIds,
-          milestoneId: draft.milestoneId,
-          workstreamId: draft.workstreamId,
-          ownerLabel: draft.ownerLabel || null,
-          notes: draft.notes || null,
-          plannedStart: toDateInput(draft.plannedStart) || null,
-          plannedEnd: toDateInput(draft.plannedEnd) || null,
-        }),
+        body: JSON.stringify(changes),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
@@ -220,7 +232,12 @@ export function TaskDrawer({
         );
         return;
       }
-      onSaved(draft);
+      // The board's copy, with just what was saved; the reload brings the rest.
+      const saved = { ...task };
+      for (const field of Object.keys(changes) as (keyof TaskView)[]) {
+        (saved as Record<string, unknown>)[field] = draft[field];
+      }
+      onSaved(saved);
       onClose();
     } catch (cause) {
       console.error("Failed to save task", cause);
@@ -541,8 +558,7 @@ export function TaskDrawer({
                   <ul className="space-y-1">
                     {waitingOn.map((b) => (
                       <li key={b.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                        <span className="font-mono text-ink-3" translate="no">{b.key}</span>
-                        <span className="min-w-0 flex-1 truncate text-ink">{b.title}</span>
+                        <TaskRefLink id={b.id} taskKey={b.key} title={b.title} onOpen={onOpenTask} />
                         {b.status ? <span className="text-ink-3">{STATUS_LABEL[b.status]}</span> : null}
                         {b.priority ? <PriorityPill priority={b.priority} /> : null}
                       </li>
@@ -585,8 +601,7 @@ export function TaskDrawer({
               <ul className="mt-1.5 space-y-1">
                 {holdingUp.map((b) => (
                   <li key={b.id} className="flex items-center gap-2 text-xs">
-                    <span className="font-mono text-ink-3" translate="no">{b.key}</span>
-                    <span className="min-w-0 flex-1 truncate text-ink">{b.title}</span>
+                    <TaskRefLink id={b.id} taskKey={b.key} title={b.title} onOpen={onOpenTask} />
                     <span className="shrink-0 text-ink-3">{teams.find((t) => t.id === b.teamId)?.name}</span>
                   </li>
                 ))}
@@ -637,8 +652,11 @@ export function TaskDrawer({
                   const status = e.target.value as TaskStatus;
                   // Blocking asks why and what on, in its own dialog; the
                   // task only becomes Blocked once that is answered.
-                  if (status === "BLOCKED" && task.status !== "BLOCKED" && onBlock) onBlock();
-                  else setDraft({ ...draft, status });
+                  if (status === "BLOCKED" && task.status !== "BLOCKED" && onBlock) {
+                    // Any other status picked here unsaved gives way to the block.
+                    setDraft({ ...draft, status: task.status });
+                    onBlock();
+                  } else setDraft({ ...draft, status });
                 }}
                 className={FIELD}
               >
@@ -1184,6 +1202,37 @@ function ScheduleRow({
       </dd>
       <dd className="col-span-2 mt-0.5 text-[11px] leading-snug text-ink-3 text-pretty">{reason}</dd>
     </div>
+  );
+}
+
+/** Another task's key and title, opening it when the board can. */
+function TaskRefLink({
+  id,
+  taskKey,
+  title,
+  onOpen,
+}: {
+  id: string;
+  taskKey: string;
+  title: string;
+  onOpen?: (taskId: string) => void;
+}) {
+  const content = (
+    <>
+      <span className="shrink-0 font-mono text-ink-3" translate="no">{taskKey}</span>
+      <span className="min-w-0 truncate text-ink">{title}</span>
+    </>
+  );
+  if (!onOpen) return <span className="flex min-w-0 flex-1 items-center gap-2">{content}</span>;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(id)}
+      title={`Open ${taskKey}`}
+      className="flex min-w-0 flex-1 items-center gap-2 rounded text-left hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      {content}
+    </button>
   );
 }
 

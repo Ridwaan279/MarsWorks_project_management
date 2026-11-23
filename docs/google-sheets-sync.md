@@ -173,8 +173,8 @@ beside each option and pick its colour, or open **Advanced options** and set
 **Display style** to **Plain text** so the coloured cell shows on its own. The
 sync will not undo either.
 
-**Blocked.** On the website, moving a task to Blocked asks why and what it is
-waiting on; the reason and those blocking tasks live only on the website. The
+**Blocked.** On the website, moving a task to Blocked asks why and, optionally,
+what it is waiting on; the reason and those blocking tasks live only on the website. The
 sheet still plays its part: marking a blocking task Complete or In Review
 there counts, and once everything a task waits on is, the task goes back to
 In-Progress by itself. Moving a task out of Blocked in the sheet takes its
