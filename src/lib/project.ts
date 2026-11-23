@@ -52,6 +52,9 @@ export interface TaskRef {
    * not the edge, and one pair can only be joined once.
    */
   depId: string;
+  /** A blocker of a Blocked task, rather than an ordinary dependency; see
+   *  src/lib/blocking.ts. */
+  blocking?: boolean;
 }
 
 export interface TaskView {
@@ -72,8 +75,11 @@ export interface TaskView {
   ownerLabel: string | null;
   notes: string | null;
   flagged: boolean;
-  /** Why it was flagged, if a reason was given. */
+  /** Why it was flagged, if a reason was given. For a Blocked task, why it
+   *  is blocked. */
   flagReason: string | null;
+  /** Who moved it to Blocked, when that was done on the website. */
+  blockedByMemberId?: string | null;
   boardOrder: number;
   teamId: string;
   /** Everyone assigned, alphabetically by name. */
@@ -138,11 +144,11 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
     if (!pred || !succ) continue;
     blockedBy.set(dep.successorId, [
       ...(blockedBy.get(dep.successorId) ?? []),
-      { ...pred, depId: dep.id },
+      { ...pred, depId: dep.id, blocking: dep.blocking },
     ]);
     blocks.set(dep.predecessorId, [
       ...(blocks.get(dep.predecessorId) ?? []),
-      { ...succ, depId: dep.id },
+      { ...succ, depId: dep.id, blocking: dep.blocking },
     ]);
   }
 
@@ -195,6 +201,7 @@ export async function loadProjectSnapshot(): Promise<ProjectSnapshot> {
       notes: t.notes,
       flagged: t.flagged,
       flagReason: t.flagReason,
+      blockedByMemberId: t.blockedByMemberId,
       boardOrder: t.boardOrder,
       teamId: t.teamId,
       assigneeIds: t.assignees.map((a) => a.id),

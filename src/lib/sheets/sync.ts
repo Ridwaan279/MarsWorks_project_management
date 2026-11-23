@@ -8,9 +8,10 @@
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "../db";
 import { deriveProgress } from "../progress";
-import { normaliseStatus } from "../domain";
+import { normaliseStatus, type TaskStatus } from "../domain";
 import { normaliseName, readOwners, writeOwners } from "../owners";
 import { keyAllocator } from "../task-keys";
+import { blockedBehind, releaseBlocked, unblock } from "../blocking";
 import { planSync, type AppMilestone, type AppTask } from "./merge";
 import {
   MILESTONE_ID_PREFIX,
@@ -241,10 +242,15 @@ async function syncInTransaction(
     return data;
   }
 
+  // Status changes from the sheet, to unblock what they free; see the end.
+  const moved: { id: string; from: TaskStatus; to: TaskStatus }[] = [];
   for (const update of plan.taskUpdates) {
     const current = taskById.get(update.id);
     if (!current) continue;
     const data = taskData(update.changes, current);
+    if (typeof data.status === "string" && data.status !== current.status) {
+      moved.push({ id: update.id, from: current.status as TaskStatus, to: data.status as TaskStatus });
+    }
     const changed = Object.keys(update.changes).length > 0;
     if (changed) summary.tasksUpdated += 1;
     if (changed || JSON.stringify(current.sheetBase) !== JSON.stringify(update.base)) {
@@ -309,6 +315,7 @@ async function syncInTransaction(
     });
   }
 
+  const waitingOnDeleted = await blockedBehind(tx, plan.taskDeletes.map((d) => d.id));
   for (const removed of plan.taskDeletes) {
     await tx.task.delete({ where: { id: removed.id } });
     await tx.syncTombstone.upsert({
@@ -318,6 +325,16 @@ async function syncInTransaction(
     });
     summary.tasksDeleted += 1;
   }
+
+  // Blocking, as on the website (src/lib/blocking.ts): a task moved out of
+  // Blocked in the sheet is unblocked, and one whose blockers are now done,
+  // in review or deleted goes back to In progress.
+  for (const move of moved) {
+    if (move.from === "BLOCKED" && move.to !== "BLOCKED") {
+      await unblock(tx, move.id, { kind: "moved", to: move.to, byName: "Someone in the Google Sheet" });
+    }
+  }
+  await releaseBlocked(tx, [...(await blockedBehind(tx, moved.map((m) => m.id))), ...waitingOnDeleted]);
 
   const milestoneById = new Map(milestones.map((m) => [m.id, m]));
   for (const update of plan.milestoneUpdates) {

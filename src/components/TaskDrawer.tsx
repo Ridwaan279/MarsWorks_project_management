@@ -23,7 +23,7 @@ import { behindPlanReason, expectedReason, spareTimeLabel, spareTimeReason } fro
 import { AssigneePicker } from "./AssigneePicker";
 import { AutoGrowTextarea } from "./AutoGrowTextarea";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { AvatarStack, ProgressBar, StatusBadge, TeamDot } from "./ui";
+import { AvatarStack, PRIORITY_COLOUR, PriorityPill, ProgressBar, StatusBadge, TeamDot } from "./ui";
 import { NO_PENDING, rebaseDraft, refusal, type PendingChanges } from "./task-draft";
 
 interface DrawerProps {
@@ -46,6 +46,8 @@ interface DrawerProps {
    * and two changes finishing together cannot undo one another.
    */
   onChanged?: (taskId: string, change: (current: TaskView) => TaskView) => void;
+  /** Choosing Blocked: the board asks why and what on (see BlockDialog). */
+  onBlock?: () => void;
   /**
    * The task is gone from the database; the drawer is about to close. Left
    * out for people who may not delete tasks, which hides the Delete button.
@@ -108,6 +110,7 @@ export function TaskDrawer({
   onClose,
   onSaved,
   onChanged,
+  onBlock,
   onDeleted,
 }: DrawerProps) {
   const [draft, setDraft] = useState(task);
@@ -428,6 +431,19 @@ export function TaskDrawer({
 
   const doneSubtasks = draft.subtasks.filter((st) => st.done).length;
 
+  // Blocking; see src/lib/blocking.ts.
+  const blockedByName = task.blockedByMemberId
+    ? members.find((m) => m.id === task.blockedByMemberId)?.name
+    : undefined;
+  const waitingOn = task.blockedBy
+    .filter((d) => d.blocking)
+    .map((d) => {
+      const other = allTasks.find((t) => t.id === d.id);
+      return { ...d, status: other?.status, priority: other?.priority };
+    });
+  const holdingUp =
+    task.status === "DONE" || task.status === "IN_REVIEW" ? [] : task.blocks.filter((d) => d.blocking);
+
   // Anything already linked either way is left out, as is the task itself;
   // the API refuses those, and offering them just invites the error.
   const linkedIds = new Set([
@@ -507,16 +523,77 @@ export function TaskDrawer({
           {!canEdit ? <p className="text-xs text-ink-3">Read-only. Sign in to edit this task.</p> : null}
           {/* Opening a flagged task should answer "why is this flagged?"
               before anything else on the screen. */}
-          {draft.flagged ? (
+          {draft.flagged || task.status === "BLOCKED" ? (
             <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2.5">
               <p className="flex items-center gap-1.5 text-xs font-medium text-danger">
                 <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
                   <path d="M3.75 2v12M3.75 3h7.7a.6.6 0 0 1 .47.97L10.4 6.2a.5.5 0 0 0 0 .6l1.52 2.23a.6.6 0 0 1-.47.97h-7.7" />
                 </svg>
-                Flagged
+                {task.status === "BLOCKED" ? "Blocked" : "Flagged"}
+                {task.status === "BLOCKED" && blockedByName ? ` by ${blockedByName}` : ""}
               </p>
               <p className="mt-1 text-sm text-ink-2 text-pretty">
                 {draft.flagReason || "No reason was given."}
+              </p>
+              {task.status === "BLOCKED" && waitingOn.length > 0 ? (
+                <div className="mt-2.5 space-y-1.5">
+                  <p className="text-xs text-ink-2">Waiting on</p>
+                  <ul className="space-y-1">
+                    {waitingOn.map((b) => (
+                      <li key={b.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                        <span className="font-mono text-ink-3" translate="no">{b.key}</span>
+                        <span className="min-w-0 flex-1 truncate text-ink">{b.title}</span>
+                        {b.status ? <span className="text-ink-3">{STATUS_LABEL[b.status]}</span> : null}
+                        {b.priority ? <PriorityPill priority={b.priority} /> : null}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-[11px] text-ink-3 text-pretty">
+                    When {waitingOn.length === 1 ? "it is" : "these are all"} Done or In review, this task goes back to In
+                    progress by itself.
+                  </p>
+                </div>
+              ) : task.status === "BLOCKED" ? (
+                <p className="mt-2 text-[11px] text-ink-3 text-pretty">
+                  Nothing is recorded as blocking it, so it stays Blocked until someone moves it on.
+                </p>
+              ) : null}
+              {task.status === "BLOCKED" && onBlock ? (
+                <button
+                  type="button"
+                  onClick={onBlock}
+                  className="mt-2 rounded text-xs font-medium text-danger hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  {waitingOn.length === 0 ? "+ Add what it is waiting on" : "+ Add another task it is waiting on"}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {holdingUp.length > 0 ? (
+            <div
+              className="rounded-lg border px-3 py-2.5"
+              style={{
+                borderColor: `color-mix(in srgb, ${PRIORITY_COLOUR[task.priority]} 55%, transparent)`,
+                backgroundColor: `color-mix(in srgb, ${PRIORITY_COLOUR[task.priority]} 9%, transparent)`,
+              }}
+            >
+              <p className="text-xs font-medium" style={{ color: PRIORITY_COLOUR[task.priority] }}>
+                Blocking {holdingUp.length === 1 ? "another task" : `${holdingUp.length} tasks`} &middot;{" "}
+                {PRIORITY_LABEL[task.priority]} priority
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                {holdingUp.map((b) => (
+                  <li key={b.id} className="flex items-center gap-2 text-xs">
+                    <span className="font-mono text-ink-3" translate="no">{b.key}</span>
+                    <span className="min-w-0 flex-1 truncate text-ink">{b.title}</span>
+                    <span className="shrink-0 text-ink-3">{teams.find((t) => t.id === b.teamId)?.name}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[11px] text-ink-3 text-pretty">
+                When this is Done or In review, {holdingUp.length === 1 ? "it goes" : "they go"} back to In progress
+                by itself, and the people on {holdingUp.length === 1 ? "it" : "them"} are told.
               </p>
             </div>
           ) : null}
@@ -556,9 +633,13 @@ export function TaskDrawer({
               <select
                 id="task-status"
                 value={draft.status}
-                onChange={(e) =>
-                  setDraft({ ...draft, status: e.target.value as TaskStatus })
-                }
+                onChange={(e) => {
+                  const status = e.target.value as TaskStatus;
+                  // Blocking asks why and what on, in its own dialog; the
+                  // task only becomes Blocked once that is answered.
+                  if (status === "BLOCKED" && task.status !== "BLOCKED" && onBlock) onBlock();
+                  else setDraft({ ...draft, status });
+                }}
                 className={FIELD}
               >
                 {TASK_STATUSES.map((status) => (

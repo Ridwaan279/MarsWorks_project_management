@@ -344,7 +344,8 @@ export function NewTaskDialog({
               onChange={(e) => setTaskStatus(e.target.value as TaskStatus)}
               className={FIELD}
             >
-              {TASK_STATUSES.map((s) => (
+              {/* Blocking asks why and what on, so it happens on the board. */}
+              {TASK_STATUSES.filter((s) => s !== "BLOCKED").map((s) => (
                 <option key={s} value={s}>
                   {STATUS_LABEL[s]}
                 </option>

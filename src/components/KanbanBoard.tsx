@@ -10,12 +10,14 @@ import {
   MouseSensor,
   TouchSensor,
   closestCorners,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -38,6 +40,7 @@ import { MoveSheet } from "./MoveSheet";
 import { TeamFilter } from "./TeamFilter";
 import { MemberOptions } from "./MemberOptions";
 import { NewTaskDialog } from "./NewTaskDialog";
+import { BlockDialog } from "./BlockDialog";
 import { TeamDot } from "./ui";
 import { SearchBox } from "./SearchBox";
 import { taskMatcher } from "@/lib/search";
@@ -116,6 +119,8 @@ export function KanbanBoard({
   const [teamFilter, setTeamFilter] = useState<string[]>(() => initialTeamFilter(initialTeamId, teams));
   const [assigneeFilter, setAssigneeFilter] = useState<string | "ALL">("ALL");
   const [flagging, setFlagging] = useState<string | null>(null);
+  // A task being moved to Blocked, while the block dialog asks why and what on.
+  const [blockingId, setBlockingId] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -311,6 +316,25 @@ export function KanbanBoard({
     return tasks.find((t) => t.id === id)?.status ?? null;
   }
 
+  /*
+   * Where a dragged card would land. The column under the pointer decides
+   * the column; within it, the nearest card decides the place. Measuring
+   * from the card's corners alone sent a card dropped in the middle of an
+   * empty column -- Blocked, usually -- to the next column along, whose cards
+   * were nearer the dragged card's far edge. Keyboard drags have no pointer
+   * and keep that rule.
+   */
+  const collisions: CollisionDetection = (args) => {
+    const columns = args.droppableContainers.filter((c) => BOARD_COLUMNS.some((b) => b.status === c.id));
+    const under = pointerWithin({ ...args, droppableContainers: columns });
+    if (under.length === 0) return closestCorners(args);
+    const status = String(under[0].id);
+    return closestCorners({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((c) => statusOf(String(c.id)) === status),
+    });
+  };
+
   function handleDragStart(event: DragStartEvent) {
     if (!canEdit) return;
     // Snapshot before any optimistic move so a failed write rolls back to the
@@ -360,6 +384,12 @@ export function KanbanBoard({
 
     const moved = tasks.find((t) => t.id === taskId);
     if (!moved) return;
+    // Blocking asks why and what on first; until then the card stays put.
+    if (targetStatus === "BLOCKED" && previous.find((t) => t.id === taskId)?.status !== "BLOCKED") {
+      setTasks(previous);
+      setBlockingId(taskId);
+      return;
+    }
     if (moved.status === targetStatus && moved.boardOrder === boardOrder) return;
 
     setTasks((current) =>
@@ -380,6 +410,10 @@ export function KanbanBoard({
       const previous = tasks.map((t) => ({ ...t }));
       const moved = previous.find((t) => t.id === taskId);
       if (!moved || moved.status === targetStatus) return;
+      if (targetStatus === "BLOCKED") {
+        setBlockingId(taskId);
+        return;
+      }
 
       const column = (columns.get(targetStatus) ?? []).filter((t) => t.id !== taskId);
       const boardOrder = orderBetween(undefined, column[0]?.boardOrder);
@@ -728,7 +762,7 @@ export function KanbanBoard({
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={collisions}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
@@ -765,7 +799,8 @@ export function KanbanBoard({
               onOpen={setOpenTaskId}
               onToggleFlag={canEdit ? toggleFlag : undefined}
               onMove={canEdit ? setMoving : undefined}
-              onAdd={canEdit ? () => setCreatingIn(column.status) : undefined}
+              // A task is blocked by moving it there, saying why and on what.
+              onAdd={canEdit && column.status !== "BLOCKED" ? () => setCreatingIn(column.status) : undefined}
             />
           ))}
         </div>
@@ -798,6 +833,7 @@ export function KanbanBoard({
           onClose={() => setOpenTaskId(null)}
           onSaved={handleTaskSaved}
           onChanged={handleTaskChanged}
+          onBlock={canEdit ? () => setBlockingId(openTask.id) : undefined}
           onDeleted={canEdit && canDelete ? handleTaskDeleted : undefined}
         />
       ) : null}
@@ -811,6 +847,20 @@ export function KanbanBoard({
           onMove={(status) => {
             void moveToStatus(movingTask.id, status);
             setMoving(null);
+          }}
+        />
+      ) : null}
+
+      {canEdit && blockingId && tasks.some((t) => t.id === blockingId) ? (
+        <BlockDialog
+          task={tasks.find((t) => t.id === blockingId)!}
+          teams={teams}
+          members={members}
+          allTasks={tasks}
+          onCancel={() => setBlockingId(null)}
+          onBlocked={() => {
+            setBlockingId(null);
+            router.refresh();
           }}
         />
       ) : null}

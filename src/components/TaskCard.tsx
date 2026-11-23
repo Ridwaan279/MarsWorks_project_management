@@ -5,7 +5,8 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { MemberView, TaskView, TeamView } from "@/lib/project";
 import { behindPlanDays, type ScheduledTask } from "@/lib/schedule";
-import { NameChips, ProgressBar, TeamDot } from "./ui";
+import { NameChips, PRIORITY_COLOUR, ProgressBar, TeamDot } from "./ui";
+import { PRIORITY_LABEL } from "@/lib/domain";
 import { useCoarsePointer } from "./media";
 import { checklistProgress } from "@/lib/progress";
 import { peopleOn } from "@/lib/names";
@@ -44,12 +45,14 @@ export interface TaskCardProps {
  * boxShadow replaces Tailwind's ring utilities wholesale, so none of them can
  * be left to a class.
  */
-function cardStyle(colour: string, behind: boolean, mine = false): React.CSSProperties {
+function cardStyle(colour: string, behind: boolean, mine = false, outline?: string): React.CSSProperties {
   const rail = `inset 3px 0 0 0 ${colour}`;
   const ring = behind ? "0 0 0 1px color-mix(in srgb, var(--color-danger) 55%, transparent)" : null;
   return {
     backgroundColor: `color-mix(in srgb, ${colour} 7%, var(--color-card))`,
-    borderColor: `color-mix(in srgb, ${colour} 70%, var(--color-border))`,
+    // A blocker is outlined in its priority's colour instead; the rail
+    // still says whose it is.
+    borderColor: outline ?? `color-mix(in srgb, ${colour} 70%, var(--color-border))`,
     // Listed first is drawn on top, so the behind-plan ring stays visible
     // along the inside of the glow.
     boxShadow: [rail, ring, mine ? MINE_GLOW : null].filter(Boolean).join(", "),
@@ -84,14 +87,20 @@ export function TaskCardBody({
     viewerId,
   );
   const mine = people.some((p) => p.you);
+  // Blocking another task (see src/lib/blocking.ts): coloured by priority, so
+  // how urgently it needs clearing shows at a glance.
+  const blocking =
+    task.status === "DONE" || task.status === "IN_REVIEW" ? [] : task.blocks.filter((b) => b.blocking);
+  const blockerColour = blocking.length > 0 ? PRIORITY_COLOUR[task.priority] : undefined;
 
   return (
     <div
       data-mine={mine || undefined}
+      data-blocker={blockerColour ? task.priority : undefined}
       style={
         task.flagged
           ? { boxShadow: `inset 3px 0 0 0 ${team.colour}${mine ? `, ${MINE_GLOW}` : ""}` }
-          : cardStyle(team.colour, behind > 0, mine)
+          : cardStyle(team.colour, behind > 0, mine, blockerColour)
       }
       className={clsx(
         "space-y-2.5 rounded-lg border p-3 pl-3.5 text-left transition-[transform,box-shadow] duration-200 group-hover/card:-translate-y-px",
@@ -210,7 +219,15 @@ export function TaskCardBody({
               {task.links.length}
             </span>
           ) : null}
-          {task.priority === "CRITICAL" ? (
+          {blockerColour ? (
+            <span
+              title={`Blocking ${blocking.map((b) => `${b.key} ${b.title}`).join(", ")}. ${PRIORITY_LABEL[task.priority]} priority. When this is Done or In review, ${blocking.length === 1 ? "it goes" : "they go"} back to In progress.`}
+              className="rounded px-1 font-medium"
+              style={{ color: blockerColour, backgroundColor: `color-mix(in srgb, ${blockerColour} 16%, transparent)` }}
+            >
+              Blocking {blocking.length === 1 ? blocking[0].key : `${blocking.length} tasks`} · {PRIORITY_LABEL[task.priority]}
+            </span>
+          ) : task.priority === "CRITICAL" ? (
             <span title="Critical priority" className="rounded bg-danger/15 px-1 font-medium text-danger">
               Critical
             </span>

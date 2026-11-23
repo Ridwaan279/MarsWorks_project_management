@@ -8,6 +8,8 @@ import { HelpButton } from "@/components/HelpButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { currentViewer } from "@/lib/auth/session";
+import { alertsFor, NO_ALERTS } from "@/lib/alerts";
+import { AlertsButton, AlertsDialog } from "@/components/Alerts";
 import { ROLE_LABEL } from "@/lib/auth/roles";
 
 /*
@@ -59,6 +61,14 @@ export default async function RootLayout({
   // The way around the site is for people who are in it. On the sign-in
   // page, before anyone has signed in, the header is just the name.
   const inside = viewer.mode === "off" || viewer.member !== null || viewer.guest || viewer.stale;
+  // Blocked work for leads, and notices for anyone; see lib/alerts.ts. Never
+  // allowed to take a page down with it.
+  const alerts = viewer.member
+    ? await alertsFor(viewer.member).catch((error) => {
+        console.error("Could not load alerts", error);
+        return NO_ALERTS;
+      })
+    : NO_ALERTS;
   return (
     <html
       lang="en"
@@ -106,6 +116,7 @@ export default async function RootLayout({
             {inside ? <NavLinks /> : null}
             <div className="ml-auto flex shrink-0 items-center gap-2">
               <ThemeToggle />
+              {viewer.member ? <AlertsButton count={alerts.blockers.length + alerts.notices.length} /> : null}
               {inside && !viewer.guest ? <HelpButton /> : null}
               {viewer.guest ? (
                 <>
@@ -147,6 +158,7 @@ export default async function RootLayout({
             every drawer and dialog opened from a page would sit under the
             header (z-40) whatever its own z-index, hiding the drawer's top
             row -- its Close and Delete buttons -- behind the header. */}
+        {viewer.member ? <AlertsDialog alerts={alerts} memberId={viewer.member.id} /> : null}
         <main id="content" className="relative">
           {children}
         </main>

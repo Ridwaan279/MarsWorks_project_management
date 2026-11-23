@@ -85,6 +85,9 @@ model Member {
   team          Team?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
   assignedTasks Task[] @relation("TaskAssignee")
   tasks         Task[] @relation("TaskAssignees")
+  /// Tasks this member moved to Blocked, still blocked.
+  blockedTasks  Task[] @relation("TaskBlockedBy")
+  notifications Notification[]
 
   @@index([teamId])
 }
@@ -177,7 +180,11 @@ model Task {
   flagged    Boolean @default(false)
   /// Why this task was flagged, captured at the moment it was raised. Shown
   /// wherever the flag is, so "needs attention" says what kind of attention.
+  /// Moving a task to Blocked flags it, and this holds why it is blocked.
   flagReason String?
+  /// Who moved the task to Blocked, to be told when it is unblocked. Null
+  /// once it is, and for a task blocked from the Google Sheet.
+  blockedByMemberId String?
 
   /// The synced fields' values as last known to match in both the app and the
   /// Google Sheet. The sync compares each side against this to tell which one
@@ -201,6 +208,7 @@ model Task {
 
   team       Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
   assignee   Member?     @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  blockedByMember Member? @relation("TaskBlockedBy", fields: [blockedByMemberId], references: [id], onDelete: SetNull)
   /// Everyone the task is assigned to; any number, from any sub-team.
   assignees  Member[]    @relation("TaskAssignees")
   milestone  Milestone?  @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
@@ -214,6 +222,8 @@ model Task {
   blocks    TaskDependency[] @relation("Predecessor")
   /// Edges where another task must finish before this one can start.
   blockedBy TaskDependency[] @relation("Successor")
+
+  notifications Notification[]
 
   @@index([teamId])
   @@index([assigneeId])
@@ -260,6 +270,11 @@ model TaskDependency {
   /// Mandatory gap in days between predecessor finish and successor start
   /// (curing, shipping, procurement).
   lagDays       Int      @default(0)
+  /// Made by blocking the successor: the predecessor is what it is blocked
+  /// on. When every such predecessor is Done or In review, the successor is
+  /// unblocked and this goes back to false, leaving an ordinary dependency.
+  /// See src/lib/blocking.ts.
+  blocking      Boolean  @default(false)
   note          String?
   createdAt     DateTime @default(now())
 
@@ -317,4 +332,23 @@ model SheetSyncRun {
   summary    Json?
 
   @@index([startedAt])
+}
+
+/// Something to tell one member the next time they open the site, such as a
+/// task of theirs no longer being blocked.
+model Notification {
+  id        String    @id @default(cuid())
+  memberId  String
+  /// In words, ready to show.
+  message   String
+  /// The task it is about, to link to; the notice goes with the task.
+  taskId    String?
+  createdAt DateTime  @default(now())
+  /// When they dismissed it. Shown until then.
+  seenAt    DateTime?
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  task   Task?  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, seenAt])
 }

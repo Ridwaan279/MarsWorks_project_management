@@ -6,6 +6,7 @@ import { pokeSheet } from "@/lib/sheets/poke";
 import { currentViewer, mayDeleteTasks } from "@/lib/auth/session";
 import { deriveProgress } from "@/lib/progress";
 import { PROJECT_STAGES, TASK_PRIORITIES, TASK_STATUSES } from "@/lib/domain";
+import { blockedBehind, releaseBlocked, unblock } from "@/lib/blocking";
 
 const updateTask = z
   .object({
@@ -82,6 +83,7 @@ export async function PATCH(
       : {}),
   };
 
+  const actor = (await currentViewer()).member;
   try {
     const task = await prisma.$transaction(async (tx) => {
       const existing = await tx.task.findUnique({
@@ -94,6 +96,9 @@ export async function PATCH(
         },
       });
       if (!existing) throw new Error("NOT_FOUND");
+      // Blocked needs a reason and what it waits on, which the block route
+      // takes; a bare status change would skip both.
+      if (data.status === "BLOCKED" && existing.status !== "BLOCKED") throw new Error("USE_BLOCK");
 
       // Progress follows status and the checklist; see deriveProgress. A
       // progress value in the request is only honoured for a task with no
@@ -119,16 +124,32 @@ export async function PATCH(
       if (becomesDone) timestamps.actualEnd = new Date();
       else if (data.status !== undefined) timestamps.actualEnd = null;
 
-      return tx.task.update({
+      const updated = await tx.task.update({
         where: { id },
         data: { ...data, progress, ...timestamps },
       });
+
+      // Blocking: see src/lib/blocking.ts. Moved out of Blocked by hand, it is
+      // unblocked; and a task this one was blocking may now be free.
+      if (data.status !== undefined && data.status !== existing.status) {
+        if (existing.status === "BLOCKED") {
+          await unblock(tx, id, { kind: "moved", to: data.status, byName: actor?.name ?? null }, actor?.id);
+        }
+        await releaseBlocked(tx, await blockedBehind(tx, [id]), actor?.id);
+      }
+      return updated;
     });
     // Only fields the Google Sheet holds are worth a sync; reordering a card
     // within its column changes nothing the sheet can see.
     if (SHEET_FIELDS.some((field) => field in parsed.data)) pokeSheet("website");
     return NextResponse.json(task);
   } catch (error) {
+    if (error instanceof Error && error.message === "USE_BLOCK") {
+      return NextResponse.json(
+        { error: "Say why it is blocked and what it is waiting on: move it to Blocked on the board." },
+        { status: 400 },
+      );
+    }
     console.error("Failed to update task", error);
     return NextResponse.json({ error: "Could not update task" }, { status: 404 });
   }
@@ -149,9 +170,13 @@ export async function DELETE(
     );
   }
   const { id } = await context.params;
+  const actor = (await currentViewer()).member;
   try {
     await prisma.$transaction(async (tx) => {
+      // Anything this task was blocking may be free once it has gone.
+      const waiting = await blockedBehind(tx, [id]);
       const removed = await tx.task.delete({ where: { id } });
+      await releaseBlocked(tx, waiting, actor?.id);
       // Remembered so the task's row is removed from the Google Sheet rather
       // than read back in as a new task, and so its key is never reissued.
       await tx.syncTombstone.upsert({

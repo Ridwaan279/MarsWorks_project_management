@@ -10,9 +10,14 @@ It is deliberately **not** a Jira clone. It does four things:
   contains today, plus anything unfinished whose end date has passed.
   **All Tasks** drops the window. Cards are tinted by sub-team, and the flag
   on each card is a button: flagged tasks turn red and are listed on the
-  Sub-teams page. Creating a task asks for everything up front, including
-  dates and links; viewing one shows the essentials with the rest behind
-  disclosures.
+  Sub-teams page. Moving a task to **Blocked** asks why, and what it is
+  waiting on: tasks made there and then (with a sub-team, priority and
+  people) or ones that already exist. The task is flagged with the reason,
+  its blockers are coloured by priority, their sub-team leads see them each
+  time they open the site, and once every blocker is Done or In review the
+  task goes back to In progress and its people are told. Creating a task
+  asks for everything up front, including dates and links; viewing one shows
+  the essentials with the rest behind disclosures.
 - **Timeline** — a Gantt view grouped by sub-team and workstream, filterable to
   one sub-team, with milestone markers and the critical path highlighted. The
   range selector covers Current (a month back, three months on), Upcoming, and

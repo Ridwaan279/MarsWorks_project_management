@@ -19,7 +19,12 @@ const createTask = z
     title: z.string().trim().min(1).max(200),
     description: z.string().max(10_000).optional(),
     teamId: z.string().min(1),
-    status: z.enum(TASK_STATUSES).default("BACKLOG"),
+    // Not Blocked: that needs a reason and what it waits on, given by moving
+    // the task there once it exists (src/lib/blocking.ts).
+    status: z
+      .enum(TASK_STATUSES)
+      .refine((s) => s !== "BLOCKED", "A new task cannot start Blocked: create it, then move it to Blocked.")
+      .default("BACKLOG"),
     priority: z.enum(TASK_PRIORITIES).default("MEDIUM"),
     assigneeIds: z.array(z.string().min(1)).max(40).optional(),
     milestoneId: z.string().nullable().optional(),

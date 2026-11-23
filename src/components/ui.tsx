@@ -40,12 +40,43 @@ export function HealthPill({
   );
 }
 
+/**
+ * Priority as a colour, hotter as it gets more urgent: grey, blue, amber,
+ * red. A blocker's colour on the board is its priority, so how urgently it
+ * needs clearing shows at a glance. Each is a theme colour with a light-theme
+ * variant that stays readable as text.
+ */
+export const PRIORITY_COLOUR: Record<TaskPriority, string> = {
+  LOW: "var(--color-text-muted)",
+  MEDIUM: "var(--color-information)",
+  HIGH: "var(--color-warning)",
+  CRITICAL: "var(--color-danger)",
+};
+
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
   LOW: "text-ink-3",
-  MEDIUM: "text-accent",
+  MEDIUM: "text-info",
   HIGH: "text-warning",
   CRITICAL: "text-danger",
 };
+
+const PRIORITY_WORD: Record<TaskPriority, string> = { LOW: "Low", MEDIUM: "Medium", HIGH: "High", CRITICAL: "Critical" };
+
+/** A priority in its colour, e.g. on a blocker. */
+export function PriorityPill({ priority, prefix, className }: { priority: TaskPriority; prefix?: string; className?: string }) {
+  return (
+    <span
+      className={clsx("inline-flex items-center rounded px-1.5 py-px text-[11px] font-medium whitespace-nowrap", className)}
+      style={{
+        color: PRIORITY_COLOUR[priority],
+        backgroundColor: `color-mix(in srgb, ${PRIORITY_COLOUR[priority]} 16%, transparent)`,
+      }}
+    >
+      {prefix ? `${prefix} · ` : ""}
+      {PRIORITY_WORD[priority]}
+    </span>
+  );
+}
 
 export function PriorityFlag({ priority }: { priority: TaskPriority }) {
   return (

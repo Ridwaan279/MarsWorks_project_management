@@ -86,7 +86,7 @@ const GUIDES: Record<string, Guide> = {
       },
       {
         heading: "Move and flag",
-        body: "Drag a card between columns to change its status. The flag on a card raises it for attention: flagged cards turn red and are listed on the Sub-teams page. The bar down the left of each card is its sub-team’s colour.",
+        body: "Drag a card between columns to change its status. Moving one to Blocked asks why and what it is waiting on; it goes back to In progress by itself once those are done or in review. The flag on a card raises it for attention: flagged cards turn red and are listed on the Sub-teams page. The bar down the left of each card is its sub-team’s colour.",
         target: "[data-tour='card']",
       },
     ],
