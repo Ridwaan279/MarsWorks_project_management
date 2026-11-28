@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ALLOWED_DOMAIN, authSetup, safeNext } from "@/lib/auth/config";
 import { currentViewer } from "@/lib/auth/session";
+import { BuiltBy } from "@/components/BuiltBy";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function LoginPage({
   const message = params.error ? (MESSAGES[params.error] ?? MESSAGES.failed) : null;
 
   return (
-    <div className="grid min-h-[calc(100dvh-3.5rem)] place-items-center px-4 py-10">
+    <div className="flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center gap-5 px-4 py-10">
       <div className="w-full max-w-sm space-y-6 rounded-2xl border border-line bg-panel p-6 shadow-xl shadow-black/20">
         <div className="space-y-3 text-center">
           <Image
@@ -90,6 +91,7 @@ export default async function LoginPage({
           </Link>
         </p>
       </div>
+      <BuiltBy />
     </div>
   );
 }

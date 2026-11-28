@@ -1,4 +1,5 @@
 import { Avatar } from "./ui";
+import { BuiltBy } from "./BuiltBy";
 
 /**
  * Who is signed in, and the way out. A native <details> so it opens without
@@ -29,6 +30,8 @@ export function UserMenu({ name, role, email }: { name: string; role: string; em
             Sign out
           </button>
         </form>
+        {/* The header shows this on wide screens; here it is for the rest. */}
+        <BuiltBy display="flex xl:hidden" className="border-t border-line px-3 py-2" />
       </div>
     </details>
   );

@@ -10,6 +10,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { currentViewer } from "@/lib/auth/session";
 import { alertsFor, NO_ALERTS } from "@/lib/alerts";
 import { AlertsButton, AlertsDialog } from "@/components/Alerts";
+import { BuiltBy } from "@/components/BuiltBy";
 import { ROLE_LABEL } from "@/lib/auth/roles";
 
 /*
@@ -115,6 +116,8 @@ export default async function RootLayout({
             </Link>
             {inside ? <NavLinks /> : null}
             <div className="ml-auto flex shrink-0 items-center gap-2">
+              {/* Where there is room; narrower screens have it in the account menu. */}
+              {inside ? <BuiltBy display="hidden xl:flex" className="mr-2" /> : null}
               <ThemeToggle />
               {viewer.member ? <AlertsButton count={alerts.blockers.length + alerts.notices.length} /> : null}
               {inside && !viewer.guest ? <HelpButton /> : null}
